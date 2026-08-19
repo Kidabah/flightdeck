@@ -14,7 +14,7 @@
 </script>
 <style>
 /* ================================================================== */
-/*  b624 — MakerDeck STL Painter  (tabbed layout)                     */
+/*  b625 — MakerDeck STL Painter  (tabbed layout)                     */
 /* ================================================================== */
 
 /* -- Reset & Vars -------------------------------------------------- */
@@ -166,6 +166,10 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
 .form-group{margin:8px 0}
 .form-label{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:3px}
 .form-label .value{color:var(--accent);font-family:'JetBrains Mono',monospace}
+.form-label .value-input{width:58px;height:21px;padding:1px 5px;text-align:right;
+  color:var(--accent);font-family:'JetBrains Mono',monospace;font-size:11px;
+  background:var(--panel-2);border:1px solid var(--border);border-radius:4px}
+.form-label .value-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(62,207,255,.12)}
 
 .check-row{display:flex;align-items:center;gap:6px;font-size:12px;margin:6px 0;cursor:pointer}
 .check-row input{accent-color:var(--accent)}
@@ -322,12 +326,12 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
     <a class="logo" href="index.html" title="MakerDeck home">Maker<span>Deck</span> · STL Painter</a>
     <nav class="tool-nav" aria-label="MakerDeck tools">
       <a href="index.html">Container</a>
-      <a href="painter.html?v=624" class="active" aria-current="page">STL Painter</a>
+      <a href="painter.html?v=625" class="active" aria-current="page">STL Painter</a>
       <a href="paper3d.html">Paper3D</a>
       <a href="meshprep.html">Mesh Prep</a>
       <a href="chop.html">Chop</a>
     </nav>
-    <div class="build">b624</div>
+    <div class="build">b625</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -507,11 +511,11 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
         </div>
         <div class="opts-panel" id="artOpts">
           <div class="form-group">
-            <div class="form-label"><span>Size (mm)</span><span class="value" id="artSizeVal">48</span></div>
+            <div class="form-label"><span>Size (mm)</span><input class="value-input" id="artSizeVal" type="number" min="8" max="180" step="1" value="48" aria-label="Artwork size in millimetres"></div>
             <input type="range" id="artSize" min="8" max="180" step="1" value="48">
           </div>
           <div class="form-group">
-            <div class="form-label"><span>Rotation</span><span class="value" id="artRotVal">0°</span></div>
+            <div class="form-label"><span>Rotation (°)</span><input class="value-input" id="artRotVal" type="number" min="-180" max="180" step="1" value="0" aria-label="Artwork rotation in degrees"></div>
             <input type="range" id="artRot" min="-180" max="180" step="1" value="0">
           </div>
           <div class="form-group">
@@ -529,7 +533,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
             <input type="checkbox" id="artTraceInvert">
             <span>Invert (light logo on dark)</span>
           </label>
-          <p class="flow-desc" id="artPlaceHint">Click the model to position the logo. Drag the blue ring or use Rotation, then stamp it.</p>
+          <p class="flow-desc" id="artPlaceHint">Click the model to position the logo. Drag its centre target to move, or blue ring to rotate.</p>
           <div class="btn-row">
             <button class="btn btn-primary" id="artPlaceBtn" disabled>Place on model</button>
             <button class="btn" id="artCancelPlaceBtn" hidden>Cancel position</button>
@@ -689,7 +693,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b624</span>
+    <span>MakerDeck · STL Painter b625</span>
   </footer>
 </div>
 
@@ -789,7 +793,9 @@ const art = {
   placement: null,
   lastPlacement: null,
   rotateHandle: null,
+  moveHandle: null,
   rotationDrag: null,
+  moveDrag: null,
 };
 
 /* ================================================================== */
@@ -1250,6 +1256,7 @@ function clearSceneModel() {
   art.placement = null;
   art.lastPlacement = null;
   art.rotationDrag = null;
+  art.moveDrag = null;
   S.mesh = null;
   S.wireframe = null;
   S.hiddenManual = null;
@@ -1579,11 +1586,18 @@ function disposeArtPreview() {
     art.rotateHandle.material?.dispose?.();
     art.rotateHandle = null;
   }
+  if (art.moveHandle) {
+    scene.remove(art.moveHandle);
+    art.moveHandle.geometry?.dispose?.();
+    art.moveHandle.material?.dispose?.();
+    art.moveHandle = null;
+  }
 }
 
 function hideArtPreview() {
   if (art.preview) art.preview.visible = false;
   if (art.rotateHandle) art.rotateHandle.visible = false;
+  if (art.moveHandle) art.moveHandle.visible = false;
 }
 
 function artStampFrameFromHit(hit, rotationDeg = artRotationDeg()) {
@@ -1631,6 +1645,19 @@ function ensureArtRotateHandle() {
   return art.rotateHandle;
 }
 
+function ensureArtMoveHandle() {
+  if (art.moveHandle) return art.moveHandle;
+  const geometry = new THREE.RingGeometry(0.45, 1, 28);
+  const material = new THREE.MeshBasicMaterial({
+    color: 0x25d8ff, transparent: true, opacity: 0.92,
+    depthTest: false, depthWrite: false, side: THREE.DoubleSide,
+  });
+  art.moveHandle = new THREE.Mesh(geometry, material);
+  art.moveHandle.renderOrder = 4;
+  scene.add(art.moveHandle);
+  return art.moveHandle;
+}
+
 function showArtPreviewForFrame(frame, { adjustable = false } = {}) {
   if (!art.raster || !S.mesh || !frame) { hideArtPreview(); return; }
   const { widthMm, heightMm } = artSizeMm();
@@ -1658,13 +1685,19 @@ function showArtPreviewForFrame(frame, { adjustable = false } = {}) {
 
   if (adjustable) {
     const ring = ensureArtRotateHandle();
+    const move = ensureArtMoveHandle();
     const radius = Math.hypot(widthMm * 0.5, heightMm * 0.5) + 7;
     ring.quaternion.copy(art.preview.quaternion);
     ring.position.copy(origin).addScaledVector(normal, 0.48);
     ring.scale.setScalar(radius);
     ring.visible = true;
+    move.quaternion.copy(art.preview.quaternion);
+    move.position.copy(origin).addScaledVector(normal, 0.72);
+    move.scale.setScalar(Math.max(4.5, Math.min(8, Math.min(widthMm, heightMm) * 0.12)));
+    move.visible = true;
   } else if (art.rotateHandle) {
     art.rotateHandle.visible = false;
+    if (art.moveHandle) art.moveHandle.visible = false;
   }
 }
 
@@ -1689,13 +1722,13 @@ function syncArtPlacementUI() {
   const hasStamp = S.stampTri0 != null && S.nTri > S.stampTri0;
   if (art.placement) {
     placeBtn.textContent = 'Stamp artwork';
-    if (hint) hint.textContent = 'Artwork is positioned. Drag the blue ring or use Rotation, then stamp it.';
+    if (hint) hint.textContent = 'Drag the centre target to move. Drag the blue ring or use Rotation, then stamp it.';
   } else if (art.lastPlacement && hasStamp) {
     placeBtn.textContent = 'Adjust artwork';
     if (hint) hint.textContent = 'Reopen the stamped artwork to move or rotate it without retracing.';
   } else {
     placeBtn.textContent = 'Place on model';
-    if (hint) hint.textContent = 'Click the model to position the logo. Drag the blue ring or use Rotation, then stamp it.';
+    if (hint) hint.textContent = 'Click the model to position the logo. Drag its centre target to move, or blue ring to rotate.';
   }
   if (cancelBtn) cancelBtn.hidden = !art.placement;
 }
@@ -1704,14 +1737,14 @@ function setArtRotation(value) {
   const rotationDeg = ((Number(value) + 180) % 360 + 360) % 360 - 180;
   const input = $('artRot');
   if (input) input.value = String(rotationDeg);
-  if ($('artRotVal')) $('artRotVal').textContent = `${Math.round(rotationDeg)}°`;
+  if ($('artRotVal')) $('artRotVal').value = String(Math.round(rotationDeg));
   if (art.placement) {
     art.placement.rotationDeg = rotationDeg;
     updatePlacedArtPreview();
   }
 }
 
-function setArtPlacementAtHit(hit) {
+function setArtPlacementAtHit(hit, { announce = true } = {}) {
   const normal = faceNormalLocal(hit.faceIndex);
   art.placement = {
     origin: [hit.point.x, hit.point.y, hit.point.z],
@@ -1720,7 +1753,7 @@ function setArtPlacementAtHit(hit) {
   };
   updatePlacedArtPreview();
   syncArtPlacementUI();
-  setStatus('Artwork positioned — drag the blue ring or use Rotation, then click Stamp artwork', 'idle');
+  if (announce) setStatus('Artwork positioned — drag the centre target to move, or blue ring to rotate', 'idle');
 }
 
 function resumeArtPlacement() {
@@ -1730,12 +1763,13 @@ function resumeArtPlacement() {
   setTool('art', { sticky: true });
   updatePlacedArtPreview();
   syncArtPlacementUI();
-  setStatus('Artwork reopened — drag the blue ring to rotate it, or click elsewhere to move it', 'idle');
+  setStatus('Artwork reopened — drag the centre target to move it or blue ring to rotate it', 'idle');
   return true;
 }
 
 function cancelArtPlacement() {
   art.rotationDrag = null;
+  art.moveDrag = null;
   art.placement = null;
   hideArtPreview();
   syncArtPlacementUI();
@@ -1755,6 +1789,13 @@ function artRotationHandleAtClient(clientX, clientY) {
   art.rotateHandle.updateMatrixWorld(true);
   setRayFromClient(clientX, clientY);
   return raycaster.intersectObject(art.rotateHandle, false)[0] || null;
+}
+
+function artMoveHandleAtClient(clientX, clientY) {
+  if (!art.placement || !art.moveHandle?.visible) return null;
+  art.moveHandle.updateMatrixWorld(true);
+  setRayFromClient(clientX, clientY);
+  return raycaster.intersectObject(art.moveHandle, false)[0] || null;
 }
 
 function artPointerAngleAtClient(clientX, clientY) {
@@ -1798,6 +1839,33 @@ function endArtRotationDrag(e, { keep = true } = {}) {
   releaseViewportPointer(pointerId);
   syncOrbitLock();
   if (keep) setStatus('Artwork rotated — click Stamp artwork when it looks right', 'idle');
+  return true;
+}
+
+function startArtMoveDrag(e) {
+  if (!art.placement) return false;
+  art.moveDrag = { pointerId: e.pointerId };
+  controls.enabled = false;
+  try { viewport.setPointerCapture?.(e.pointerId); } catch {}
+  setStatus('Moving artwork — drag across the fabric, then release to keep it', 'working');
+  return true;
+}
+
+function moveArtMoveDrag(e) {
+  const drag = art.moveDrag;
+  if (!drag || drag.pointerId !== e.pointerId) return false;
+  const hit = pickHitAtClient(e.clientX, e.clientY);
+  if (hit) setArtPlacementAtHit(hit, { announce: false });
+  return true;
+}
+
+function endArtMoveDrag(e, { keep = true } = {}) {
+  if (!art.moveDrag || (e?.pointerId != null && art.moveDrag.pointerId !== e.pointerId)) return false;
+  const pointerId = art.moveDrag.pointerId;
+  art.moveDrag = null;
+  releaseViewportPointer(pointerId);
+  syncOrbitLock();
+  if (keep) setStatus('Artwork moved — drag the blue ring to rotate, then Stamp artwork', 'idle');
   return true;
 }
 
@@ -1894,6 +1962,7 @@ function stampArtworkForFrame(frame, placement) {
       art.lastPlacement = cloneArtPlacement(placement);
       art.placement = null;
       art.rotationDrag = null;
+      art.moveDrag = null;
       hideArtPreview();
       syncArtPlacementUI();
       setTool('orbit', { sticky: true });
@@ -2009,6 +2078,8 @@ async function loadArtworkFile(file) {
     art.trace = null;
     art.placement = null;
     art.lastPlacement = null;
+    art.rotationDrag = null;
+    art.moveDrag = null;
     if (art.texture) { art.texture.dispose(); art.texture = null; }
     disposeArtPreview();
     if (art.mode === 'svg' && fills.length) ensureSlotsForHexes(fills);
@@ -2033,6 +2104,7 @@ function clearArtwork() {
   art.placement = null;
   art.lastPlacement = null;
   art.rotationDrag = null;
+  art.moveDrag = null;
   if (art.texture) { art.texture.dispose(); art.texture = null; }
   disposeArtPreview();
   const input = $('artFileInput');
@@ -2990,7 +3062,7 @@ function setBrushStroke(mode) {
 
 function syncOrbitLock() {
   const locked = !!orbitLockCheck?.checked;
-  const stroking = !!S.brushStrokeActive || !!S._smartClick || !!boxDrag || !!lassoDrag || !!art.rotationDrag;
+  const stroking = !!S.brushStrokeActive || !!S._smartClick || !!boxDrag || !!lassoDrag || !!art.rotationDrag || !!art.moveDrag;
   // During an active paint stroke, kill OrbitControls entirely so it cannot steal the pointer.
   if (stroking && !S.orbitOverride) {
     controls.enabled = false;
@@ -3014,9 +3086,10 @@ function releaseViewportPointer(id) {
 }
 
 function resetInteraction(msg) {
-  const pids = [S.brushStrokeActive?.pointerId, S._smartClick?.pointerId, boxDrag?.pointerId, lassoDrag?.pointerId, art.rotationDrag?.pointerId].filter(v => v != null);
+  const pids = [S.brushStrokeActive?.pointerId, S._smartClick?.pointerId, boxDrag?.pointerId, lassoDrag?.pointerId, art.rotationDrag?.pointerId, art.moveDrag?.pointerId].filter(v => v != null);
   S.brushStrokeActive = null; S._smartClick = null; S.orbitOverride = false;
   art.rotationDrag = null;
+  art.moveDrag = null;
   if (boxDrag) endBoxDrag();
   if (lassoDrag) endLassoDrag();
   for (const id of pids) releaseViewportPointer(id);
@@ -3556,13 +3629,25 @@ $('artTraceThreshold')?.addEventListener('input', () => {
   scheduleArtTrace();
 });
 $('artTraceInvert')?.addEventListener('change', () => retraceArtwork());
-$('artSize')?.addEventListener('input', () => {
-  $('artSizeVal').textContent = String(Math.round(parseFloat($('artSize').value) || 48));
+function setArtSize(value) {
+  const size = Math.max(8, Math.min(180, Math.round(parseFloat(value) || 48)));
+  if ($('artSize')) $('artSize').value = String(size);
+  if ($('artSizeVal')) $('artSizeVal').value = String(size);
   syncArtMeta();
   updatePlacedArtPreview();
+}
+
+$('artSize')?.addEventListener('input', () => setArtSize($('artSize').value));
+$('artSizeVal')?.addEventListener('change', () => setArtSize($('artSizeVal').value));
+$('artSizeVal')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); setArtSize(e.currentTarget.value); e.currentTarget.blur(); }
 });
 $('artRot')?.addEventListener('input', () => {
   setArtRotation(parseFloat($('artRot').value) || 0);
+});
+$('artRotVal')?.addEventListener('change', () => setArtRotation($('artRotVal').value));
+$('artRotVal')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); setArtRotation(e.currentTarget.value); e.currentTarget.blur(); }
 });
 document.querySelectorAll('[data-artmode]').forEach((b) => {
   b.addEventListener('click', () => {
@@ -3797,6 +3882,10 @@ viewport.addEventListener('pointerdown', (e) => {
       setStatus('Drop a PNG, JPG, or SVG first', 'idle');
       return;
     }
+    if (artMoveHandleAtClient(e.clientX, e.clientY)) {
+      startArtMoveDrag(e);
+      return;
+    }
     if (artRotationHandleAtClient(e.clientX, e.clientY)) {
       startArtRotationDrag(e);
       return;
@@ -3867,6 +3956,7 @@ viewport.addEventListener('pointerdown', (e) => {
 }, true);
 
 viewport.addEventListener('pointermove', (e) => {
+  if (moveArtMoveDrag(e)) return;
   if (moveArtRotationDrag(e)) return;
   if (S.brushStrokeActive) {
     moveBrushStroke(e);
@@ -3909,7 +3999,8 @@ viewport.addEventListener('pointermove', (e) => {
   }
   if (S.tool === 'art') {
     if (!art.placement) updateArtPreviewAtHit(pickHitAtClient(e.clientX, e.clientY));
-    renderer.domElement.style.cursor = artRotationHandleAtClient(e.clientX, e.clientY) ? 'grab' : '';
+    renderer.domElement.style.cursor = artMoveHandleAtClient(e.clientX, e.clientY) ? 'move'
+      : artRotationHandleAtClient(e.clientX, e.clientY) ? 'grab' : '';
     return;
   }
   if (S.tool === 'edge') {
@@ -3924,6 +4015,7 @@ viewport.addEventListener('pointermove', (e) => {
 });
 
 function finishPointerUp(e) {
+  if (endArtMoveDrag(e)) return true;
   if (endArtRotationDrag(e)) return true;
   if (S.brushStrokeActive && pointerMatchesStroke(e, S.brushStrokeActive)) {
     endBrushStroke(true);
@@ -3973,6 +4065,7 @@ viewport.addEventListener('pointerup', (e) => {
 });
 
 viewport.addEventListener('pointercancel', (e) => {
+  endArtMoveDrag(e, { keep: false });
   endArtRotationDrag(e, { keep: false });
   if (S.brushStrokeActive) endBrushStroke(false);
   S._smartClick = null;
@@ -4013,14 +4106,17 @@ viewport.addEventListener('dblclick', (e) => {
 
 // Capture-phase window listeners so lift always ends the stroke even outside the viewport.
 window.addEventListener('pointerup', (e) => {
+  if (e.button === 0) endArtMoveDrag(e);
   if (e.button === 0) endArtRotationDrag(e);
   if (e.button === 0 && S.brushStrokeActive) endBrushStroke(true);
 }, true);
 window.addEventListener('pointercancel', () => {
+  endArtMoveDrag(null, { keep: false });
   endArtRotationDrag(null, { keep: false });
   if (S.brushStrokeActive) endBrushStroke(false);
 }, true);
 window.addEventListener('blur', () => {
+  endArtMoveDrag(null, { keep: false });
   endArtRotationDrag(null, { keep: false });
   endBrushStroke(false);
   S._smartClick = null;
