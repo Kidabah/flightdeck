@@ -4,6 +4,14 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b623 — Painter 3MF exports contain real body and logo volumes
+**Date:** 2026-08-19
+
+### STL Painter
+- The b591–b622 split-art exporter accidentally assigned an external 3MF component the same ID as its parent. Studio interpreted that recursive reference as an invalid/zero-volume object: the preview looked correct, but import fell back to geometry-only and removed the stamp.
+- Body and logo now use standard distinct parent/resource pairs (`1 → 2`, `3 → 4`), carry the required 3MF `mimetype`, and use the small, printer-neutral Bambu settings shape. The visual decal geometry and colour layers are unchanged.
+- `test/painter-art.mjs` round-trips the split 3MF and asserts the non-recursive resources, valid logo plate instance, package mimetype, and neutral configuration. Hard refresh **b623**, reload the model/artwork, stamp, and export a new 3MF. Old b622 downloads cannot be repaired after export.
+
 ## b622 — Painter artwork follows curved, reversed-winding meshes
 **Date:** 2026-08-19
 

@@ -6,6 +6,14 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-19 Session update (Painter b623 3MF volume export)
+
+The b622 Painter preview could be perfect while Bambu Studio rejected the saved 3MF configuration and deleted zero-volume objects. The split exporter used a recursive external component reference: a parent object and its mesh resource shared the same ID. b623 uses valid pairs (`1 → 2` for Body and `3 → 4` for Art), adds the mandatory `mimetype`, and emits only Bambu-safe, printer-neutral project settings.
+
+Feature commit: `762fbb9` — hard refresh Painter **b623** (`painter.html?v=623`, `painter.js?v=623`; Flightdeck shell `app.js?v=729`), reload the model/artwork, stamp it, then export a completely new 3MF. `node makerforge/test/painter-art.mjs` passed, including a 3MF split-volume round trip and config/package assertions.
+
+---
+
 ## 2026-08-19 Session update (Painter b622 curved artwork)
 
 Painter now stamps artwork onto the actual nearby chest surface even when an imported STL has reversed face winding. The old sampler rejected those triangles and could revert to a flat plane that passed through a curved shirt. The relief remains a separate closed 3MF part, 0.04 mm clear of the surface and 0.72 mm proud.
