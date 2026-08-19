@@ -6,6 +6,12 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-19 Session update (MakerDeck b623 hoodie container loads again)
+
+b622 split `hoodie-stubby.js` into two module caches (`app.js` `?v=622` vs `geometry.js`/`features.js` `?v=598`), so Hoodie container built an empty mesh. One import version now. Hard refresh (`app.js?v=735`, MakerDeck `app.js?v=623` / **b623**). Header **b623**. Click Hoodie container again.
+
+---
+
 ## 2026-08-19 Session update (MakerDeck b622 preset cleanup)
 
 Ooshies stand and Temora Vet shelf are off MakerDeck. Stubby holder is labelled **Hoodie container** (internal id still `stubbyHolder`). Sign / plaque stays.

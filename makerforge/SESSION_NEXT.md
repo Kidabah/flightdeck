@@ -4,6 +4,13 @@
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
+## b623 — Hoodie container loads again
+**Date:** 2026-08-19
+
+### MakerDeck
+- b622 bumped `hoodie-stubby.js?v=622` in `app.js` but left `geometry.js` / `features.js` on `?v=598`. The STL loaded into one cache; the builder read another (empty). Same bug as b587. All three imports are `?v=623` now.
+- Hard refresh MakerDeck **b623** (`app.js?v=623`). Flightdeck iframe `/makerdeck/?v=623`, shell `app.js?v=735`. Click **Hoodie container** again.
+
 ## b622 — Preset cleanup: hoodie container, drop Ooshies + Temora Vet
 **Date:** 2026-08-19
 
