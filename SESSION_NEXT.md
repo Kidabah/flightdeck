@@ -6,6 +6,12 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-19 Session update (PETG-CF AMS profile)
+
+Feature commit: `35a16d6` — a Flightdeck spool recorded as `PETG` with subtype `CF` (including Siddament PETG CF) now programs the AMS with Bambu's `GFG98 · Generic PETG-CF` profile, at its 240–270 °C range. Plain PETG remains `GFG99 · Generic PETG`.
+
+Validated locally with the exact Siddament spool shape: the emitted AMS command is `GFG98`, `PETG-CF`, `Generic PETG-CF`, and Profile Doctor clears the mismatch. Deploy the pushed commit to the Pi and refresh the H1 slot state before dispatching the five-day job.
+
 ## 2026-08-18 Session update (Hoodie art sits on the fabric)
 
 Latest commit: `f0f1140` — MakerDeck **b621**. Export was carving the panther into Body (0.24 mm embed + CSG pocket), which is the jagged Fusion mesh and the rough print. Body stays the original hoodie; crest sits on the chest (~0.84 mm proud). Red/black still trimmed apart.
