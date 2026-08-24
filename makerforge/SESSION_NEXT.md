@@ -2,6 +2,18 @@
 
 # MakerDeck SESSION_NEXT (active)
 
+## 2026-08-24 — Mesh Prep Stage 2B.1 persistent boundary IDs
+
+### Identity fix
+- Multi-hole live testing exposed display renumbering after each re-analysis: repairing original Boundary 1 left the surviving original Boundary 2 / Boundary 3 labelled Boundary 1 / Boundary 2.
+- `meshprep.html` now builds a canonical geometric signature from each loop's topology, edge count, and sorted quantized boundary segments. The first analysis assigns Boundary 1 / 2 / 3; surviving signatures retain those IDs through sequential repairs.
+- Persistent labels are used by the Boundary Inspector cards, Auto-Frame/BING status, repair status, and repair-complete summary. The ID map resets only when a genuinely new STL is loaded.
+- This is a Mesh Prep UI identity fix only. `js/sanitiser-core.js?v=4` is unchanged, and no Stage 2C or polygon repair work is included.
+
+### Validation
+- `node makerforge/test/boundary-id-regression.mjs` passes: `Boundary 1, 2, 3 → Boundary 2, 3 → Boundary 3`.
+- Existing Stage 1, Stage 2A, and Stage 2B suites, all syntax checks, exact supplied-page parity, and `git diff --check` remain green.
+
 ## 2026-08-24 — Mesh Prep Stage 2B triangular boundary repair
 
 ### First repair operation

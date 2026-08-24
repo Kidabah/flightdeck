@@ -6,6 +6,14 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-24 Session update (Mesh Prep Stage 2B.1 persistent boundary IDs)
+
+Live testing with three separate triangular holes exposed a UI identity bug: after repairing original Boundary 1, the two surviving openings were renumbered Boundary 1 / Boundary 2 even though they were the original Boundary 2 / Boundary 3. Stage 2B.1 fixes identity in `makerforge/meshprep.html` only. Each boundary now receives a canonical signature from its topology, edge count, and sorted quantized segments; matching signatures retain their original IDs through re-analysis and sequential repairs. IDs reset only when a genuinely new STL is loaded.
+
+The deterministic regression passes `Boundary 1, 2, 3 → Boundary 2, 3 → Boundary 3`. Stage 1, Stage 2A, Stage 2B triangular repair, syntax, source-parity, and diff checks remain green. `sanitiser-core.js` is unchanged. No Stage 2C or polygon repair work is included.
+
+---
+
 ## 2026-08-24 Session update (Mesh Prep Stage 2B triangular repair)
 
 Mesh Prep now exposes the first deliberately narrow Stage 2B geometry operation: **REPAIR SELECTED** appears only for a simple closed three-edge / three-vertex boundary. Sanitiser Core v4 copies every existing Float32 coordinate unchanged and appends exactly one oppositely wound replacement triangle. It refuses complex or branched boundaries, larger polygonal openings, inconsistent or stale selections, and degenerate replacement faces; there is still no welding, vertex movement, shell joining, general triangulation, or topology reconstruction.

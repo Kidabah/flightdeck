@@ -261,6 +261,8 @@ let boundaryHighlight = null;
 let boundaryAnalysis = null;
 let selectedBoundaryIndex = -1;
 let boundaryRepairLastResult = null;
+let boundaryIdBySignature = new Map();
+let nextBoundaryId = 1;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x060a10);
@@ -554,6 +556,52 @@ function applyStage1Repair() {
 }
 
 
+
+function resetBoundaryIds() {
+  boundaryIdBySignature = new Map();
+  nextBoundaryId = 1;
+}
+
+function boundarySignature(loop, modelMaxDim = 1) {
+  const eps = Math.max(Math.abs(modelMaxDim) * 1e-7, 1e-7);
+
+  const pointKey = point =>
+    `${Math.round(point[0] / eps)},` +
+    `${Math.round(point[1] / eps)},` +
+    `${Math.round(point[2] / eps)}`;
+
+  const segmentKeys = (loop?.segments || []).map(([a, b]) => {
+    const ka = pointKey(a);
+    const kb = pointKey(b);
+    return ka < kb ? `${ka}>${kb}` : `${kb}>${ka}`;
+  });
+
+  segmentKeys.sort();
+
+  return [
+    loop?.topology || 'UNKNOWN',
+    loop?.edgeCount || 0,
+    ...segmentKeys,
+  ].join('|');
+}
+
+function assignPersistentBoundaryIds(san) {
+  for (const loop of san?.boundaryLoops || []) {
+    const signature = boundarySignature(loop, san.maxDim || 1);
+
+    if (!boundaryIdBySignature.has(signature)) {
+      boundaryIdBySignature.set(signature, nextBoundaryId++);
+    }
+
+    loop.persistentId = boundaryIdBySignature.get(signature);
+    loop.persistentSignature = signature;
+  }
+}
+
+function boundaryLabel(loop, fallbackIndex = 0) {
+  return `Boundary ${loop?.persistentId || (fallbackIndex + 1)}`;
+}
+
 function clearBoundaryHighlight() {
   if (boundaryHighlight) {
     scene.remove(boundaryHighlight);
@@ -771,21 +819,24 @@ function highlightBoundary(index) {
     el.classList.toggle('active', i === index);
   });
 
+  const label = boundaryLabel(loop, index);
+
   setStatus(
-    `Boundary ${index + 1}: ${loop.classification} — framing ${loop.edgeCount.toLocaleString()} open edges`
+    `${label}: ${loop.classification} — framing ${loop.edgeCount.toLocaleString()} open edges`
   );
 
   frameBoundary(loop, () => {
     runBoundaryPing(loop);
 
     setStatus(
-      `Boundary ${index + 1}: ${loop.classification} — ` +
+      `${label}: ${loop.classification} — ` +
       `${loop.edgeCount.toLocaleString()} open edges, ${loop.maxSpan.toFixed(1)} mm span`
     );
   });
 }
 
 function showBoundaryInspector(san) {
+  assignPersistentBoundaryIds(san);
   boundaryAnalysis = san;
   clearBoundaryHighlight();
 
@@ -812,7 +863,7 @@ function showBoundaryInspector(san) {
     button.dataset.class = loop.classification;
 
     button.innerHTML =
-      `<span class="name">Boundary ${index + 1}</span>` +
+      `<span class="name">${boundaryLabel(loop, index)}</span>` +
       `<span class="class">${loop.classification}</span>` +
       `<span class="meta">` +
       `${loop.edgeCount.toLocaleString()} edges · ` +
@@ -841,7 +892,8 @@ function applySelectedBoundaryRepair() {
   }
 
   try {
-    setStatus(`Repairing Boundary ${selectedBoundaryIndex + 1}...`);
+    const repairedBoundaryLabel = boundaryLabel(loop, selectedBoundaryIndex);
+    setStatus(`Repairing ${repairedBoundaryLabel}...`);
 
     const before = analyseSanitiserMesh(parsed.positions, parsed.nTri);
     const repaired = repairSanitiserBoundaryStage2B(
@@ -883,11 +935,13 @@ function applySelectedBoundaryRepair() {
       beforeWatertight: before.watertight,
       afterWatertight: after.watertight,
       addedFaces: repaired.addedFaces,
+      repairedBoundaryLabel,
     };
 
     hideBoundaryInspector();
     $('boundaryRepairComplete').hidden = false;
     $('boundaryRepairCompleteText').textContent =
+      `${repairedBoundaryLabel} repaired. ` +
       `Faces ${before.nTri.toLocaleString()} → ${after.nTri.toLocaleString()}. ` +
       `Open edges ${before.openEdges.toLocaleString()} → ${after.openEdges.toLocaleString()}. ` +
       `Boundary groups ${(before.boundaryLoops?.length || 0).toLocaleString()} → ${(after.boundaryLoops?.length || 0).toLocaleString()}. ` +
@@ -1064,6 +1118,7 @@ async function loadFile(file) {
     repairDismissed = false;
     repairLastResult = null;
     boundaryRepairLastResult = null;
+    resetBoundaryIds();
     hideBoundaryRepairComplete();
     hideRepairPanel();
     hideBoundaryInspector();
