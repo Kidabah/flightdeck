@@ -2,6 +2,25 @@
 
 # MakerDeck SESSION_NEXT (active)
 
+## 2026-08-24 — Recovered Mesh Prep Sanitiser Stage 2A
+
+### Recovery
+- Restored the surviving Stage 2A Boundary Inspector page and reconstructed the missing `js/sanitiser-core.js?v=3` from the known-good Stage 1 v2 core, the recovered page's exact consumer contract, and the August 20 handoff/calibration.
+- Stage 1 behaviour is preserved: only zero/near-zero triangles and duplicate/reversed faces are removable. No vertex welding, hole filling, shell joining, normal reorientation, or topology reconstruction was added.
+- Stage 2A is diagnostic only. Open edges are grouped by shared boundary vertices and reported with edge segments, centroid, edge count, perimeter, maximum span, closed/complex topology, classification, and recommendation. Branched/non-loop boundaries are `COMPLEX` and explicitly manual-review only.
+- The original v3 implementation was not recoverable. Grouping and fields follow the surviving UI/handoff contract; the exact 40/120 MAJOR calibration is recovered. The conservative `SMALL`/`REVIEW` category thresholds and their recommendation wording are reconstructed/inferred, and do not authorise repair.
+
+### Validation
+- Recovered v2 parity passed on all four surviving STL fixtures: every pre-Stage-2 analysis field and every Stage 1 repair result matched.
+- Stage 1 calibration passed: 7 faces with 2 duplicate/reversed and 1 degenerate face became 4 faces, 0 open, 0 non-manifold, 0 degenerate, 1 shell, watertight YES.
+- Stage 2A calibration passed: 3 faces, 3 open edges, 1 shell, watertight NO, 1 boundary group; Boundary 1 = MAJOR, 3 edges, 40.0 mm maximum span, 120.0 mm perimeter. Analysis left source geometry unchanged.
+- Live browser validation against the active checkout confirmed the Boundary Inspector card and filename, correct three-edge highlight, active selection, cyan/orange BING locator animation, status text, and zero console errors.
+- Repeatable checkout gate: `node makerforge/test/sanitiser-stage2a.mjs`.
+
+### Stop / Next
+- No Boundary Auto-Frame and no Stage 2B geometry repair are included in this recovery.
+- Next: frame a selected boundary's full bounds with roughly 15–20% viewport padding, give the viewport more breathing room, then validate deliberately holed real-world meshes before designing Stage 2B.
+
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
 ## b623 — Hoodie container loads again

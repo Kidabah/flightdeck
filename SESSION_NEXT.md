@@ -6,6 +6,16 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-24 Session update (Mesh Prep Sanitiser Stage 2A recovery)
+
+Recovered the missing August 20 Mesh Prep Sanitiser work without using or overwriting unrelated local changes. Stage 1 removes only degenerate and duplicate/reversed faces. Stage 2A groups open edges into boundary components and reports topology, centroid, edge count, perimeter, maximum span, and conservative `SMALL` / `REVIEW` / `MAJOR` / `COMPLEX` diagnostics. It remains inspection-only: no hole filling, vertex welding, shell joining, or topology reconstruction.
+
+The missing `sanitiser-core.js?v=3` was reconstructed from the surviving v2 core, recovered Stage 2A UI, and authoritative calibration handoff. The exact calibration passes at 3 faces, 3 open edges, 1 shell, watertight NO, 1 MAJOR boundary, 3 edges, 40.0 mm span, and 120.0 mm perimeter. Live browser validation from the active checkout confirmed Boundary 1 selection, the three-edge locator, BING animation, and no console errors. The category thresholds outside the recovered MAJOR calibration are conservative reconstructions and remain diagnostic only.
+
+Exact next job remains **Boundary Auto-Frame** with roughly 15–20% viewport padding, followed by deliberately holed real-model validation. Do not begin Stage 2B repair rules until the inspector is trusted on those models.
+
+---
+
 ## 2026-08-19 Session update (MakerDeck b623 hoodie container loads again)
 
 b622 split `hoodie-stubby.js` into two module caches (`app.js` `?v=622` vs `geometry.js`/`features.js` `?v=598`), so Hoodie container built an empty mesh. One import version now. Hard refresh (`app.js?v=735`, MakerDeck `app.js?v=623` / **b623**). Header **b623**. Click Hoodie container again.

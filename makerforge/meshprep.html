@@ -27,6 +27,68 @@
 .pill.bad{border-color:var(--red);color:var(--red);background:rgba(248,113,113,.08)}
 .recipe{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--muted)}
 .recipe b{color:var(--text)}
+
+.scale-warning{border:1px solid var(--amber);border-radius:8px;padding:10px;background:rgba(251,191,36,.06)}
+.scale-warning-title{color:var(--amber);font-size:11px;font-weight:800;letter-spacing:.06em;margin-bottom:6px}
+.scale-warning-text,.scale-warning-size,.scale-preview{font-size:12px;color:var(--muted);line-height:1.45}
+.scale-warning-size{margin-top:7px}.scale-warning-actions{display:flex;gap:6px;margin-top:10px}.scale-warning-actions .btn{flex:1}
+.scale-editor{margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
+.scale-grid{display:grid;grid-template-columns:24px 1fr 28px;gap:6px;align-items:center;margin-top:8px}
+.scale-grid label{font-size:11px;color:var(--muted);font-weight:700}
+.scale-grid input{width:100%;box-sizing:border-box;background:var(--panel-2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 7px;font:inherit;font-size:12px}
+.scale-unit{color:var(--muted);font-size:11px}
+.scale-lock-row{display:flex;align-items:center;gap:7px;margin-top:9px;color:var(--muted);font-size:11px}
+.scale-preview{margin-top:8px;font-size:11px}
+
+.repair-panel{border:1px solid var(--amber);border-radius:8px;padding:10px;background:rgba(251,191,36,.06)}
+.repair-panel.good{border-color:var(--green);background:rgba(52,211,153,.06)}
+.repair-title{color:var(--amber);font-size:11px;font-weight:800;letter-spacing:.06em;margin-bottom:6px}
+.repair-panel.good .repair-title{color:var(--green)}
+.repair-text{font-size:12px;color:var(--muted);line-height:1.45}
+.repair-stats{display:grid;grid-template-columns:1fr auto;gap:5px 10px;margin-top:8px;font-size:11px}
+.repair-stats .label{color:var(--muted)}
+.repair-stats .value{color:var(--text);font-weight:700;text-align:right}
+.repair-actions{display:flex;gap:6px;margin-top:10px}.repair-actions[hidden]{display:none!important}.repair-actions .btn{flex:1}
+
+.boundary-panel{border:1px solid #27d3ff;border-radius:8px;padding:10px;background:rgba(39,211,255,.055)}
+.boundary-title{color:#62ddff;font-size:11px;font-weight:800;letter-spacing:.06em;margin-bottom:6px}
+.boundary-text{font-size:12px;color:var(--muted);line-height:1.45}
+.boundary-summary{display:grid;grid-template-columns:1fr auto;gap:5px 10px;margin-top:8px;font-size:11px}
+.boundary-summary .label{color:var(--muted)}
+.boundary-summary .value{color:var(--text);font-weight:700;text-align:right}
+.boundary-list{display:flex;flex-direction:column;gap:6px;margin-top:9px}
+.boundary-item{width:100%;display:grid;grid-template-columns:1fr auto;gap:3px 8px;text-align:left;
+  border:1px solid var(--border);border-radius:7px;background:var(--panel-2);padding:8px;color:var(--text);cursor:pointer}
+.boundary-item:hover{border-color:#27d3ff}
+.boundary-item.active{border-color:#62ddff;box-shadow:0 0 0 1px rgba(98,221,255,.25),0 0 18px rgba(39,211,255,.14)}
+.boundary-item .name{font-size:11px;font-weight:800}
+.boundary-item .class{font-size:10px;font-weight:800;letter-spacing:.04em}
+.boundary-item .meta{grid-column:1/-1;font-size:10px;color:var(--muted);line-height:1.35}
+.boundary-item[data-class="SMALL"] .class{color:var(--green)}
+.boundary-item[data-class="REVIEW"] .class{color:var(--amber)}
+.boundary-item[data-class="MAJOR"] .class{color:#ff9866}
+.boundary-item[data-class="COMPLEX"] .class{color:var(--red)}
+.boundary-note{margin-top:8px;font-size:10px;color:var(--muted);line-height:1.4}
+
+.boundary-ping{position:absolute;z-index:8;width:1px;height:1px;pointer-events:none}
+.boundary-ping .ping-ring{position:absolute;left:-34px;top:-34px;width:68px;height:68px;border:2px solid #62ddff;
+  border-radius:50%;box-shadow:0 0 18px #27d3ff,0 0 34px rgba(39,211,255,.55);opacity:0}
+.boundary-ping .ping-core{position:absolute;left:-5px;top:-5px;width:10px;height:10px;border-radius:50%;
+  background:#fff;box-shadow:0 0 8px #fff,0 0 20px #27d3ff;opacity:0}
+.boundary-ping .boundary-bing{position:absolute;left:16px;top:-37px;color:#fff;font-size:12px;font-weight:900;
+  letter-spacing:.12em;text-shadow:0 0 8px #27d3ff,0 0 14px #27d3ff;opacity:0}
+.boundary-ping .spark{position:absolute;width:5px;height:2px;border-radius:2px;background:#ffbf3f;
+  box-shadow:0 0 7px #ffbf3f;transform-origin:0 50%;opacity:0}
+.boundary-ping.fire .ping-ring{animation:boundaryRing .72s ease-out}
+.boundary-ping.fire .ping-core{animation:boundaryCore .55s ease-out}
+.boundary-ping.fire .boundary-bing{animation:boundaryBing .8s ease-out}
+.boundary-ping.fire .spark{animation:boundarySpark .62s ease-out}
+@keyframes boundaryRing{0%{transform:scale(.18);opacity:1}70%{opacity:.75}100%{transform:scale(1.7);opacity:0}}
+@keyframes boundaryCore{0%{transform:scale(.4);opacity:1}45%{transform:scale(1.5);opacity:1}100%{transform:scale(.2);opacity:0}}
+@keyframes boundaryBing{0%{transform:translateY(8px) scale(.7);opacity:0}25%{opacity:1}70%{opacity:1}100%{transform:translateY(-10px) scale(1.05);opacity:0}}
+@keyframes boundarySpark{0%{transform:rotate(var(--r)) translateX(4px) scaleX(.3);opacity:1}
+  100%{transform:rotate(var(--r)) translateX(54px) scaleX(1.5);opacity:0}}
+
 </style>
 </head>
 <body>
@@ -52,17 +114,73 @@
         <span class="label">Roughness</span><span class="val" id="statRough">-</span>
         <span class="label">Open edges</span><span class="val" id="statOpen">-</span>
         <span class="label">Non-manifold</span><span class="val" id="statBad">-</span>
+        <span class="label">Degenerate</span><span class="val" id="statDegenerate">-</span>
+        <span class="label">Shells</span><span class="val" id="statShells">-</span>
+        <span class="label">Watertight</span><span class="val" id="statWatertight">-</span>
+        <div style="grid-column:1/-1; margin-top:12px; color:#7f96ad; font-size:11px; font-weight:700; letter-spacing:.08em;">
+  PRINT BASE
+</div>
+
+<span class="label">Detected</span><span class="val" id="statBaseDetected">-</span>
+<span class="label">Contact</span><span class="val" id="statBaseArea">-</span>
+<span class="label">Base size</span><span class="val" id="statBaseSize">-</span>
+<span class="label">Coverage</span><span class="val" id="statBaseCoverage">-</span>
+<span class="label">Stability</span><span class="val" id="statBaseRating">-</span>
       </div>
     </div>
 
-    <div>
-      <div class="section-label">Paper3D Fit</div>
-      <div id="fitPill" class="pill">No model</div>
-      <div class="recipe" style="margin-top:8px">
-        <div><b>Prep</b> <span id="recipePrep">-</span></div>
-        <div><b>Cells</b> <span id="recipeCells">-</span></div>
-        <div><b>Notes</b> <span id="recipeNotes">-</span></div>
+    <div id="scaleWarning" class="scale-warning" hidden>
+      <div class="scale-warning-title">&#9888; UNUSUAL MODEL SIZE DETECTED</div>
+      <div class="scale-warning-text">This STL appears unusually small and may be an unscaled AI-generated model.</div>
+      <div class="scale-warning-size">Current size: <strong id="scaleWarningSize">-</strong></div>
+      <div id="scalePromptActions" class="scale-warning-actions">
+        <button class="btn" id="scaleSetSize" type="button">SET SIZE</button>
+        <button class="btn" id="scaleKeepOriginal" type="button">KEEP ORIGINAL</button>
       </div>
+      <div id="scaleEditor" class="scale-editor" hidden>
+        <div class="section-label" style="margin-bottom:0">Size Settings</div>
+        <div class="scale-grid">
+          <label for="scaleX">X</label><input id="scaleX" type="number" min="0.001" step="0.1"><span class="scale-unit">mm</span>
+          <label for="scaleY">Y</label><input id="scaleY" type="number" min="0.001" step="0.1"><span class="scale-unit">mm</span>
+          <label for="scaleZ">Z</label><input id="scaleZ" type="number" min="0.001" step="0.1"><span class="scale-unit">mm</span>
+        </div>
+        <label class="scale-lock-row"><input id="scaleUniform" type="checkbox" checked>Keep proportions locked</label>
+        <div id="scalePreview" class="scale-preview">Enter the intended size.</div>
+        <div class="scale-warning-actions">
+          <button class="btn" id="scaleApply" type="button">APPLY SIZE</button>
+          <button class="btn" id="scaleCancel" type="button">CANCEL</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="repairPanel" class="repair-panel" hidden>
+      <div id="repairTitle" class="repair-title">&#9888; MESH REPAIR RECOMMENDED</div>
+      <div id="repairText" class="repair-text">Safe Stage 1 repairs are available.</div>
+      <div class="repair-stats">
+        <span class="label">File</span><span class="value" id="repairFileName">-</span>
+        <span class="label">Degenerate faces</span><span class="value" id="repairDegenerate">0</span>
+        <span class="label">Duplicate faces</span><span class="value" id="repairDuplicates">0</span>
+        <span class="label">Safe repairs</span><span class="value" id="repairTotal">0</span>
+      </div>
+      <div id="repairResult" class="repair-text" style="margin-top:8px" hidden></div>
+      <div id="repairActions" class="repair-actions">
+        <button class="btn" id="repairAuto" type="button">AUTO REPAIR</button>
+        <button class="btn" id="repairKeepOriginal" type="button">KEEP ORIGINAL</button>
+      </div>
+    </div>
+
+    <div id="boundaryPanel" class="boundary-panel" hidden>
+      <div class="boundary-title">&#10022; BOUNDARY INSPECTOR</div>
+      <div class="boundary-text">
+        Open mesh boundaries detected. Stage 2A is diagnostic only: inspect first, repair later.
+      </div>
+      <div class="boundary-summary">
+        <span class="label">File</span><span class="value" id="boundaryFileName">-</span>
+        <span class="label">Boundary groups</span><span class="value" id="boundaryLoopCount">0</span>
+        <span class="label">Open edges</span><span class="value" id="boundaryEdgeCount">0</span>
+      </div>
+      <div id="boundaryList" class="boundary-list"></div>
+      <div class="boundary-note">Click a boundary below to locate it on the model. No geometry will be changed.</div>
     </div>
 
     <div>
@@ -72,6 +190,19 @@
   </div>
 
   <div class="viewport" id="viewport">
+    <div id="boundaryPing" class="boundary-ping" hidden>
+      <div class="ping-ring"></div>
+      <div class="ping-core"></div>
+      <span class="boundary-bing">BING!</span>
+      <i class="spark" style="--r:0deg"></i>
+      <i class="spark" style="--r:45deg"></i>
+      <i class="spark" style="--r:90deg"></i>
+      <i class="spark" style="--r:135deg"></i>
+      <i class="spark" style="--r:180deg"></i>
+      <i class="spark" style="--r:225deg"></i>
+      <i class="spark" style="--r:270deg"></i>
+      <i class="spark" style="--r:315deg"></i>
+    </div>
     <div class="viewport-toolbar">
       <button id="tbFrame">Frame</button>
       <button id="tbWire">Wire</button>
@@ -89,13 +220,25 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import './js/nav.js?v=551';
-
+import { analyseSanitiserMesh, repairSanitiserMeshStage1 } from './js/sanitiser-core.js?v=3';
 const $ = id => document.getElementById(id);
 const fmt = n => Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '-';
 const setStatus = msg => { $('status').textContent = msg; };
 
 let mesh = null;
 let wire = null;
+
+let sourceParsed = null;
+let sourceName = '';
+let currentParsed = null;
+let scaleWarningDismissed = false;
+let scaleReference = null;
+let scaleEditingAxis = null;
+let repairDismissed = false;
+let repairLastResult = null;
+let boundaryHighlight = null;
+let boundaryAnalysis = null;
+let selectedBoundaryIndex = -1;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x060a10);
@@ -214,19 +357,8 @@ function analyseMesh(positions, nTri) {
     avgEdge: edgeSum / Math.max(1, edgeCount), openEdges, nonManifold, rough };
 }
 
-function classify(a) {
-  const dense = a.nTri > 650000;
-  const veryDense = a.nTri > 1200000;
-  const curly = a.rough > 0.22;
-  const lowPoly = a.nTri < 250000 || (a.avgEdge / Math.max(a.maxDim, 1e-6)) > 0.018;
-  const bad = a.openEdges > 0 || a.nonManifold > 0;
-  if (lowPoly && !curly) return { cls: 'good', fit: 'Paper3D ready', prep: 'Preserve', cells: '350-650', notes: bad ? 'Repair in slicer if needed' : 'Flat facets should cut cleanly' };
-  if (veryDense && curly) return { cls: 'bad', fit: 'Needs remesh first', prep: 'External facet remesh', cells: '450-600 after remesh', notes: 'Curly dense surface will make messy cut walls' };
-  if (dense || curly) return { cls: 'warn', fit: 'Use with care', prep: 'Preserve or remesh copy', cells: '450-700', notes: 'Avoid helper pads/supports; slicer supports only' };
-  return { cls: 'good', fit: 'Paper3D friendly', prep: 'Preserve', cells: '400-700', notes: 'Normal range for direct cutting' };
-}
-
 function showMesh(positions) {
+  clearBoundaryHighlight();
   if (mesh) scene.remove(mesh);
   if (wire) scene.remove(wire);
   const geom = new THREE.BufferGeometry();
@@ -249,37 +381,511 @@ function frame(obj) {
   controls.update();
 }
 
+
+function cloneParsed(parsed) {
+  return { positions: new Float32Array(parsed.positions), nTri: parsed.nTri };
+}
+
+function hideScaleWarning() {
+  $('scaleWarning').hidden = true;
+  $('scaleEditor').hidden = true;
+  $('scalePromptActions').hidden = false;
+}
+
+function setScaleInputs(x, y, z) {
+  $('scaleX').value = Number(x).toFixed(2);
+  $('scaleY').value = Number(y).toFixed(2);
+  $('scaleZ').value = Number(z).toFixed(2);
+  updateScalePreview();
+}
+
+function updateScalePreview() {
+  const x = Number($('scaleX').value), y = Number($('scaleY').value), z = Number($('scaleZ').value);
+  $('scalePreview').textContent =
+    [x,y,z].every(v => Number.isFinite(v) && v > 0)
+      ? `Result: ${x.toFixed(1)} x ${y.toFixed(1)} x ${z.toFixed(1)} mm`
+      : 'Enter valid positive dimensions.';
+}
+
+function syncUniformScale(axis) {
+  if (!$('scaleUniform').checked || !scaleReference) return updateScalePreview();
+  const target = Number($('scale' + axis.toUpperCase()).value);
+  const original = scaleReference[axis];
+  if (!Number.isFinite(target) || target <= 0 || original <= 0) return updateScalePreview();
+  const factor = target / original;
+  for (const a of ['x','y','z']) {
+    if (a !== axis) $('scale' + a.toUpperCase()).value = (scaleReference[a] * factor).toFixed(2);
+  }
+  updateScalePreview();
+}
+
+function showScaleWarning(san) {
+  if (!san.scale?.suspicious || scaleWarningDismissed) return hideScaleWarning();
+  $('scaleWarning').hidden = false;
+  $('scaleEditor').hidden = true;
+  $('scalePromptActions').hidden = false;
+  $('scaleWarningSize').textContent =
+    `${san.sizeX.toFixed(2)} x ${san.sizeY.toFixed(2)} x ${san.sizeZ.toFixed(2)} mm`;
+  scaleReference = { x: san.sizeX, y: san.sizeY, z: san.sizeZ };
+  setScaleInputs(san.sizeX, san.sizeY, san.sizeZ);
+}
+
+function applyRequestedScale() {
+  if (!sourceParsed || !scaleReference) return;
+  const tx = Number($('scaleX').value), ty = Number($('scaleY').value), tz = Number($('scaleZ').value);
+  if (![tx,ty,tz].every(v => Number.isFinite(v) && v > 0)) {
+    $('scalePreview').textContent = 'Enter valid positive dimensions first.';
+    return;
+  }
+  const sx = tx / scaleReference.x, sy = ty / scaleReference.y, sz = tz / scaleReference.z;
+  const positions = new Float32Array(sourceParsed.positions.length);
+  for (let i = 0; i < sourceParsed.positions.length; i += 3) {
+    positions[i] = sourceParsed.positions[i] * sx;
+    positions[i+1] = sourceParsed.positions[i+1] * sy;
+    positions[i+2] = sourceParsed.positions[i+2] * sz;
+  }
+  currentParsed = { positions, nTri: sourceParsed.nTri };
+  scaleWarningDismissed = true;
+  hideScaleWarning();
+  repairDismissed = false;
+  updateAnalysis(sourceName, currentParsed);
+  setStatus(`Scaled to ${tx.toFixed(1)} x ${ty.toFixed(1)} x ${tz.toFixed(1)} mm`);
+}
+
+
+
+function hideRepairPanel() {
+  $('repairPanel').hidden = true;
+}
+
+function showRepairPanel(san) {
+  if (repairLastResult) {
+    const r = repairLastResult;
+    $('repairPanel').hidden = false;
+    $('repairPanel').className = 'repair-panel good';
+    $('repairTitle').textContent = 'SAFE REPAIR COMPLETE';
+    $('repairFileName').textContent = sourceName || 'Unnamed STL';
+    $('repairText').textContent = 'Stage 1 changed only objectively invalid or duplicate faces.';
+    $('repairDegenerate').textContent = `${r.beforeDegenerate.toLocaleString()} → ${r.afterDegenerate.toLocaleString()}`;
+    $('repairDuplicates').textContent = `${r.beforeDuplicates.toLocaleString()} → ${r.afterDuplicates.toLocaleString()}`;
+    $('repairTotal').textContent = r.removedTotal.toLocaleString();
+    $('repairResult').hidden = false;
+    $('repairResult').textContent = `Faces ${r.beforeFaces.toLocaleString()} → ${r.afterFaces.toLocaleString()}. Repair is complete and ready to export. Open edges and shells were not filled or joined.`;
+    $('repairActions').hidden = true;
+    return;
+  }
+
+  const total = (san.degenerateTriangles || 0) + (san.duplicateTriangles || 0);
+  if (!total || repairDismissed) return hideRepairPanel();
+
+  $('repairPanel').hidden = false;
+  $('repairPanel').className = 'repair-panel';
+  $('repairTitle').textContent = '⚠ MESH REPAIR RECOMMENDED';
+  $('repairFileName').textContent = sourceName || 'Unnamed STL';
+  $('repairText').textContent = 'Safe Stage 1 repairs can remove invalid or duplicate faces without closing holes or joining shells.';
+  $('repairDegenerate').textContent = san.degenerateTriangles.toLocaleString();
+  $('repairDuplicates').textContent = san.duplicateTriangles.toLocaleString();
+  $('repairTotal').textContent = total.toLocaleString();
+  $('repairResult').hidden = true;
+  $('repairActions').hidden = false;
+}
+
+function applyStage1Repair() {
+  const parsed = currentParsed || sourceParsed;
+  if (!parsed) return;
+
+  try {
+    setStatus('Running safe Stage 1 mesh repair...');
+    const before = analyseSanitiserMesh(parsed.positions, parsed.nTri);
+    const repaired = repairSanitiserMeshStage1(parsed.positions, parsed.nTri);
+
+    if (!repaired.removedTotal) {
+      repairDismissed = true;
+      hideRepairPanel();
+      setStatus('No safe Stage 1 repairs were required');
+      return;
+    }
+
+    currentParsed = { positions: repaired.positions, nTri: repaired.nTri };
+    // The repaired mesh becomes the new baseline so a later scale operation cannot
+    // accidentally restore faces that Stage 1 deliberately removed.
+    sourceParsed = cloneParsed(currentParsed);
+
+    const after = analyseSanitiserMesh(currentParsed.positions, currentParsed.nTri);
+    repairLastResult = {
+      beforeFaces: repaired.beforeFaces,
+      afterFaces: repaired.afterFaces,
+      beforeDegenerate: before.degenerateTriangles,
+      afterDegenerate: after.degenerateTriangles,
+      beforeDuplicates: before.duplicateTriangles || 0,
+      afterDuplicates: after.duplicateTriangles || 0,
+      removedTotal: repaired.removedTotal,
+    };
+    repairDismissed = false;
+    scaleReference = null;
+    updateAnalysis(sourceName, currentParsed);
+    setStatus(`Safe repair complete — removed ${repaired.removedTotal.toLocaleString()} faces`);
+  } catch (err) {
+    console.error('Stage 1 repair failed:', err);
+    setStatus(`Repair failed: ${err.message || err}`);
+  }
+}
+
+
+function clearBoundaryHighlight() {
+  if (boundaryHighlight) {
+    scene.remove(boundaryHighlight);
+    boundaryHighlight.traverse(obj => {
+      obj.geometry?.dispose?.();
+      obj.material?.dispose?.();
+    });
+    boundaryHighlight = null;
+  }
+
+  selectedBoundaryIndex = -1;
+  document.querySelectorAll('.boundary-item.active').forEach(el => el.classList.remove('active'));
+}
+
+function hideBoundaryInspector() {
+  $('boundaryPanel').hidden = true;
+  $('boundaryList').innerHTML = '';
+  boundaryAnalysis = null;
+  clearBoundaryHighlight();
+}
+
+function runBoundaryPing(loop) {
+  if (!loop?.centroid) return;
+
+  const viewport = $('viewport');
+  const rect = viewport.getBoundingClientRect();
+  const p = new THREE.Vector3(...loop.centroid).project(camera);
+
+  const x = (p.x * 0.5 + 0.5) * rect.width;
+  const y = (-p.y * 0.5 + 0.5) * rect.height;
+
+  const ping = $('boundaryPing');
+  ping.style.left = `${x}px`;
+  ping.style.top = `${y}px`;
+  ping.hidden = false;
+
+  ping.classList.remove('fire');
+  void ping.offsetWidth;
+  ping.classList.add('fire');
+
+  window.setTimeout(() => {
+    ping.classList.remove('fire');
+    ping.hidden = true;
+  }, 850);
+}
+
+function highlightBoundary(index) {
+  if (!boundaryAnalysis?.boundaryLoops?.length) return;
+
+  const loop = boundaryAnalysis.boundaryLoops[index];
+  if (!loop) return;
+
+  clearBoundaryHighlight();
+
+  const linePositions = [];
+  const pointPositions = [];
+
+  for (const [a, b] of loop.segments || []) {
+    linePositions.push(...a, ...b);
+    pointPositions.push(...a, ...b);
+  }
+
+  const group = new THREE.Group();
+
+  if (linePositions.length) {
+    const lineGeom = new THREE.BufferGeometry();
+    lineGeom.setAttribute('position', new THREE.Float32BufferAttribute(linePositions, 3));
+
+    const lineMat = new THREE.LineBasicMaterial({
+      color: 0x62ddff,
+      transparent: true,
+      opacity: 1,
+      depthTest: false,
+    });
+
+    const lines = new THREE.LineSegments(lineGeom, lineMat);
+    lines.renderOrder = 999;
+    group.add(lines);
+  }
+
+  if (pointPositions.length) {
+    const pointGeom = new THREE.BufferGeometry();
+    pointGeom.setAttribute('position', new THREE.Float32BufferAttribute(pointPositions, 3));
+
+    const pointMat = new THREE.PointsMaterial({
+      color: 0xffbf3f,
+      size: Math.max((boundaryAnalysis.maxDim || 1) * 0.012, 1.5),
+      sizeAttenuation: true,
+      depthTest: false,
+    });
+
+    const points = new THREE.Points(pointGeom, pointMat);
+    points.renderOrder = 1000;
+    group.add(points);
+  }
+
+  boundaryHighlight = group;
+  scene.add(boundaryHighlight);
+  selectedBoundaryIndex = index;
+
+  document.querySelectorAll('.boundary-item').forEach((el, i) => {
+    el.classList.toggle('active', i === index);
+  });
+
+  runBoundaryPing(loop);
+
+  setStatus(
+    `Boundary ${index + 1}: ${loop.classification} — ` +
+    `${loop.edgeCount.toLocaleString()} open edges, ${loop.maxSpan.toFixed(1)} mm span`
+  );
+}
+
+function showBoundaryInspector(san) {
+  boundaryAnalysis = san;
+  clearBoundaryHighlight();
+
+  const loops = san.boundaryLoops || [];
+
+  if (!loops.length) {
+    $('boundaryPanel').hidden = true;
+    $('boundaryList').innerHTML = '';
+    return;
+  }
+
+  $('boundaryPanel').hidden = false;
+  $('boundaryFileName').textContent = sourceName || 'Unnamed STL';
+  $('boundaryLoopCount').textContent = loops.length.toLocaleString();
+  $('boundaryEdgeCount').textContent = san.openEdges.toLocaleString();
+
+  const list = $('boundaryList');
+  list.innerHTML = '';
+
+  loops.forEach((loop, index) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'boundary-item';
+    button.dataset.class = loop.classification;
+
+    button.innerHTML =
+      `<span class="name">Boundary ${index + 1}</span>` +
+      `<span class="class">${loop.classification}</span>` +
+      `<span class="meta">` +
+      `${loop.edgeCount.toLocaleString()} edges · ` +
+      `${loop.maxSpan.toFixed(1)} mm span · ` +
+      `${loop.perimeter.toFixed(1)} mm perimeter` +
+      `<br>${loop.recommendation}` +
+      `</span>`;
+
+    button.addEventListener('click', () => highlightBoundary(index));
+    list.appendChild(button);
+  });
+}
+
+function makePreparedFileName() {
+  const base = String(sourceName || 'prepared_model')
+    .replace(/\.stl$/i, '')
+    .replace(/[\\/:*?"<>|]+/g, '_')
+    .trim() || 'prepared_model';
+  const suffix = repairLastResult ? 'repaired' : 'prepared';
+  return `${base}_${suffix}.stl`;
+}
+
+function buildBinarySTL(parsed) {
+  if (!parsed?.positions || !parsed?.nTri) {
+    throw new Error('No prepared mesh is available to export.');
+  }
+
+  const { positions, nTri } = parsed;
+  const buffer = new ArrayBuffer(84 + nTri * 50);
+  const dv = new DataView(buffer);
+
+  const headerText = 'MakerDeck Mesh Prep - Prepared STL';
+  for (let i = 0; i < 80; i++) {
+    dv.setUint8(i, i < headerText.length ? headerText.charCodeAt(i) : 0);
+  }
+
+  dv.setUint32(80, nTri, true);
+  let off = 84;
+
+  for (let i = 0; i < nTri; i++) {
+    const p = i * 9;
+
+    const ax = positions[p];
+    const ay = positions[p + 1];
+    const az = positions[p + 2];
+    const bx = positions[p + 3];
+    const by = positions[p + 4];
+    const bz = positions[p + 5];
+    const cx = positions[p + 6];
+    const cy = positions[p + 7];
+    const cz = positions[p + 8];
+
+    const ux = bx - ax;
+    const uy = by - ay;
+    const uz = bz - az;
+    const vx = cx - ax;
+    const vy = cy - ay;
+    const vz = cz - az;
+
+    let nx = uy * vz - uz * vy;
+    let ny = uz * vx - ux * vz;
+    let nz = ux * vy - uy * vx;
+
+    const nLen = Math.hypot(nx, ny, nz);
+    if (nLen > 1e-12) {
+      nx /= nLen;
+      ny /= nLen;
+      nz /= nLen;
+    } else {
+      nx = 0; ny = 0; nz = 0;
+    }
+
+    dv.setFloat32(off, nx, true); off += 4;
+    dv.setFloat32(off, ny, true); off += 4;
+    dv.setFloat32(off, nz, true); off += 4;
+
+    for (let v = 0; v < 9; v++) {
+      dv.setFloat32(off, positions[p + v], true);
+      off += 4;
+    }
+
+    dv.setUint16(off, 0, true);
+    off += 2;
+  }
+
+  return buffer;
+}
+
+function exportPreparedSTL() {
+  const parsed = currentParsed || sourceParsed;
+
+  if (!parsed) {
+    setStatus('No prepared STL available to export');
+    return;
+  }
+
+  try {
+    setStatus('Building prepared STL...');
+
+    const buffer = buildBinarySTL(parsed);
+    const blob = new Blob([buffer], { type: 'model/stl' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    const exportName = makePreparedFileName();
+    a.download = exportName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setStatus(`${exportName} exported — ${parsed.nTri.toLocaleString()} faces`);
+  } catch (err) {
+    console.error('Prepared STL export failed:', err);
+    setStatus(`Export failed: ${err.message || err}`);
+  }
+}
+
 function updateAnalysis(name, parsed) {
   setStatus('Analysing mesh...');
   requestAnimationFrame(() => {
     const a = analyseMesh(parsed.positions, parsed.nTri);
-    const c = classify(a);
+    const san = analyseSanitiserMesh(parsed.positions, parsed.nTri);
     $('fileName').textContent = `${name} — ${a.nTri.toLocaleString()} faces`;
     $('statFaces').textContent = a.nTri.toLocaleString();
     $('statSize').textContent = `${fmt(a.sizeX)} x ${fmt(a.sizeY)} x ${fmt(a.sizeZ)}`;
     $('statEdge').textContent = fmt(a.avgEdge);
     $('statRough').textContent = `${Math.round(a.rough * 100)}%`;
-    $('statOpen').textContent = a.openEdges.toLocaleString();
-    $('statBad').textContent = a.nonManifold.toLocaleString();
-    const pill = $('fitPill');
-    pill.className = `pill ${c.cls}`;
-    pill.textContent = c.fit;
-    $('recipePrep').textContent = c.prep;
-    $('recipeCells').textContent = c.cells;
-    $('recipeNotes').textContent = c.notes;
+    $('statOpen').textContent = san.openEdges.toLocaleString();
+    $('statBad').textContent = san.nonManifoldEdges.toLocaleString();
+    $('statDegenerate').textContent = san.degenerateTriangles.toLocaleString();
+    $('statShells').textContent = san.shells.toLocaleString();
+    $('statWatertight').textContent = san.watertight ? 'YES' : 'NO';
+    $('statBaseDetected').textContent = san.base.detected ? 'YES' : 'NO';
+
+$('statBaseArea').textContent = san.base.detected
+  ? `${Math.round(san.base.area).toLocaleString()} mm²`
+  : '-';
+
+$('statBaseSize').textContent = san.base.detected
+  ? `${san.base.width.toFixed(1)} x ${san.base.depth.toFixed(1)} mm`
+  : '-';
+
+$('statBaseCoverage').textContent = san.base.detected
+  ? `${(san.base.coverage * 100).toFixed(1)}%`
+  : '-';
+
+$('statBaseRating').textContent = san.base.rating;
+    showScaleWarning(san);
+    showRepairPanel(san);
+    showBoundaryInspector(san);
+    console.log('[Sanitiser Core 0.1]', san);
     showMesh(parsed.positions);
-    setStatus(`Done — ${c.fit}`);
+    $('exportBtn').disabled = false;
+    $('exportBtn').textContent = repairLastResult ? 'EXPORT REPAIRED STL' : 'EXPORT PREPARED STL';
+    setStatus('Analysis complete');
   });
 }
 
 async function loadFile(file) {
   try {
     const parsed = parseSTL(await file.arrayBuffer());
-    updateAnalysis(file.name, parsed);
+    sourceParsed = cloneParsed(parsed);
+    currentParsed = cloneParsed(parsed);
+    sourceName = file.name;
+    scaleWarningDismissed = false;
+    scaleReference = null;
+    repairDismissed = false;
+    repairLastResult = null;
+    hideRepairPanel();
+    hideBoundaryInspector();
+    updateAnalysis(file.name, currentParsed);
   } catch (e) {
     setStatus('Error: ' + e.message);
   }
 }
+
+
+$('repairAuto').addEventListener('click', applyStage1Repair);
+$('repairKeepOriginal').addEventListener('click', () => {
+  repairDismissed = true;
+  repairLastResult = null;
+  hideRepairPanel();
+  setStatus('Original mesh retained — no Stage 1 repair applied');
+});
+
+$('exportBtn').addEventListener('click', exportPreparedSTL);
+
+$('scaleSetSize').addEventListener('click', () => {
+  $('scalePromptActions').hidden = true;
+  $('scaleEditor').hidden = false;
+  $('scaleX').focus();
+  updateScalePreview();
+});
+$('scaleKeepOriginal').addEventListener('click', () => {
+  scaleWarningDismissed = true;
+  hideScaleWarning();
+  setStatus('Original model size retained');
+});
+$('scaleApply').addEventListener('click', applyRequestedScale);
+$('scaleCancel').addEventListener('click', () => {
+  $('scaleEditor').hidden = true;
+  $('scalePromptActions').hidden = false;
+});
+for (const axis of ['x','y','z']) {
+  const el = $('scale' + axis.toUpperCase());
+  el.addEventListener('focus', () => { scaleEditingAxis = axis; });
+  el.addEventListener('input', () => { scaleEditingAxis = axis; syncUniformScale(axis); });
+}
+$('scaleUniform').addEventListener('change', () => {
+  if ($('scaleUniform').checked && scaleEditingAxis) syncUniformScale(scaleEditingAxis);
+  else updateScalePreview();
+});
 
 $('dropZone').addEventListener('click', () => $('fileInput').click());
 $('fileInput').addEventListener('change', e => { const f = e.target.files[0]; if (f) loadFile(f); });
