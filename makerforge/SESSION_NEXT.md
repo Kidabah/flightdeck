@@ -2,13 +2,29 @@
 
 # MakerDeck SESSION_NEXT (active)
 
+## 2026-08-24 — Mesh Prep Stage 2C planar convex quad repair
+
+### Second repair operation
+- `js/sanitiser-core.js?v=5` adds `repairSanitiserBoundaryStage2C()` for one additional conservative case only: a selected simple closed planar convex boundary with exactly four open edges and four vertices.
+- The current mesh topology and directed boundary cycle must still match the selection. The quad must be planar within a tight scale-aware tolerance, turn consistently at every corner, and produce two non-degenerate faces. The shorter valid diagonal is used.
+- Existing Float32 source coordinates are copied unchanged. Stage 2C appends exactly two triangles and performs no welding, vertex movement, shell joining, arbitrary triangulation, or topology reconstruction.
+- Mesh Prep offers **REPAIR SELECTED** for supported three-edge Stage 2B loops and four-edge Stage 2C loops. The shared post-repair gate requires an N-edge cap to add exactly `N-2` faces, remove exactly N open edges, and leave non-manifold edges unchanged.
+
+### Validation
+- Deterministic and live-browser quad calibration: faces `10 → 12`, open edges `4 → 0`, boundary groups `1 → 0`, watertight `NO → YES`, and non-manifold edges `0 → 0`; existing source coordinates remain unchanged.
+- Derived concave, non-planar, five-edge polygonal, complex/branched, and missing-selection cases are refused.
+- Stage 1, Stage 2A, Stage 2B triangular repair, Stage 2B.1 persistent IDs, Auto-Frame, and BING all remain green. Repeatable gate: `node makerforge/test/sanitiser-stage2c.mjs`.
+
+### Stop / Next
+- Validate convex quad repair on deliberately broken real meshes. Do not generalise to five-plus-edge polygons yet.
+
 ## 2026-08-24 — Mesh Prep Stage 2B.1 persistent boundary IDs
 
 ### Identity fix
 - Multi-hole live testing exposed display renumbering after each re-analysis: repairing original Boundary 1 left the surviving original Boundary 2 / Boundary 3 labelled Boundary 1 / Boundary 2.
 - `meshprep.html` now builds a canonical geometric signature from each loop's topology, edge count, and sorted quantized boundary segments. The first analysis assigns Boundary 1 / 2 / 3; surviving signatures retain those IDs through sequential repairs.
 - Persistent labels are used by the Boundary Inspector cards, Auto-Frame/BING status, repair status, and repair-complete summary. The ID map resets only when a genuinely new STL is loaded.
-- This is a Mesh Prep UI identity fix only. `js/sanitiser-core.js?v=4` is unchanged, and no Stage 2C or polygon repair work is included.
+- This was a Mesh Prep UI identity fix only. `js/sanitiser-core.js?v=4` was unchanged by Stage 2B.1; the separate quad-only Stage 2C checkpoint is now recorded above.
 
 ### Validation
 - `node makerforge/test/boundary-id-regression.mjs` passes: `Boundary 1, 2, 3 → Boundary 2, 3 → Boundary 3`.

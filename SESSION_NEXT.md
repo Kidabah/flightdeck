@@ -6,11 +6,19 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-24 Session update (Mesh Prep Stage 2C planar convex quad repair)
+
+Mesh Prep now supports one additional conservative selected-boundary repair: a simple closed planar convex four-edge loop. Sanitiser Core v5 validates current topology, consistent winding, four unique vertices, tight planarity, convexity, and non-degenerate triangulation, then appends exactly two faces across the shorter valid diagonal. Existing Float32 coordinates remain unchanged; there is no welding, vertex movement, shell joining, or arbitrary polygon filling.
+
+The shared UI gate now dispatches three-edge loops to Stage 2B and four-edge loops to Stage 2C, requiring an N-edge repair to add exactly `N-2` faces, remove exactly N open edges, and leave non-manifold edges unchanged. The supplied deterministic and live-browser box calibration passes: faces `10 → 12`, open edges `4 → 0`, boundary groups `1 → 0`, watertight `NO → YES`, and non-manifold edges `0 → 0`. Derived concave, non-planar, five-edge, complex/branched, and missing-selection cases are refused. Stage 1, Stage 2A, Stage 2B triangular repair, Stage 2B.1 persistent IDs, Auto-Frame, and BING remain green. Do not generalise to five-plus-edge polygons yet.
+
+---
+
 ## 2026-08-24 Session update (Mesh Prep Stage 2B.1 persistent boundary IDs)
 
 Live testing with three separate triangular holes exposed a UI identity bug: after repairing original Boundary 1, the two surviving openings were renumbered Boundary 1 / Boundary 2 even though they were the original Boundary 2 / Boundary 3. Stage 2B.1 fixes identity in `makerforge/meshprep.html` only. Each boundary now receives a canonical signature from its topology, edge count, and sorted quantized segments; matching signatures retain their original IDs through re-analysis and sequential repairs. IDs reset only when a genuinely new STL is loaded.
 
-The deterministic regression passes `Boundary 1, 2, 3 → Boundary 2, 3 → Boundary 3`. Stage 1, Stage 2A, Stage 2B triangular repair, syntax, source-parity, and diff checks remain green. `sanitiser-core.js` is unchanged. No Stage 2C or polygon repair work is included.
+The deterministic regression passes `Boundary 1, 2, 3 → Boundary 2, 3 → Boundary 3`. Stage 1, Stage 2A, Stage 2B triangular repair, syntax, source-parity, and diff checks remain green. `sanitiser-core.js` was unchanged by this identity fix. The separate quad-only Stage 2C checkpoint is now recorded above.
 
 ---
 

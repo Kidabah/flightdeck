@@ -116,7 +116,7 @@ const meshPrepHtml = await readFile(
   new URL("../meshprep.html", import.meta.url),
   "utf8"
 );
-assert.match(meshPrepHtml, /sanitiser-core\.js\?v=4/);
+assert.match(meshPrepHtml, /sanitiser-core\.js\?v=5/);
 assert.match(meshPrepHtml, /BOUNDARY INSPECTOR/);
 assert.match(meshPrepHtml, /boundary-bing">BING!/);
 assert.match(meshPrepHtml, /Stage 2A is diagnostic only/);

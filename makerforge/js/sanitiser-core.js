@@ -824,3 +824,266 @@ export function repairSanitiserBoundaryStage2B(positions, nTri, boundary) {
     method: 'TRIANGULAR_BOUNDARY_CAP',
   };
 }
+
+/**
+ * Stage 2C selected-boundary repair, first conservative quad release.
+ *
+ * Repairs ONLY a simple, closed, planar, convex four-edge boundary.
+ * The selected loop must come from analyseSanitiserMesh(...).boundaryLoops.
+ *
+ * Safety rules:
+ * - no branched/complex boundaries
+ * - exactly 4 open edges / 4 vertices
+ * - boundary must be planar within a tight tolerance
+ * - boundary must be convex
+ * - no welding
+ * - no shell joining
+ * - no vertex movement
+ * - existing source triangles are copied unchanged
+ *
+ * The quad is triangulated across the shorter valid diagonal. The cap winding
+ * is opposite to the existing directed open-edge cycle so each boundary edge
+ * pairs with the adjacent source face.
+ */
+export function repairSanitiserBoundaryStage2C(positions, nTri, boundary) {
+  if (!positions || !Number.isFinite(nTri) || nTri < 0) {
+    throw new Error('Invalid mesh supplied to Stage 2C repair.');
+  }
+
+  if (!boundary) {
+    throw new Error('Select a boundary before repairing.');
+  }
+
+  if (!boundary.closed || boundary.complex || boundary.topology !== 'CLOSED_LOOP') {
+    throw new Error('Stage 2C will not repair complex or open-chain boundaries.');
+  }
+
+  if (
+    boundary.edgeCount !== 4 ||
+    !Array.isArray(boundary.segments) ||
+    boundary.segments.length !== 4
+  ) {
+    throw new Error('Stage 2C currently repairs only simple four-edge boundaries.');
+  }
+
+  let minX = Infinity, minY = Infinity, minZ = Infinity;
+  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+
+  for (let i = 0; i < nTri * 9; i += 3) {
+    const x = positions[i], y = positions[i + 1], z = positions[i + 2];
+    minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+    minZ = Math.min(minZ, z); maxZ = Math.max(maxZ, z);
+  }
+
+  const maxDim = Math.max(maxX - minX, maxY - minY, maxZ - minZ, 0);
+  const eps = Math.max(maxDim * 1e-7, 1e-7);
+
+  const vertexMap = new Map();
+  const vertexPositions = [];
+  const edgeMap = new Map();
+
+  const vertexKey = (x, y, z) =>
+    `${Math.round(x / eps)},${Math.round(y / eps)},${Math.round(z / eps)}`;
+
+  const vertexId = (x, y, z) => {
+    const key = vertexKey(x, y, z);
+    if (!vertexMap.has(key)) {
+      const id = vertexMap.size;
+      vertexMap.set(key, id);
+      vertexPositions[id] = [x, y, z];
+    }
+    return vertexMap.get(key);
+  };
+
+  for (let fi = 0; fi < nTri; fi++) {
+    const o = fi * 9;
+    const ids = [
+      vertexId(positions[o], positions[o + 1], positions[o + 2]),
+      vertexId(positions[o + 3], positions[o + 4], positions[o + 5]),
+      vertexId(positions[o + 6], positions[o + 7], positions[o + 8]),
+    ];
+
+    for (let e = 0; e < 3; e++) {
+      const from = ids[e];
+      const to = ids[(e + 1) % 3];
+      if (from === to) continue;
+
+      const key = from < to ? `${from}|${to}` : `${to}|${from}`;
+      const entry = edgeMap.get(key);
+
+      if (entry) {
+        entry.count++;
+      } else {
+        edgeMap.set(key, {
+          count: 1,
+          a: Math.min(from, to),
+          b: Math.max(from, to),
+          from,
+          to,
+        });
+      }
+    }
+  }
+
+  const selectedIds = new Set();
+
+  for (const segment of boundary.segments) {
+    if (!Array.isArray(segment) || segment.length !== 2) {
+      throw new Error('Selected boundary contains invalid segment data.');
+    }
+
+    for (const point of segment) {
+      const id = vertexMap.get(vertexKey(point[0], point[1], point[2]));
+      if (id == null) {
+        throw new Error('Selected boundary no longer matches the current mesh.');
+      }
+      selectedIds.add(id);
+    }
+  }
+
+  if (selectedIds.size !== 4) {
+    throw new Error('Stage 2C selected boundary is not a four-vertex loop.');
+  }
+
+  const selectedOpenEdges = [];
+
+  for (const edge of edgeMap.values()) {
+    if (
+      edge.count === 1 &&
+      selectedIds.has(edge.from) &&
+      selectedIds.has(edge.to)
+    ) {
+      selectedOpenEdges.push(edge);
+    }
+  }
+
+  if (selectedOpenEdges.length !== 4) {
+    throw new Error('Selected boundary changed; expected exactly four open edges.');
+  }
+
+  // Follow the directed boundary cycle from the existing adjacent faces.
+  const byFrom = new Map();
+
+  for (const edge of selectedOpenEdges) {
+    if (byFrom.has(edge.from)) {
+      throw new Error('Boundary winding is ambiguous; repair refused.');
+    }
+    byFrom.set(edge.from, edge);
+  }
+
+  const first = selectedOpenEdges[0];
+  const cycle = [first.from];
+  let current = first;
+
+  for (let step = 0; step < 4; step++) {
+    cycle.push(current.to);
+    current = byFrom.get(current.to);
+    if (step < 3 && !current) {
+      throw new Error('Boundary winding is inconsistent; repair refused.');
+    }
+  }
+
+  if (
+    cycle.length !== 5 ||
+    cycle[4] !== cycle[0] ||
+    new Set(cycle.slice(0, 4)).size !== 4
+  ) {
+    throw new Error('Boundary winding is inconsistent; repair refused.');
+  }
+
+  // Reverse the open-edge cycle to produce cap winding.
+  const capIds = [cycle[0], cycle[3], cycle[2], cycle[1]];
+  const p = capIds.map(id => vertexPositions[id]);
+
+  const sub = (a, b) => [a[0]-b[0], a[1]-b[1], a[2]-b[2]];
+  const cross = (a, b) => [
+    a[1]*b[2]-a[2]*b[1],
+    a[2]*b[0]-a[0]*b[2],
+    a[0]*b[1]-a[1]*b[0],
+  ];
+  const dot = (a, b) => a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+  const length = a => Math.hypot(a[0], a[1], a[2]);
+
+  const e01 = sub(p[1], p[0]);
+  const e02 = sub(p[2], p[0]);
+  const planeNormal = cross(e01, e02);
+  const normalLen = length(planeNormal);
+
+  if (normalLen <= eps * eps * 2) {
+    throw new Error('Quad boundary is degenerate; repair refused.');
+  }
+
+  const unitNormal = planeNormal.map(v => v / normalLen);
+  const boundarySpan = Math.max(
+    ...p.flatMap((a, i) =>
+      p.slice(i + 1).map(b => length(sub(a, b)))
+    ),
+    1
+  );
+
+  // Planarity: fourth point must lie very close to the plane of the first 3.
+  const planeDistance = Math.abs(dot(sub(p[3], p[0]), unitNormal));
+  const planarityTolerance = Math.max(eps * 20, boundarySpan * 1e-4);
+
+  if (planeDistance > planarityTolerance) {
+    throw new Error('Quad boundary is not planar enough for safe Stage 2C repair.');
+  }
+
+  // Convexity: each successive corner must turn consistently around the plane.
+  const turns = [];
+  for (let i = 0; i < 4; i++) {
+    const prev = p[(i + 3) % 4];
+    const here = p[i];
+    const next = p[(i + 1) % 4];
+    const a = sub(here, prev);
+    const b = sub(next, here);
+    turns.push(dot(cross(a, b), unitNormal));
+  }
+
+  const turnTol = Math.max(eps * eps * 4, boundarySpan * boundarySpan * 1e-10);
+  const positive = turns.every(v => v > turnTol);
+  const negative = turns.every(v => v < -turnTol);
+
+  if (!positive && !negative) {
+    throw new Error('Quad boundary is concave or ambiguous; repair refused.');
+  }
+
+  const d02 = length(sub(p[2], p[0]));
+  const d13 = length(sub(p[3], p[1]));
+
+  const triangles =
+    d02 <= d13
+      ? [[p[0], p[1], p[2]], [p[0], p[2], p[3]]]
+      : [[p[1], p[2], p[3]], [p[1], p[3], p[0]]];
+
+  for (const tri of triangles) {
+    const area2 = length(cross(sub(tri[1], tri[0]), sub(tri[2], tri[0])));
+    if (area2 <= eps * eps * 2) {
+      throw new Error('Quad triangulation would create a degenerate face; repair refused.');
+    }
+  }
+
+  const repaired = new Float32Array(positions.length + 18);
+  repaired.set(positions, 0);
+
+  let w = positions.length;
+  for (const tri of triangles) {
+    for (const point of tri) {
+      repaired[w++] = point[0];
+      repaired[w++] = point[1];
+      repaired[w++] = point[2];
+    }
+  }
+
+  return {
+    positions: repaired,
+    nTri: nTri + 2,
+    beforeFaces: nTri,
+    afterFaces: nTri + 2,
+    addedFaces: 2,
+    repairedBoundaryEdges: 4,
+    method: 'PLANAR_CONVEX_QUAD_CAP',
+    diagonal: d02 <= d13 ? '0-2' : '1-3',
+  };
+}

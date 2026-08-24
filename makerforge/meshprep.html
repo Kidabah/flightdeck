@@ -195,7 +195,7 @@
         <button class="btn" id="boundaryRepairSelected" type="button">REPAIR SELECTED</button>
       </div>
       <div id="boundaryRepairHint" class="boundary-repair-hint">
-        Stage 2B currently repairs only simple closed three-edge boundaries. Complex and polygonal openings remain inspection-only.
+        Stage 2B repairs simple triangular boundaries. Stage 2C also repairs simple planar convex four-edge boundaries. Complex, concave, twisted, and larger polygonal openings remain inspection-only.
       </div>
     </div>
 
@@ -241,7 +241,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import './js/nav.js?v=551';
-import { analyseSanitiserMesh, repairSanitiserMeshStage1, repairSanitiserBoundaryStage2B } from './js/sanitiser-core.js?v=4';
+import { analyseSanitiserMesh, repairSanitiserMeshStage1, repairSanitiserBoundaryStage2B, repairSanitiserBoundaryStage2C } from './js/sanitiser-core.js?v=5';
 const $ = id => document.getElementById(id);
 const fmt = n => Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '-';
 const setStatus = msg => { $('status').textContent = msg; };
@@ -810,7 +810,7 @@ function highlightBoundary(index) {
     loop.closed &&
     !loop.complex &&
     loop.topology === 'CLOSED_LOOP' &&
-    loop.edgeCount === 3;
+    (loop.edgeCount === 3 || loop.edgeCount === 4);
 
   $('boundaryRepairActions').hidden = !canRepairSelected;
   $('boundaryRepairSelected').disabled = !canRepairSelected;
@@ -896,20 +896,32 @@ function applySelectedBoundaryRepair() {
     setStatus(`Repairing ${repairedBoundaryLabel}...`);
 
     const before = analyseSanitiserMesh(parsed.positions, parsed.nTri);
-    const repaired = repairSanitiserBoundaryStage2B(
-      parsed.positions,
-      parsed.nTri,
-      loop
-    );
+    const repaired =
+      loop.edgeCount === 3
+        ? repairSanitiserBoundaryStage2B(
+            parsed.positions,
+            parsed.nTri,
+            loop
+          )
+        : loop.edgeCount === 4
+          ? repairSanitiserBoundaryStage2C(
+              parsed.positions,
+              parsed.nTri,
+              loop
+            )
+          : (() => {
+              throw new Error('Selected boundary is outside the supported Stage 2B/2C repair scope.');
+            })();
 
     const after = analyseSanitiserMesh(repaired.positions, repaired.nTri);
 
-    // Hard post-repair safety gate. This first Stage 2B operation must reduce
-    // the chosen three-edge hole by exactly three open edges without creating
-    // non-manifold geometry.
+    // Hard post-repair safety gate. A supported N-edge planar cap must add
+    // exactly N-2 faces, remove exactly N open edges, and never increase
+    // non-manifold topology.
+    const expectedAddedFaces = loop.edgeCount - 2;
     if (
-      repaired.addedFaces !== 1 ||
-      after.openEdges !== before.openEdges - 3 ||
+      repaired.addedFaces !== expectedAddedFaces ||
+      after.openEdges !== before.openEdges - loop.edgeCount ||
       after.nonManifoldEdges !== before.nonManifoldEdges
     ) {
       throw new Error(
