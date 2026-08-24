@@ -6,13 +6,21 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-24 Session update (Mesh Prep Boundary Auto-Frame)
+
+Mesh Prep Stage 2A now frames a selected boundary with surrounding-model context before firing the BING locator. The sidebar is narrowed from 300 px to 280 px; camera fit uses 20% boundary-span padding, a conservative 1.65x distance multiplier, and a minimum-distance floor so broad or tilted openings do not over-zoom. The 420 ms eased camera move keeps the current view direction and fires BING only after the camera settles.
+
+This is presentation-only. Stage 2A remains diagnostic: boundary selection highlights and reframes the existing open-edge loop but does not fill holes, weld vertices, join shells, reconstruct topology, or otherwise modify geometry. Embedded-module syntax, the complete Stage 1 / Stage 2A calibration suite, and diff checks passed. Next: validate framing on deliberately holed real-world meshes; do not begin Stage 2B yet.
+
+---
+
 ## 2026-08-24 Session update (Mesh Prep Sanitiser Stage 2A recovery)
 
 Recovered the missing August 20 Mesh Prep Sanitiser work without using or overwriting unrelated local changes. Stage 1 removes only degenerate and duplicate/reversed faces. Stage 2A groups open edges into boundary components and reports topology, centroid, edge count, perimeter, maximum span, and conservative `SMALL` / `REVIEW` / `MAJOR` / `COMPLEX` diagnostics. It remains inspection-only: no hole filling, vertex welding, shell joining, or topology reconstruction.
 
 The missing `sanitiser-core.js?v=3` was reconstructed from the surviving v2 core, recovered Stage 2A UI, and authoritative calibration handoff. The exact calibration passes at 3 faces, 3 open edges, 1 shell, watertight NO, 1 MAJOR boundary, 3 edges, 40.0 mm span, and 120.0 mm perimeter. Live browser validation from the active checkout confirmed Boundary 1 selection, the three-edge locator, BING animation, and no console errors. The category thresholds outside the recovered MAJOR calibration are conservative reconstructions and remain diagnostic only.
 
-Exact next job remains **Boundary Auto-Frame** with roughly 15–20% viewport padding, followed by deliberately holed real-model validation. Do not begin Stage 2B repair rules until the inspector is trusted on those models.
+At the recovery handoff, the next job was **Boundary Auto-Frame** with roughly 15–20% viewport padding. That presentation pass is now complete; deliberately holed real-model validation remains next. Do not begin Stage 2B repair rules until the inspector is trusted on those models.
 
 ---
 

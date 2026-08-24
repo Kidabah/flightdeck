@@ -2,6 +2,18 @@
 
 # MakerDeck SESSION_NEXT (active)
 
+## 2026-08-24 — Mesh Prep Boundary Auto-Frame v2
+
+### Presentation
+- Selecting a Stage 2A boundary now highlights the existing open-edge loop and eases the camera to a contextual view before the locator fires. The current view direction is preserved so the model does not unexpectedly flip.
+- Framing uses the boundary span with 20% padding, a conservative `1.65x` camera-distance multiplier, and a minimum floor of the greater of `1.25x` boundary span or 40% of the current target distance. This keeps surrounding mesh visible and prevents over-zoom on broad, flat, or tilted openings.
+- The Mesh Prep sidebar is narrowed from 300 px to 280 px. A subtle viewport focus treatment marks the framed state, and BING fires only after the 420 ms camera animation settles.
+
+### Safety / Validation
+- Presentation only: `js/sanitiser-core.js?v=3` is unchanged. Stage 2A remains diagnostic and performs no hole filling, vertex welding, shell joining, topology reconstruction, or other geometry modification.
+- Embedded-module `node --check`, `node makerforge/test/sanitiser-stage2a.mjs`, exact supplied-source parity, and `git diff --check` passed.
+- Next: validate the contextual framing on deliberately holed real-world meshes. Do not begin Stage 2B yet.
+
 ## 2026-08-24 — Recovered Mesh Prep Sanitiser Stage 2A
 
 ### Recovery
@@ -18,8 +30,8 @@
 - Repeatable checkout gate: `node makerforge/test/sanitiser-stage2a.mjs`.
 
 ### Stop / Next
-- No Boundary Auto-Frame and no Stage 2B geometry repair are included in this recovery.
-- Next: frame a selected boundary's full bounds with roughly 15–20% viewport padding, give the viewport more breathing room, then validate deliberately holed real-world meshes before designing Stage 2B.
+- The recovery commit itself included no Boundary Auto-Frame and no Stage 2B geometry repair. Boundary Auto-Frame v2 is now recorded above as a separate presentation-only follow-up.
+- Next: validate deliberately holed real-world meshes before designing Stage 2B.
 
 Notes from roughly the last 4 weeks. Older: [../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md](../docs/archive/makerforge_SESSION_NEXT_before_2026-06-28.md).
 
