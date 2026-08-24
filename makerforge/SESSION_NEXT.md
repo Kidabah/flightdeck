@@ -2,6 +2,23 @@
 
 # MakerDeck SESSION_NEXT (active)
 
+## 2026-08-24 — Mesh Prep Stage 2B triangular boundary repair
+
+### First repair operation
+- `js/sanitiser-core.js?v=4` adds `repairSanitiserBoundaryStage2B()` for one conservative case only: a selected simple closed boundary with exactly three open edges and three vertices.
+- Existing Float32 mesh coordinates are copied unchanged. The operation derives the directed boundary cycle from the current mesh, reverses it for the cap, and appends exactly one replacement triangle. It does not weld vertices, move geometry, join shells, fill larger polygons, or reconstruct topology.
+- Complex/branched boundaries, open chains, larger polygonal loops, ambiguous/inconsistent winding, stale selections, and degenerate caps are refused. The UI exposes **REPAIR SELECTED** only when the selected loop passes the same closed triangular gate.
+- Mesh Prep re-analyses the candidate before accepting it. Exactly one face must be added, open edges must fall by exactly three, and non-manifold edges must remain unchanged; failure preserves the original current mesh. Success shows a before/after summary and exports with the `_repaired.stl` suffix.
+
+### Validation
+- Stage 2B deterministic and live-browser calibration: faces `3 → 4`, open edges `3 → 0`, boundary groups `1 → 0`, watertight `NO → YES`, and non-manifold edges `0 → 0`.
+- Repeatable refusal checks pass for the recovered complex/branched boundary and a simple closed four-edge polygon. Existing source coordinates remain byte-for-byte unchanged and exactly nine Float32 values are appended.
+- Stage 1 and Stage 2A regression suites remain green without behavioural changes: diagnostic-only analysis, MAJOR 40/120 classification, exact three-edge highlight, complex-topology handling, Auto-Frame, and BING all pass. The sole Stage 2A test compatibility update is the expected Core cache assertion `v=3 → v=4`.
+- Repeatable gates: `node makerforge/test/sanitiser-stage2a.mjs` and `node makerforge/test/sanitiser-stage2b.mjs`.
+
+### Stop / Next
+- Validate this triangular repair on deliberately broken real meshes. Do not generalise Stage 2B to arbitrary polygon filling yet.
+
 ## 2026-08-24 — Mesh Prep Boundary Auto-Frame v2
 
 ### Presentation
@@ -12,7 +29,7 @@
 ### Safety / Validation
 - Presentation only: `js/sanitiser-core.js?v=3` is unchanged. Stage 2A remains diagnostic and performs no hole filling, vertex welding, shell joining, topology reconstruction, or other geometry modification.
 - Embedded-module `node --check`, `node makerforge/test/sanitiser-stage2a.mjs`, exact supplied-source parity, and `git diff --check` passed.
-- Next: validate the contextual framing on deliberately holed real-world meshes. Do not begin Stage 2B yet.
+- The separate triangular-only Stage 2B checkpoint is now recorded above; Auto-Frame itself remains presentation-only.
 
 ## 2026-08-24 — Recovered Mesh Prep Sanitiser Stage 2A
 

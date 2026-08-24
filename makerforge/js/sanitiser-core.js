@@ -627,3 +627,200 @@ export function repairSanitiserMeshStage1(positions, nTri) {
       removedDuplicates,
   };
 }
+
+/**
+ * Stage 2B selected-boundary repair, first conservative release.
+ *
+ * Repairs ONLY a simple closed triangular boundary (3 open edges / 3 vertices).
+ * The selected loop must come from analyseSanitiserMesh(...).boundaryLoops.
+ *
+ * Safety rules:
+ * - no branched/complex boundaries
+ * - no polygon triangulation yet
+ * - no welding
+ * - no shell joining
+ * - no vertex movement
+ * - existing source triangles are copied byte-for-byte as Float32 coordinates
+ *
+ * The replacement triangle is wound opposite to the directed open-edge loop,
+ * so each repaired boundary edge is paired with the existing adjacent face.
+ */
+export function repairSanitiserBoundaryStage2B(positions, nTri, boundary) {
+  if (!positions || !Number.isFinite(nTri) || nTri < 0) {
+    throw new Error('Invalid mesh supplied to Stage 2B repair.');
+  }
+
+  if (!boundary) {
+    throw new Error('Select a boundary before repairing.');
+  }
+
+  if (!boundary.closed || boundary.complex || boundary.topology !== 'CLOSED_LOOP') {
+    throw new Error('Stage 2B will not repair complex or open-chain boundaries.');
+  }
+
+  if (boundary.edgeCount !== 3 || !Array.isArray(boundary.segments) || boundary.segments.length !== 3) {
+    throw new Error('Stage 2B currently repairs only simple three-edge boundaries.');
+  }
+
+  let minX = Infinity, minY = Infinity, minZ = Infinity;
+  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+
+  for (let i = 0; i < nTri * 9; i += 3) {
+    const x = positions[i], y = positions[i + 1], z = positions[i + 2];
+    minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+    minZ = Math.min(minZ, z); maxZ = Math.max(maxZ, z);
+  }
+
+  const maxDim = Math.max(maxX - minX, maxY - minY, maxZ - minZ, 0);
+  const eps = Math.max(maxDim * 1e-7, 1e-7);
+
+  const vertexMap = new Map();
+  const vertexPositions = [];
+  const edgeMap = new Map();
+
+  const vertexKey = (x, y, z) =>
+    `${Math.round(x / eps)},${Math.round(y / eps)},${Math.round(z / eps)}`;
+
+  const vertexId = (x, y, z) => {
+    const key = vertexKey(x, y, z);
+    if (!vertexMap.has(key)) {
+      const id = vertexMap.size;
+      vertexMap.set(key, id);
+      vertexPositions[id] = [x, y, z];
+    }
+    return vertexMap.get(key);
+  };
+
+  for (let fi = 0; fi < nTri; fi++) {
+    const o = fi * 9;
+    const ids = [
+      vertexId(positions[o], positions[o + 1], positions[o + 2]),
+      vertexId(positions[o + 3], positions[o + 4], positions[o + 5]),
+      vertexId(positions[o + 6], positions[o + 7], positions[o + 8]),
+    ];
+
+    for (let e = 0; e < 3; e++) {
+      const from = ids[e];
+      const to = ids[(e + 1) % 3];
+      if (from === to) continue;
+
+      const key = from < to ? `${from}|${to}` : `${to}|${from}`;
+      const entry = edgeMap.get(key);
+
+      if (entry) {
+        entry.count++;
+      } else {
+        edgeMap.set(key, {
+          count: 1,
+          a: Math.min(from, to),
+          b: Math.max(from, to),
+          from,
+          to,
+        });
+      }
+    }
+  }
+
+  // Resolve the selected boundary coordinates back to this mesh's canonical IDs.
+  const selectedIds = new Set();
+
+  for (const segment of boundary.segments) {
+    if (!Array.isArray(segment) || segment.length !== 2) {
+      throw new Error('Selected boundary contains invalid segment data.');
+    }
+
+    for (const point of segment) {
+      const id = vertexMap.get(vertexKey(point[0], point[1], point[2]));
+      if (id == null) {
+        throw new Error('Selected boundary no longer matches the current mesh.');
+      }
+      selectedIds.add(id);
+    }
+  }
+
+  if (selectedIds.size !== 3) {
+    throw new Error('Stage 2B selected boundary is not a three-vertex loop.');
+  }
+
+  const selectedOpenEdges = [];
+
+  for (const edge of edgeMap.values()) {
+    if (
+      edge.count === 1 &&
+      selectedIds.has(edge.from) &&
+      selectedIds.has(edge.to)
+    ) {
+      selectedOpenEdges.push(edge);
+    }
+  }
+
+  if (selectedOpenEdges.length !== 3) {
+    throw new Error('Selected boundary changed; expected exactly three open edges.');
+  }
+
+  // Existing consistently-oriented manifold faces direct the three boundary
+  // edges around the hole as a cycle. Follow that cycle, then reverse it for
+  // the replacement face so every shared edge gets opposite direction.
+  const byFrom = new Map();
+
+  for (const edge of selectedOpenEdges) {
+    if (byFrom.has(edge.from)) {
+      throw new Error('Boundary winding is ambiguous; repair refused.');
+    }
+    byFrom.set(edge.from, edge);
+  }
+
+  const first = selectedOpenEdges[0];
+  const second = byFrom.get(first.to);
+  const third = second ? byFrom.get(second.to) : null;
+
+  if (
+    !second ||
+    !third ||
+    third.to !== first.from ||
+    new Set([first.from, first.to, second.to]).size !== 3
+  ) {
+    throw new Error('Boundary winding is inconsistent; repair refused.');
+  }
+
+  const cycle = [first.from, first.to, second.to];
+  const capIds = [cycle[0], cycle[2], cycle[1]];
+  const cap = capIds.map(id => vertexPositions[id]);
+
+  const ux = cap[1][0] - cap[0][0];
+  const uy = cap[1][1] - cap[0][1];
+  const uz = cap[1][2] - cap[0][2];
+  const vx = cap[2][0] - cap[0][0];
+  const vy = cap[2][1] - cap[0][1];
+  const vz = cap[2][2] - cap[0][2];
+  const area2 = Math.hypot(
+    uy * vz - uz * vy,
+    uz * vx - ux * vz,
+    ux * vy - uy * vx
+  );
+
+  if (area2 <= eps * eps * 2) {
+    throw new Error('Replacement face would be degenerate; repair refused.');
+  }
+
+  const repaired = new Float32Array(positions.length + 9);
+  repaired.set(positions, 0);
+
+  let w = positions.length;
+  for (const point of cap) {
+    repaired[w++] = point[0];
+    repaired[w++] = point[1];
+    repaired[w++] = point[2];
+  }
+
+  return {
+    positions: repaired,
+    nTri: nTri + 1,
+    beforeFaces: nTri,
+    afterFaces: nTri + 1,
+    addedFaces: 1,
+    repairedBoundaryEdges: 3,
+    method: 'TRIANGULAR_BOUNDARY_CAP',
+  };
+}

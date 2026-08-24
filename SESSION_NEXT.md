@@ -6,11 +6,19 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 ---
 
+## 2026-08-24 Session update (Mesh Prep Stage 2B triangular repair)
+
+Mesh Prep now exposes the first deliberately narrow Stage 2B geometry operation: **REPAIR SELECTED** appears only for a simple closed three-edge / three-vertex boundary. Sanitiser Core v4 copies every existing Float32 coordinate unchanged and appends exactly one oppositely wound replacement triangle. It refuses complex or branched boundaries, larger polygonal openings, inconsistent or stale selections, and degenerate replacement faces; there is still no welding, vertex movement, shell joining, general triangulation, or topology reconstruction.
+
+The UI re-analyses the candidate result before accepting it. The repair must add exactly one face, reduce open edges by exactly three, and leave non-manifold edge count unchanged; otherwise the original mesh is preserved. The deterministic and live-browser calibration both pass: faces `3 → 4`, open edges `3 → 0`, boundary groups `1 → 0`, watertight `NO → YES`, and non-manifold edges `0 → 0`. Stage 1 and every Stage 2A diagnostic, classification, highlight, complex-topology, Auto-Frame, and BING contract remain green. Next: validate triangular repair on deliberately broken real meshes; do not generalise Stage 2B yet.
+
+---
+
 ## 2026-08-24 Session update (Mesh Prep Boundary Auto-Frame)
 
 Mesh Prep Stage 2A now frames a selected boundary with surrounding-model context before firing the BING locator. The sidebar is narrowed from 300 px to 280 px; camera fit uses 20% boundary-span padding, a conservative 1.65x distance multiplier, and a minimum-distance floor so broad or tilted openings do not over-zoom. The 420 ms eased camera move keeps the current view direction and fires BING only after the camera settles.
 
-This is presentation-only. Stage 2A remains diagnostic: boundary selection highlights and reframes the existing open-edge loop but does not fill holes, weld vertices, join shells, reconstruct topology, or otherwise modify geometry. Embedded-module syntax, the complete Stage 1 / Stage 2A calibration suite, and diff checks passed. Next: validate framing on deliberately holed real-world meshes; do not begin Stage 2B yet.
+This Auto-Frame checkpoint is presentation-only. Stage 2A remains diagnostic: boundary selection highlights and reframes the existing open-edge loop but does not fill holes, weld vertices, join shells, reconstruct topology, or otherwise modify geometry. Embedded-module syntax, the complete Stage 1 / Stage 2A calibration suite, and diff checks passed. The separate triangular-only Stage 2B checkpoint is now recorded above.
 
 ---
 
