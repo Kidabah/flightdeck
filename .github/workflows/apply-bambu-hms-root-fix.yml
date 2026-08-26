@@ -1,0 +1,123 @@
+name: Apply Bambu HMS root fix once
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/apply-bambu-hms-root-fix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply root fix
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          main_path = Path("app/main.py")
+          text = main_path.read_text(encoding="utf-8")
+          pattern = re.compile(
+              r"async def _wait_for_bambu_physical_start\(p: BambuPrinter, job_id: int, filename: str\) -> bool:\n.*?\n\n# ── OrcaSlicer relay",
+              re.S,
+          )
+          replacement = '''async def _wait_for_bambu_physical_start(p: BambuPrinter, job_id: int, filename: str) -> bool:
+              # H-series / AMS preparation can legitimately take several minutes.  Do not
+              # treat an unrelated or stale HMS entry as evidence that project_file failed.
+              started_at = time.monotonic()
+              deadline = started_at + 360.0
+              last_state = "unknown"
+              while time.monotonic() < deadline:
+                  await asyncio.sleep(3.0)
+                  try:
+                      status_obj = await asyncio.to_thread(p.status)
+                  except Exception as exc:
+                      last_state = f"status error: {exc}"
+                      continue
+                  last_state = str(status_obj.state or "unknown").lower()
+                  if _bambu_physical_start_confirmed(status_obj):
+                      db.log_decision(
+                          p.id,
+                          "queue_bambu_start_confirmed",
+                          f"Job #{job_id} {filename}: physical start confirmed",
+                      )
+                      return True
+
+                  # Only the printer's actual runtime state is authoritative for a
+                  # start failure. HMS telemetry can contain advisory/stale entries.
+                  if last_state in {"error", "estop"}:
+                      detail = str(status_obj.error or f"Printer reported {last_state} before physical start")
+                      db.queue_update_status(job_id, "failed", detail)
+                      try:
+                          hms = await asyncio.to_thread(p.hms_summary)
+                      except Exception:
+                          hms = None
+                      log_detail = f"Job #{job_id} {filename}: {detail}"
+                      if hms:
+                          log_detail += f"; HMS advisory: {hms}"
+                      db.log_decision(p.id, "queue_bambu_start_failed", log_detail)
+                      return False
+
+              # A start that never produces physical evidence is still a failure, but
+              # report that fact directly instead of blaming whichever HMS happened to
+              # be present in the MQTT snapshot.
+              detail = f"Printer did not confirm physical start within 360 seconds (last state: {last_state})"
+              db.queue_update_status(job_id, "failed", detail)
+              try:
+                  hms = await asyncio.to_thread(p.hms_summary)
+              except Exception:
+                  hms = None
+              log_detail = f"Job #{job_id} {filename}: {detail}"
+              if hms:
+                  log_detail += f"; HMS advisory: {hms}"
+              db.log_decision(p.id, "queue_bambu_start_unconfirmed", log_detail)
+              return False
+
+
+          # ── OrcaSlicer relay'''
+          updated, count = pattern.subn(replacement, text, count=1)
+          if count != 1:
+              raise SystemExit(f"Expected one Bambu start watchdog block, replaced {count}")
+          main_path.write_text(updated, encoding="utf-8")
+
+          bambu_path = Path("app/printers/bambu.py")
+          bambu = bambu_path.read_text(encoding="utf-8")
+          old = '''    "0500-0300-0002-000E": (
+                  "Module/firmware mismatch (HMS 0500-0300-0002-000E) — printer may ignore new jobs. "
+                  "If no firmware update is offered: power off, disconnect AMS (and reseat hotends), "
+                  "power on and check Firmware again; then reconnect AMS and retry."
+              ),'''
+          new = '''    "0500-0300-0002-000E": (
+                  "Printer HMS 0500-0300-0002-000E (module/firmware compatibility advisory)."
+              ),'''
+          if old not in bambu:
+              raise SystemExit("Expected HMS 0500 message was not found")
+          bambu_path.write_text(bambu.replace(old, new, 1), encoding="utf-8")
+
+          # Catch syntax errors before touching main.
+          compile(main_path.read_text(encoding="utf-8"), str(main_path), "exec")
+          compile(bambu_path.read_text(encoding="utf-8"), str(bambu_path), "exec")
+          PY
+
+      - name: Commit proper source fix and remove one-time runner
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/apply-bambu-hms-root-fix.yml
+          git add app/main.py app/printers/bambu.py
+          git diff --cached --check
+          git commit -m "Fix Bambu start confirmation HMS handling"
+          git push origin HEAD:main
