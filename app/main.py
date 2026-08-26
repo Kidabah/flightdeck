@@ -11880,8 +11880,8 @@ def _block_printer_dispatch(printer_id: str, note: str) -> None:
 
 
 async def _wait_for_bambu_physical_start(p: BambuPrinter, job_id: int, filename: str) -> bool:
-    # 6-minute ceiling: AMS prep (preparing AMS → cooling → homing → filament
-    # change) can take 3-5 minutes before actual printing begins.
+    # H-series / AMS preparation can legitimately take several minutes.  Do not
+    # treat an unrelated or stale HMS entry as evidence that project_file failed.
     started_at = time.monotonic()
     deadline = started_at + 360.0
     last_state = "unknown"
@@ -11892,7 +11892,7 @@ async def _wait_for_bambu_physical_start(p: BambuPrinter, job_id: int, filename:
         except Exception as exc:
             last_state = f"status error: {exc}"
             continue
-        last_state = str(status_obj.state or "unknown")
+        last_state = str(status_obj.state or "unknown").lower()
         if _bambu_physical_start_confirmed(status_obj):
             db.log_decision(
                 p.id,
@@ -11900,44 +11900,35 @@ async def _wait_for_bambu_physical_start(p: BambuPrinter, job_id: int, filename:
                 f"Job #{job_id} {filename}: physical start confirmed",
             )
             return True
-        # Definitive failures — stop immediately.
+
+        # Only the printer's actual runtime state is authoritative for a
+        # start failure. HMS telemetry can contain advisory/stale entries.
         if last_state in {"error", "estop"}:
-            break
-        # "idle" can be a transient state during the first ~30 seconds while the
-        # printer transitions from idle → PREPARE (AMS prep).  Only give up on
-        # sustained idle (no sign of life after 45 seconds).
-        if last_state in {"idle", "finished", "ready", "standby"} and time.monotonic() - started_at > 45.0:
-            break
+            detail = str(status_obj.error or f"Printer reported {last_state} before physical start")
+            db.queue_update_status(job_id, "failed", detail)
+            try:
+                hms = await asyncio.to_thread(p.hms_summary)
+            except Exception:
+                hms = None
+            log_detail = f"Job #{job_id} {filename}: {detail}"
+            if hms:
+                log_detail += f"; HMS advisory: {hms}"
+            db.log_decision(p.id, "queue_bambu_start_failed", log_detail)
+            return False
+
+    # A start that never produces physical evidence is still a failure, but
+    # report that fact directly instead of blaming whichever HMS happened to
+    # be present in the MQTT snapshot.
+    detail = f"Printer did not confirm physical start within 360 seconds (last state: {last_state})"
+    db.queue_update_status(job_id, "failed", detail)
     try:
         hms = await asyncio.to_thread(p.hms_summary)
     except Exception:
         hms = None
-
-    # Printer refused / ignored start — fail the queue row with HMS when present
-    # instead of leaving "Printing…" until the stale-idle sweeper fires.
+    log_detail = f"Job #{job_id} {filename}: {detail}"
     if hms:
-        detail = f"Start failed — {hms}"
-        db.queue_update_status(job_id, "failed", detail)
-        db.log_decision(
-            p.id,
-            "queue_bambu_start_hms",
-            f"Job #{job_id} {filename}: {detail} (last_state={last_state})",
-        )
-        return False
-    if last_state in {"idle", "finished", "ready", "standby", "error", "estop"}:
-        detail = (
-            f"Printer stayed {last_state} after start command — "
-            "check the printer screen for HMS / finish overlays"
-        )
-        db.queue_update_status(job_id, "failed", detail)
-        db.log_decision(
-            p.id,
-            "queue_bambu_start_unconfirmed",
-            f"Job #{job_id} {filename}: {detail}",
-        )
-        return False
-    msg = "Start confirmation was inconclusive; leaving the accepted queue job active for printer-state monitoring"
-    db.log_decision(p.id, "queue_bambu_start_unconfirmed", f"Job #{job_id} {filename}: {msg} (last_state={last_state})")
+        log_detail += f"; HMS advisory: {hms}"
+    db.log_decision(p.id, "queue_bambu_start_unconfirmed", log_detail)
     return False
 
 

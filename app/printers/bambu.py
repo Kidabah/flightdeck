@@ -1924,9 +1924,7 @@ _BAMBU_ALARM_MESSAGES = {
 # Common HMS codes (attr/code → XXXX-XXXX-XXXX-XXXX) with wiki-style text.
 _BAMBU_HMS_MESSAGES = {
     "0500-0300-0002-000E": (
-        "Module/firmware mismatch (HMS 0500-0300-0002-000E) — printer may ignore new jobs. "
-        "If no firmware update is offered: power off, disconnect AMS (and reseat hotends), "
-        "power on and check Firmware again; then reconnect AMS and retry."
+        "Printer HMS 0500-0300-0002-000E (module/firmware compatibility advisory)."
     ),
 }
 
