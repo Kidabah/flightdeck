@@ -1,0 +1,299 @@
+name: Apply Mesh Prep overlap inspector once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/apply-meshprep-overlap-inspector.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Add Stage 3 overlap inspector
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          core_path = Path('makerforge/js/sanitiser-core.js')
+          core = core_path.read_text(encoding='utf-8')
+
+          anchor = "export function analyseSanitiserMesh(positions, nTri) {"
+          if anchor not in core:
+              raise SystemExit('analysis anchor missing')
+
+          helper = r'''function analyseShellIntersections(positions, nTri, faceShellIds, shellFaceCounts, modelMaxDim, avgEdge) {
+  const shellCount = shellFaceCounts?.length || 0;
+  if (!nTri || shellCount < 2) {
+    return { shellAabbPairs: 0, intersectingShellPairs: 0, triangleIntersections: 0, testedTrianglePairs: 0, truncated: false, pairs: [] };
+  }
+
+  const triBounds = new Array(nTri);
+  const shellBounds = Array.from({ length: shellCount }, () => ({
+    min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity]
+  }));
+
+  for (let fi = 0; fi < nTri; fi++) {
+    const o = fi * 9;
+    const ax=positions[o], ay=positions[o+1], az=positions[o+2];
+    const bx=positions[o+3], by=positions[o+4], bz=positions[o+5];
+    const cx=positions[o+6], cy=positions[o+7], cz=positions[o+8];
+    const min=[Math.min(ax,bx,cx),Math.min(ay,by,cy),Math.min(az,bz,cz)];
+    const max=[Math.max(ax,bx,cx),Math.max(ay,by,cy),Math.max(az,bz,cz)];
+    triBounds[fi] = { min, max };
+    const sid = faceShellIds[fi];
+    const sb = shellBounds[sid];
+    for (let d=0; d<3; d++) { sb.min[d]=Math.min(sb.min[d],min[d]); sb.max[d]=Math.max(sb.max[d],max[d]); }
+  }
+
+  const overlapAabb = (a,b,eps=0) =>
+    a.min[0] <= b.max[0]+eps && a.max[0]+eps >= b.min[0] &&
+    a.min[1] <= b.max[1]+eps && a.max[1]+eps >= b.min[1] &&
+    a.min[2] <= b.max[2]+eps && a.max[2]+eps >= b.min[2];
+
+  const shellCandidates = [];
+  const aabbEps = Math.max(modelMaxDim * 1e-8, 1e-7);
+  for (let a=0; a<shellCount; a++) {
+    if (!shellFaceCounts[a]) continue;
+    for (let b=a+1; b<shellCount; b++) {
+      if (!shellFaceCounts[b]) continue;
+      if (overlapAabb(shellBounds[a], shellBounds[b], aabbEps)) shellCandidates.push([a,b]);
+    }
+  }
+
+  if (!shellCandidates.length) {
+    return { shellAabbPairs: 0, intersectingShellPairs: 0, triangleIntersections: 0, testedTrianglePairs: 0, truncated: false, pairs: [] };
+  }
+
+  const candidateSet = new Set(shellCandidates.map(([a,b]) => `${a}|${b}`));
+  const cellSize = Math.max(avgEdge * 3.0, modelMaxDim / 40, 0.5);
+  const grid = new Map();
+  const key = (x,y,z) => `${x},${y},${z}`;
+  const maxCellsPerTriangle = 125;
+
+  for (let fi=0; fi<nTri; fi++) {
+    const b=triBounds[fi];
+    const ix0=Math.floor(b.min[0]/cellSize), ix1=Math.floor(b.max[0]/cellSize);
+    const iy0=Math.floor(b.min[1]/cellSize), iy1=Math.floor(b.max[1]/cellSize);
+    const iz0=Math.floor(b.min[2]/cellSize), iz1=Math.floor(b.max[2]/cellSize);
+    const cells=(ix1-ix0+1)*(iy1-iy0+1)*(iz1-iz0+1);
+    if (cells > maxCellsPerTriangle) continue;
+    for (let x=ix0;x<=ix1;x++) for (let y=iy0;y<=iy1;y++) for (let z=iz0;z<=iz1;z++) {
+      const k=key(x,y,z); if (!grid.has(k)) grid.set(k,[]); grid.get(k).push(fi);
+    }
+  }
+
+  const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]];
+  const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+  const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+  const point=(fi,v)=>{ const o=fi*9+v*3; return [positions[o],positions[o+1],positions[o+2]]; };
+
+  function segmentTriangle(p0,p1,t0,t1,t2) {
+    const dir=sub(p1,p0), e1=sub(t1,t0), e2=sub(t2,t0);
+    const h=cross(dir,e2), det=dot(e1,h);
+    const eps=Math.max(modelMaxDim*1e-10,1e-9);
+    if (Math.abs(det) < eps) return false;
+    const inv=1/det, s=sub(p0,t0), u=inv*dot(s,h);
+    if (u < -eps || u > 1+eps) return false;
+    const q=cross(s,e1), v=inv*dot(dir,q);
+    if (v < -eps || u+v > 1+eps) return false;
+    const t=inv*dot(e2,q);
+    return t > eps && t < 1-eps;
+  }
+
+  function triIntersects(a,b) {
+    if (!overlapAabb(triBounds[a],triBounds[b],aabbEps)) return false;
+    const A=[point(a,0),point(a,1),point(a,2)], B=[point(b,0),point(b,1),point(b,2)];
+    for (let i=0;i<3;i++) if (segmentTriangle(A[i],A[(i+1)%3],B[0],B[1],B[2])) return true;
+    for (let i=0;i<3;i++) if (segmentTriangle(B[i],B[(i+1)%3],A[0],A[1],A[2])) return true;
+    return false;
+  }
+
+  const seenTriPairs = new Set();
+  const pairHits = new Map();
+  let testedTrianglePairs=0, triangleIntersections=0, truncated=false;
+  const maxTests=350000, maxHits=20000;
+
+  outer: for (const faces of grid.values()) {
+    for (let i=0;i<faces.length;i++) for (let j=i+1;j<faces.length;j++) {
+      const a=faces[i], b=faces[j];
+      const sa=faceShellIds[a], sb=faceShellIds[b];
+      if (sa===sb) continue;
+      const lo=Math.min(sa,sb), hi=Math.max(sa,sb), sp=`${lo}|${hi}`;
+      if (!candidateSet.has(sp)) continue;
+      const tp=a<b?`${a}|${b}`:`${b}|${a}`;
+      if (seenTriPairs.has(tp)) continue;
+      seenTriPairs.add(tp);
+      testedTrianglePairs++;
+      if (triIntersects(a,b)) {
+        triangleIntersections++;
+        pairHits.set(sp,(pairHits.get(sp)||0)+1);
+        if (triangleIntersections>=maxHits) { truncated=true; break outer; }
+      }
+      if (testedTrianglePairs>=maxTests) { truncated=true; break outer; }
+    }
+  }
+
+  const pairs=[...pairHits.entries()].map(([k,hits])=>{
+    const [a,b]=k.split('|').map(Number);
+    return { shellA:a, shellB:b, intersections:hits, shellAFaces:shellFaceCounts[a]||0, shellBFaces:shellFaceCounts[b]||0 };
+  }).sort((x,y)=>y.intersections-x.intersections);
+
+  return {
+    shellAabbPairs: shellCandidates.length,
+    intersectingShellPairs: pairs.length,
+    triangleIntersections,
+    testedTrianglePairs,
+    truncated,
+    pairs: pairs.slice(0,100),
+  };
+}
+
+'''
+          core = core.replace(anchor, helper + anchor, 1)
+
+          old = """  const boundaryLoops = buildBoundaryDiagnostics(
+    edgeMap,
+    vertexPositions,
+    maxDim,
+    faceShellIds,
+    shellFaceCounts
+  );"""
+          new = old + """
+
+  const intersections = analyseShellIntersections(
+    positions,
+    nTri,
+    faceShellIds,
+    shellFaceCounts,
+    maxDim,
+    avgEdge
+  );"""
+          if old not in core:
+              raise SystemExit('boundary diagnostics call missing')
+          core = core.replace(old, new, 1)
+
+          old = """    watertight,
+    scale,
+    boundaryLoops,"""
+          new = """    watertight,
+    scale,
+    boundaryLoops,
+    intersections,"""
+          if old not in core:
+              raise SystemExit('analysis return anchor missing')
+          core = core.replace(old,new,1)
+          core_path.write_text(core,encoding='utf-8')
+
+          ui_path=Path('makerforge/meshprep.html')
+          ui=ui_path.read_text(encoding='utf-8')
+
+          style_anchor='</style>'
+          style=r'''
+.intersection-panel{border:1px solid #b875ff;border-radius:8px;padding:10px;background:rgba(184,117,255,.055)}
+.intersection-title{color:#d3a7ff;font-size:11px;font-weight:800;letter-spacing:.06em;margin-bottom:6px}
+.intersection-text{font-size:11px;color:var(--muted);line-height:1.45}.intersection-summary{display:grid;grid-template-columns:1fr auto;gap:5px 10px;margin-top:8px;font-size:11px}.intersection-summary .value{color:var(--text);font-weight:700;text-align:right}.intersection-list{margin-top:8px;display:flex;flex-direction:column;gap:5px}.intersection-item{border:1px solid var(--border);border-radius:6px;background:var(--panel-2);padding:7px;font-size:10px;color:var(--muted)}.intersection-item b{color:var(--text)}
+'''
+          if style_anchor not in ui: raise SystemExit('style anchor missing')
+          ui=ui.replace(style_anchor,style+style_anchor,1)
+
+          panel_anchor='    <div id="boundaryRepairComplete" class="boundary-repair-complete" hidden>'
+          panel=r'''    <div id="intersectionPanel" class="intersection-panel" hidden>
+      <div class="intersection-title">✦ SHELL INTERSECTION INSPECTOR</div>
+      <div class="intersection-text">Stage 3A is diagnostic only. It detects shells whose bounds overlap, then proves cross-shell triangle intersections before any repair is considered.</div>
+      <div class="intersection-summary">
+        <span>Shell AABB overlaps</span><span class="value" id="intersectionAabb">0</span>
+        <span>Intersecting shell pairs</span><span class="value" id="intersectionPairs">0</span>
+        <span>Triangle intersections</span><span class="value" id="intersectionHits">0</span>
+        <span>Triangle pairs tested</span><span class="value" id="intersectionTests">0</span>
+      </div>
+      <div id="intersectionNote" class="intersection-text" style="margin-top:7px"></div>
+      <div id="intersectionList" class="intersection-list"></div>
+    </div>
+
+'''
+          if panel_anchor not in ui: raise SystemExit('panel anchor missing')
+          ui=ui.replace(panel_anchor,panel+panel_anchor,1)
+
+          function_anchor='function hideBoundaryRepairComplete() {'
+          function=r'''function showIntersectionInspector(san) {
+  const x = san?.intersections;
+  if (!x || (!x.shellAabbPairs && !x.intersectingShellPairs)) {
+    $('intersectionPanel').hidden = true;
+    $('intersectionList').innerHTML = '';
+    return;
+  }
+  $('intersectionPanel').hidden = false;
+  $('intersectionAabb').textContent = (x.shellAabbPairs || 0).toLocaleString();
+  $('intersectionPairs').textContent = (x.intersectingShellPairs || 0).toLocaleString();
+  $('intersectionHits').textContent = (x.triangleIntersections || 0).toLocaleString();
+  $('intersectionTests').textContent = (x.testedTrianglePairs || 0).toLocaleString();
+  $('intersectionNote').textContent = x.truncated
+    ? 'Safety budget reached: results are a proven lower bound, not a complete count.'
+    : 'Analysis completed within the Stage 3A safety budget.';
+  const list=$('intersectionList'); list.innerHTML='';
+  (x.pairs || []).slice(0,12).forEach(p => {
+    const el=document.createElement('div'); el.className='intersection-item';
+    el.innerHTML=`<b>Shell ${p.shellA+1} ↔ ${p.shellB+1}</b> · ${p.intersections.toLocaleString()} proven crossings<br>${p.shellAFaces.toLocaleString()} faces ↔ ${p.shellBFaces.toLocaleString()} faces`;
+    list.appendChild(el);
+  });
+}
+
+'''
+          if function_anchor not in ui: raise SystemExit('function anchor missing')
+          ui=ui.replace(function_anchor,function+function_anchor,1)
+
+          old="""    showBoundaryInspector(san);
+    console.log('[Sanitiser Core 0.1]', san);"""
+          new="""    showBoundaryInspector(san);
+    showIntersectionInspector(san);
+    console.log('[Sanitiser Core 0.1]', san);"""
+          if old not in ui: raise SystemExit('updateAnalysis anchor missing')
+          ui=ui.replace(old,new,1)
+
+          old='./js/sanitiser-core.js?v=6'
+          if old not in ui: raise SystemExit('cache token missing')
+          ui=ui.replace(old,'./js/sanitiser-core.js?v=7',1)
+          ui_path.write_text(ui,encoding='utf-8')
+          PY
+
+      - name: Run Stage 3 syntax and detector tests
+        shell: bash
+        run: |
+          cp makerforge/js/sanitiser-core.js /tmp/sanitiser-core.mjs
+          node --check /tmp/sanitiser-core.mjs
+          cat >/tmp/test-stage3.mjs <<'JS'
+          import { analyseSanitiserMesh } from 'file:///tmp/sanitiser-core.mjs';
+          const tris=[];
+          const box=(x0,y0,z0,x1,y1,z1)=>{const v=[[x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0],[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]]; for(const f of [[0,2,1],[0,3,2],[4,5,6],[4,6,7],[0,1,5],[0,5,4],[1,2,6],[1,6,5],[2,3,7],[2,7,6],[3,0,4],[3,4,7]]) tris.push(f.map(i=>v[i]));};
+          box(0,0,0,10,10,10); box(5,5,-3,15,15,7);
+          const p=new Float32Array(tris.flat(2));
+          const a=analyseSanitiserMesh(p,tris.length);
+          if(a.shells!==2) throw new Error(`expected 2 shells, got ${a.shells}`);
+          if(a.intersections.shellAabbPairs<1) throw new Error('expected shell AABB overlap');
+          if(a.intersections.intersectingShellPairs<1) throw new Error('expected proven intersecting shell pair');
+          if(a.intersections.triangleIntersections<1) throw new Error('expected triangle crossings');
+          console.log(JSON.stringify(a.intersections));
+          JS
+          node /tmp/test-stage3.mjs
+
+      - name: Commit source change and remove runner
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/apply-meshprep-overlap-inspector.yml
+          git add makerforge/js/sanitiser-core.js makerforge/meshprep.html
+          git diff --cached --check
+          git commit -m "Add Mesh Prep Stage 3A shell intersection inspector"
+          git push origin HEAD:main
