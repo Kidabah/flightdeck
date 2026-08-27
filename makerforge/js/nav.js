@@ -24,6 +24,28 @@ function detectActiveTool() {
   return 'container'; // index.html or root
 }
 
+function applyEmbeddedMeshPrepLayout(active) {
+  // Mesh Prep has its own FlightDeck sidebar destination. When it is hosted
+  // inside FlightDeck, remove MakerDeck's second navigation layer and let the
+  // workspace consume the full iframe height. Direct /makerdeck/meshprep.html
+  // visits keep the normal MakerDeck navigation.
+  if (active !== 'meshprep' || window.self === window.top) return;
+
+  document.documentElement.classList.add('meshprep-embedded');
+  const style = document.createElement('style');
+  style.id = 'meshprep-embedded-layout';
+  style.textContent = `
+    html.meshprep-embedded .md-nav { display: none !important; }
+    html.meshprep-embedded .app {
+      grid-template-rows: 1fr var(--footer-h) !important;
+      grid-template-areas:
+        "sidebar viewport"
+        "footer footer" !important;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 export function injectNav(targetSelector = '.md-nav') {
   let nav = document.querySelector(targetSelector);
   if (!nav) {
@@ -36,6 +58,7 @@ export function injectNav(targetSelector = '.md-nav') {
   }
 
   const active = detectActiveTool();
+  applyEmbeddedMeshPrepLayout(active);
 
   nav.innerHTML = `
     <a class="md-nav-home" href="index.html" title="Back to MakerDeck">&#x2302;</a>
