@@ -1,0 +1,66 @@
+name: Fix Stage 3C truncated intersection gate once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/fix-stage3c-truncated-intersection-gate.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fix Stage 3C validation
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('makerforge/meshprep.html')
+          s = p.read_text(encoding='utf-8')
+          old = """    if ((after.intersections?.triangleIntersections || 0) > (before.intersections?.triangleIntersections || 0)) throw new Error('proven intersections increased');
+
+    currentParsed = { positions: repaired.positions, nTri: repaired.nTri };"""
+          new = """    // Intersection totals are not directly comparable when either analysis hit the
+    // Stage 3A safety budget: each value is only a proven lower bound and the
+    // traversal order changes after a shell is removed. Only compare totals when
+    // both analyses completed within budget. The fragment repair is otherwise
+    // accepted only if the hard topology gates above did not regress.
+    const beforeIx = before.intersections || {};
+    const afterIx = after.intersections || {};
+    if (!beforeIx.truncated && !afterIx.truncated &&
+        (afterIx.triangleIntersections || 0) > (beforeIx.triangleIntersections || 0)) {
+      throw new Error('proven intersections increased');
+    }
+
+    currentParsed = { positions: repaired.positions, nTri: repaired.nTri };"""
+          if old not in s:
+              raise SystemExit('Stage 3C intersection safety gate anchor not found')
+          s = s.replace(old, new, 1)
+          s = s.replace("./js/sanitiser-core.js?v=10", "./js/sanitiser-core.js?v=11", 1)
+          p.write_text(s, encoding='utf-8')
+
+      - name: Verify
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('makerforge/meshprep.html').read_text(encoding='utf-8')
+          assert '!beforeIx.truncated && !afterIx.truncated' in s
+          assert 'sanitiser-core.js?v=11' in s
+          PY
+
+      - name: Commit and remove runner
+        shell: bash
+        run: |
+          rm .github/workflows/fix-stage3c-truncated-intersection-gate.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add makerforge/meshprep.html .github/workflows/fix-stage3c-truncated-intersection-gate.yml
+          git commit -m "Fix Stage 3C truncated intersection safety gate"
+          git push origin HEAD:main
