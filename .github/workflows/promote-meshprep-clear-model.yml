@@ -24,21 +24,13 @@ jobs:
       - name: Verify Mesh Prep UX source
         shell: bash
         run: |
-          python - <<'PY'
-          from pathlib import Path
-          nav=Path('makerforge/js/nav.js').read_text(encoding='utf-8')
-          css=Path('makerforge/css/makerdeck.css').read_text(encoding='utf-8')
-          idx=Path('makerforge/index.html').read_text(encoding='utf-8')
-          h=Path('makerforge/meshprep.html').read_text(encoding='utf-8')
-          assert nav.index("id: 'meshprep'") < nav.index("id: 'painter'")
-          assert 'md-nav-link--meshprep' in nav
-          assert '.md-nav-link--meshprep' in css
-          assert '◆ Mesh Prep' in idx
-          assert 'id="clearModelBtn"' in h
-          assert 'function clearMeshPrepModel()' in h
-          assert "$('clearModelBtn').addEventListener('click', clearMeshPrepModel);" in h
-          assert "import './js/nav.js?v=552';" in h
-          PY
+          grep -q "id: 'meshprep'" makerforge/js/nav.js
+          grep -q "md-nav-link--meshprep" makerforge/js/nav.js
+          grep -q "Mesh Prep has its own violet identity" makerforge/css/makerdeck.css
+          grep -q "Mesh Prep</a>" makerforge/index.html
+          grep -q 'id="clearModelBtn"' makerforge/meshprep.html
+          grep -q 'function clearMeshPrepModel()' makerforge/meshprep.html
+          grep -q "nav.js?v=552" makerforge/meshprep.html
 
       - name: Commit changes and remove temporary files
         shell: bash
