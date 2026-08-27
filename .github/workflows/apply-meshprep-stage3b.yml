@@ -2,9 +2,10 @@ name: Apply Mesh Prep Stage 3B once
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
     paths:
-      - ".github/workflows/apply-meshprep-stage3b.yml"
+      - .github/workflows/apply-meshprep-stage3b.yml
 
 permissions:
   contents: write
@@ -17,97 +18,45 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Add Stage 3B overlap classification and compact boundary summary
-        shell: python
+      - name: Patch Stage 3B
+        shell: bash
         run: |
+          cat > /tmp/stage3b.py <<'PY'
           from pathlib import Path
 
           core = Path('makerforge/js/sanitiser-core.js')
           s = core.read_text(encoding='utf-8')
-
           old = """  const pairs=[...hits.entries()].map(([k,n])=>{const[a,b]=k.split('|').map(Number);return{shellA:a,shellB:b,intersections:n,shellAFaces:shellFaceCounts[a]||0,shellBFaces:shellFaceCounts[b]||0}}).sort((a,b)=>b.intersections-a.intersections);\n  const intersectingShellIds = [...new Set(pairs.flatMap(pair => [pair.shellA, pair.shellB]))].sort((a,b)=>a-b);\n  return {shellAabbPairs:shellCandidates.length,intersectingShellPairs:pairs.length,triangleIntersections,testedTrianglePairs,truncated,intersectingShellIds,pairs:pairs.slice(0,100)};"""
-
-          new = """  const pairs=[...hits.entries()].map(([k,n])=>{\n    const[a,b]=k.split('|').map(Number);\n    const shellAFaces=shellFaceCounts[a]||0, shellBFaces=shellFaceCounts[b]||0;\n    const smallerFaces=Math.min(shellAFaces,shellBFaces);\n    const largerFaces=Math.max(shellAFaces,shellBFaces);\n    const crossingDensity=n/Math.max(1,smallerFaces);\n    let overlapType='CROSSING SHELLS';\n    let severity='REVIEW';\n    let reason='Two substantial shells have proven triangle crossings.';\n    let recommendation='Inspect the intersecting shells before any union, trim, or cap operation.';\n\n    // Stage 3B is classification only. It never modifies geometry.\n    if(smallerFaces<=4){\n      overlapType='STRAY FRAGMENT CONTACT';\n      severity='FRAGMENT';\n      reason='One intersecting shell is only a few faces, consistent with a stray export fragment or sliver.';\n      recommendation='Verify the tiny shell is unwanted before removing it.';\n    }else if(n>=500 || crossingDensity>=0.35){\n      overlapType='DEEP OVERLAP';\n      severity='HIGH';\n      reason='The pair has dense proven cross-shell intersections, consistent with strongly overlapping exported objects.';\n      recommendation='Resolve this pair before boundary repair; likely candidates are boolean union or internal-face trimming after review.';\n    }else if(n<=3 && smallerFaces<=32){\n      overlapType='LOCAL CONTACT';\n      severity='LOW';\n      reason='Only a few crossings are proven and one shell is relatively small.';\n      recommendation='Inspect locally; this may be a small accidental collision or intended contact.';\n    }\n\n    return{shellA:a,shellB:b,intersections:n,shellAFaces,shellBFaces,smallerFaces,largerFaces,crossingDensity,overlapType,severity,reason,recommendation};\n  }).sort((a,b)=>b.intersections-a.intersections);\n  const intersectingShellIds = [...new Set(pairs.flatMap(pair => [pair.shellA, pair.shellB]))].sort((a,b)=>a-b);\n  const typeCounts = pairs.reduce((acc,pair)=>{acc[pair.overlapType]=(acc[pair.overlapType]||0)+1;return acc;},{});\n  return {shellAabbPairs:shellCandidates.length,intersectingShellPairs:pairs.length,triangleIntersections,testedTrianglePairs,truncated,intersectingShellIds,typeCounts,pairs:pairs.slice(0,100)};"""
-
+          new = """  const pairs=[...hits.entries()].map(([k,n])=>{\n    const[a,b]=k.split('|').map(Number);\n    const shellAFaces=shellFaceCounts[a]||0, shellBFaces=shellFaceCounts[b]||0;\n    const smallerFaces=Math.min(shellAFaces,shellBFaces);\n    const largerFaces=Math.max(shellAFaces,shellBFaces);\n    const crossingDensity=n/Math.max(1,smallerFaces);\n    let overlapType='CROSSING SHELLS';\n    let severity='REVIEW';\n    let reason='Two substantial shells have proven triangle crossings.';\n    let recommendation='Inspect the intersecting shells before any union, trim, or cap operation.';\n    if(smallerFaces<=4){\n      overlapType='STRAY FRAGMENT CONTACT';\n      severity='FRAGMENT';\n      reason='One intersecting shell is only a few faces, consistent with a stray export fragment or sliver.';\n      recommendation='Verify the tiny shell is unwanted before removing it.';\n    }else if(n>=500 || crossingDensity>=0.35){\n      overlapType='DEEP OVERLAP';\n      severity='HIGH';\n      reason='The pair has dense proven cross-shell intersections, consistent with strongly overlapping exported objects.';\n      recommendation='Resolve this pair before boundary repair; likely candidates are boolean union or internal-face trimming after review.';\n    }else if(n<=3 && smallerFaces<=32){\n      overlapType='LOCAL CONTACT';\n      severity='LOW';\n      reason='Only a few crossings are proven and one shell is relatively small.';\n      recommendation='Inspect locally; this may be a small accidental collision or intended contact.';\n    }\n    return{shellA:a,shellB:b,intersections:n,shellAFaces,shellBFaces,smallerFaces,largerFaces,crossingDensity,overlapType,severity,reason,recommendation};\n  }).sort((a,b)=>b.intersections-a.intersections);\n  const intersectingShellIds = [...new Set(pairs.flatMap(pair => [pair.shellA, pair.shellB]))].sort((a,b)=>a-b);\n  const typeCounts = pairs.reduce((acc,pair)=>{acc[pair.overlapType]=(acc[pair.overlapType]||0)+1;return acc;},{});\n  return {shellAabbPairs:shellCandidates.length,intersectingShellPairs:pairs.length,triangleIntersections,testedTrianglePairs,truncated,intersectingShellIds,typeCounts,pairs:pairs.slice(0,100)};"""
           if old not in s:
-            raise SystemExit('Stage 3A pair-result block not found')
-          s = s.replace(old, new, 1)
-          core.write_text(s, encoding='utf-8')
+              raise SystemExit('Stage 3A pair-result block not found')
+          core.write_text(s.replace(old,new,1),encoding='utf-8')
 
-          page = Path('makerforge/meshprep.html')
-          h = page.read_text(encoding='utf-8')
+          page=Path('makerforge/meshprep.html')
+          h=page.read_text(encoding='utf-8')
+          css_anchor='.boundary-summary .value{color:var(--text);font-weight:700;text-align:right}\n'
+          if 'file-value' not in h:
+              if css_anchor not in h: raise SystemExit('boundary summary CSS anchor missing')
+              h=h.replace(css_anchor,css_anchor+'.boundary-summary .value.file-value{max-width:154px;white-space:normal;overflow-wrap:anywhere;word-break:break-word;line-height:1.25}\n',1)
+              h=h.replace('<span class="label">File</span><span class="value" id="boundaryFileName">-</span>','<span class="label">File</span><span class="value file-value" id="boundaryFileName">-</span>',1)
 
-          css_anchor = ".boundary-summary .value{color:var(--text);font-weight:700;text-align:right}\n"
-          css_add = css_anchor + ".boundary-summary .value.file-value{max-width:154px;white-space:normal;overflow-wrap:anywhere;word-break:break-word;line-height:1.25}\n"
-          if css_anchor not in h:
-            raise SystemExit('boundary summary CSS anchor missing')
-          h = h.replace(css_anchor, css_add, 1)
-
-          file_old = '<span class="label">File</span><span class="value" id="boundaryFileName">-</span>'
-          file_new = '<span class="label">File</span><span class="value file-value" id="boundaryFileName">-</span>'
-          if file_old not in h:
-            raise SystemExit('boundary filename row missing')
-          h = h.replace(file_old, file_new, 1)
-
-          old_func_start = h.index('function showIntersectionInspector(san) {')
-          old_func_end = h.index('\n}\n\nfunction hideBoundaryRepairComplete()', old_func_start) + 2
-          new_func = r'''function showIntersectionInspector(san) {
-  const x = san?.intersections;
-  if (!x || (!x.shellAabbPairs && !x.intersectingShellPairs)) {
-    $('intersectionPanel').hidden = true;
-    $('intersectionList').innerHTML = '';
-    return;
-  }
-
-  $('intersectionPanel').hidden = false;
-  $('intersectionAabb').textContent = (x.shellAabbPairs || 0).toLocaleString();
-  $('intersectionPairs').textContent = (x.intersectingShellPairs || 0).toLocaleString();
-  $('intersectionHits').textContent = (x.triangleIntersections || 0).toLocaleString();
-  $('intersectionTests').textContent = (x.testedTrianglePairs || 0).toLocaleString();
-
-  const types = x.typeCounts || {};
-  const typeSummary = Object.entries(types)
-    .sort((a,b) => b[1] - a[1])
-    .map(([name,count]) => `${name}: ${count}`)
-    .join(' · ');
-
-  $('intersectionNote').textContent =
-    (x.truncated ? 'Safety budget reached: proven lower bound only.' : 'Analysis completed within the Stage 3A safety budget.') +
-    (typeSummary ? ` Stage 3B: ${typeSummary}.` : '');
-
-  const list = $('intersectionList');
-  list.innerHTML = '';
-  (x.pairs || []).slice(0,12).forEach(p => {
-    const el = document.createElement('div');
-    el.className = 'intersection-item';
-    const density = Number.isFinite(p.crossingDensity) ? ` · density ${p.crossingDensity.toFixed(2)}` : '';
-    el.innerHTML =
-      `<b>Shell ${p.shellA+1} / ${p.shellB+1}</b> · ${p.intersections.toLocaleString()} proven crossings<br>` +
-      `${p.shellAFaces.toLocaleString()} faces / ${p.shellBFaces.toLocaleString()} faces${density}<br>` +
-      `<b>${p.overlapType || 'CROSSING SHELLS'}</b> · ${p.reason || ''}<br>` +
-      `${p.recommendation || ''}`;
-    list.appendChild(el);
-  });
-}'''
-          h = h[:old_func_start] + new_func + h[old_func_end:]
-
-          h = h.replace("./js/sanitiser-core.js?v=8", "./js/sanitiser-core.js?v=9", 1)
-          page.write_text(h, encoding='utf-8')
+          start=h.index('function showIntersectionInspector(san) {')
+          end=h.index('\n}\n\nfunction hideBoundaryRepairComplete()',start)+2
+          new_func='''function showIntersectionInspector(san) {\n  const x = san?.intersections;\n  if (!x || (!x.shellAabbPairs && !x.intersectingShellPairs)) {\n    $('intersectionPanel').hidden = true;\n    $('intersectionList').innerHTML = '';\n    return;\n  }\n  $('intersectionPanel').hidden = false;\n  $('intersectionAabb').textContent = (x.shellAabbPairs || 0).toLocaleString();\n  $('intersectionPairs').textContent = (x.intersectingShellPairs || 0).toLocaleString();\n  $('intersectionHits').textContent = (x.triangleIntersections || 0).toLocaleString();\n  $('intersectionTests').textContent = (x.testedTrianglePairs || 0).toLocaleString();\n  const types = x.typeCounts || {};\n  const typeSummary = Object.entries(types).sort((a,b) => b[1]-a[1]).map(([name,count]) => `${name}: ${count}`).join(' · ');\n  $('intersectionNote').textContent = (x.truncated ? 'Safety budget reached: proven lower bound only.' : 'Analysis completed within the Stage 3A safety budget.') + (typeSummary ? ` Stage 3B: ${typeSummary}.` : '');\n  const list = $('intersectionList');\n  list.innerHTML = '';\n  (x.pairs || []).slice(0,12).forEach(p => {\n    const el = document.createElement('div');\n    el.className = 'intersection-item';\n    const density = Number.isFinite(p.crossingDensity) ? ` · density ${p.crossingDensity.toFixed(2)}` : '';\n    el.innerHTML = `<b>Shell ${p.shellA+1} / ${p.shellB+1}</b> · ${p.intersections.toLocaleString()} proven crossings<br>` + `${p.shellAFaces.toLocaleString()} faces / ${p.shellBFaces.toLocaleString()} faces${density}<br>` + `<b>${p.overlapType || 'CROSSING SHELLS'}</b> · ${p.reason || ''}<br>` + `${p.recommendation || ''}`;\n    list.appendChild(el);\n  });\n}'''
+          h=h[:start]+new_func+h[end:]
+          h=h.replace('./js/sanitiser-core.js?v=8','./js/sanitiser-core.js?v=9',1)
+          page.write_text(h,encoding='utf-8')
+          PY
+          python /tmp/stage3b.py
 
       - name: Verify Stage 3B
         shell: bash
         run: |
-          python - <<'PY'
-          from pathlib import Path
-          c=Path('makerforge/js/sanitiser-core.js').read_text(encoding='utf-8')
-          h=Path('makerforge/meshprep.html').read_text(encoding='utf-8')
-          assert "overlapType='DEEP OVERLAP'" in c
-          assert "overlapType='STRAY FRAGMENT CONTACT'" in c
-          assert 'typeCounts' in c
-          assert 'Stage 3B:' in h
-          assert 'file-value' in h
-          assert 'sanitiser-core.js?v=9' in h
-          PY
+          grep -q "overlapType='DEEP OVERLAP'" makerforge/js/sanitiser-core.js
+          grep -q "overlapType='STRAY FRAGMENT CONTACT'" makerforge/js/sanitiser-core.js
+          grep -q "Stage 3B:" makerforge/meshprep.html
+          grep -q "file-value" makerforge/meshprep.html
+          grep -q "sanitiser-core.js?v=9" makerforge/meshprep.html
 
       - name: Commit source change and remove runner
         shell: bash
