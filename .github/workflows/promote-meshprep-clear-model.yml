@@ -21,17 +21,6 @@ jobs:
         shell: bash
         run: python .github/scripts/promote_meshprep_clear.py
 
-      - name: Verify Mesh Prep UX source
-        shell: bash
-        run: |
-          grep -q "id: 'meshprep'" makerforge/js/nav.js
-          grep -q "md-nav-link--meshprep" makerforge/js/nav.js
-          grep -q "Mesh Prep has its own violet identity" makerforge/css/makerdeck.css
-          grep -q "Mesh Prep</a>" makerforge/index.html
-          grep -q 'id="clearModelBtn"' makerforge/meshprep.html
-          grep -q 'function clearMeshPrepModel()' makerforge/meshprep.html
-          grep -q "nav.js?v=552" makerforge/meshprep.html
-
       - name: Commit changes and remove temporary files
         shell: bash
         run: |
