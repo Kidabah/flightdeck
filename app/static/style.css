@@ -24013,3 +24013,20 @@ select optgroup {
 .project-file-row.is-slicing span { color: #7dd3fc; }
 .project-file-row.is-error span { color: #fca5a5; }
 .project-slicing-note { color: #7dd3fc; }
+
+
+/* Mesh Prep sidebar identity */
+#tab-strip .tab-meshprep {
+  color: #d8b4fe;
+  border-left-color: rgba(184,117,255,.55);
+}
+#tab-strip .tab-meshprep:hover {
+  color: #f0e3ff;
+  background: rgba(184,117,255,.10);
+}
+#tab-strip .tab-meshprep.active {
+  color: #f3e8ff;
+  background: linear-gradient(90deg, rgba(184,117,255,.20), rgba(184,117,255,.06));
+  box-shadow: inset 3px 0 0 #b875ff;
+}
+.meshprep-page iframe { width:100%; height:100%; border:0; display:block; }

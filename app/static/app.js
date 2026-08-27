@@ -396,6 +396,7 @@ let _onDemo = false;            // true while walkthrough mode is active
 let _onAbout = false;           // true while about page is active
 let _onMakerWorld = false;      // true while MakerWorld page is active
 let _onMakerDeck = false;       // true while MakerDeck embed is active
+let _onMeshPrep = false;        // true while Mesh Prep embed is active
 let _onPainter = false;         // true while STL Painter embed is active
 let _onChop = false;            // true while Chop embed is active
 let _makerWorldUrl = '';
@@ -912,6 +913,7 @@ function _commandStaticItems() {
     ['Walkthrough Mode', '#/walkthrough', 'Guided first-look tour for testers'],
     ['MakerWorld', '#/makerworld', 'Paste MakerWorld links and import plates into Print Vault'],
     ['MakerDeck', '#/makerdeck', 'Design boxes, pencil cases, lids — export STL and 3MF'],
+    ['Mesh Prep', '#/meshprep', 'Inspect STL health, repair safe defects, and resolve mesh intersections'],
     ['STL Painter', '#/painter', 'Paint STL/3MF faces, stamp SVG art, export coloured 3MF'],
     ['Chop', '#/chop', 'Slice STLs into printable pieces with Flexi Cut'],
     ['Flight Manual', '#/manual', 'Setup, recovery, Bambu and walkthrough notes'],
@@ -4090,6 +4092,7 @@ function parseRoute() {
   if (hash === '#/walkthrough' || hash === '#/demo') return { view: 'demo' };
   if (hash === '#/makerworld') return { view: 'makerworld' };
   if (hash === '#/makerdeck') return { view: 'makerdeck' };
+  if (hash === '#/meshprep') return { view: 'meshprep' };
   if (hash === '#/painter') return { view: 'painter' };
   if (hash === '#/chop') return { view: 'chop' };
   if (hash === '#/manual') return { view: 'manual' };
@@ -4120,6 +4123,13 @@ function _ensureMakerDeckFrame() {
   const frame = document.getElementById('makerdeck-frame');
   if (!frame || frame.dataset.loaded === '1') return;
   frame.src = '/makerdeck/?v=623';
+  frame.dataset.loaded = '1';
+}
+
+function _ensureMeshPrepFrame() {
+  const frame = document.getElementById('meshprep-frame');
+  if (!frame || frame.dataset.loaded === '1') return;
+  frame.src = '/makerdeck/meshprep.html?v=651';
   frame.dataset.loaded = '1';
 }
 
@@ -4197,6 +4207,7 @@ function router() {
   _onAbout = route.view === 'about';
   _onMakerWorld = route.view === 'makerworld';
   _onMakerDeck = route.view === 'makerdeck';
+  _onMeshPrep = route.view === 'meshprep';
   _onPainter = route.view === 'painter';
   _onChop = route.view === 'chop';
   if (route.view !== 'spool') _renderedSpoolDetailId = null;
@@ -4229,6 +4240,7 @@ function router() {
   document.getElementById('view-demo').hidden      = route.view !== 'demo';
   document.getElementById('view-makerworld').hidden = route.view !== 'makerworld';
   document.getElementById('view-makerdeck').hidden = route.view !== 'makerdeck';
+  document.getElementById('view-meshprep').hidden = route.view !== 'meshprep';
   document.getElementById('view-painter').hidden  = route.view !== 'painter';
   document.getElementById('view-chop').hidden     = route.view !== 'chop';
   document.getElementById('view-manual').hidden    = route.view !== 'manual';
@@ -4253,6 +4265,7 @@ function router() {
       (route.view === 'demo'     && (href === '#/walkthrough' || href === '#/demo')) ||
       (route.view === 'makerworld' && href === '#/makerworld') ||
       (route.view === 'makerdeck' && href === '#/makerdeck') ||
+      (route.view === 'meshprep' && href === '#/meshprep') ||
       (route.view === 'painter'  && href === '#/painter') ||
       (route.view === 'chop'     && href === '#/chop') ||
       (route.view === 'manual'   && href === '#/manual') ||
@@ -4297,6 +4310,7 @@ function router() {
   if (route.view === 'demo' && !wasOnDemo) renderDemoView();
   if (route.view === 'makerworld' && !wasOnMakerWorld) renderMakerWorldView();
   if (route.view === 'makerdeck') _ensureMakerDeckFrame();
+  if (route.view === 'meshprep') _ensureMeshPrepFrame();
   if (route.view === 'painter') _ensurePainterFrame();
   if (route.view === 'chop') _ensureChopFrame();
   if (route.view === 'manual' && !wasOnManual) renderManualView();
@@ -4375,6 +4389,7 @@ function buildTabs(printers) {
       `<a class="tab" href="#/walkthrough">Walkthrough Mode</a>`,
       `<a class="tab" href="#/makerworld">MakerWorld</a>`,
       `<a class="tab tab-makerdeck" href="#/makerdeck">MakerDeck</a>`,
+      `<a class="tab tab-meshprep" href="#/meshprep">Mesh Prep</a>`,
       `<a class="tab tab-painter" href="#/painter">STL Painter</a>`,
       `<a class="tab tab-chop" href="#/chop">Chop</a>`,
       `<a class="tab" href="#/manual">Flight Manual</a>`,
