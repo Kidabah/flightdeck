@@ -124,6 +124,7 @@
 .intersection-title{color:#d3a7ff;font-size:11px;font-weight:800;letter-spacing:.06em;margin-bottom:6px}.intersection-text{font-size:11px;color:var(--muted);line-height:1.45}.intersection-summary{display:grid;grid-template-columns:1fr auto;gap:5px 10px;margin-top:8px;font-size:11px}.intersection-summary .value{color:var(--text);font-weight:700;text-align:right}.intersection-list{margin-top:8px;display:flex;flex-direction:column;gap:5px}.intersection-item{border:1px solid var(--border);border-radius:6px;background:var(--panel-2);padding:7px;font-size:10px;color:var(--muted)}.intersection-item b{color:var(--text)}
 .intersection-actions{display:flex;gap:6px;margin-top:7px}.intersection-actions .btn{width:100%;font-size:10px;padding:6px}.intersection-item[data-type="STRAY FRAGMENT CONTACT"]{border-color:rgba(52,211,153,.38)}
 .intersection-batch{margin-top:8px}.intersection-batch .btn{width:100%;font-size:10px;padding:7px;border-color:rgba(52,211,153,.55)}
+.union-preflight{margin-top:7px;padding:6px 7px;border-radius:6px;border:1px solid var(--border);font-size:10px;line-height:1.35}.union-preflight.ready{border-color:rgba(52,211,153,.5);background:rgba(52,211,153,.06);color:#86efac}.union-preflight.blocked{border-color:rgba(251,191,36,.42);background:rgba(251,191,36,.05);color:#fcd34d}.union-preflight b{color:inherit}
 </style>
 </head>
 <body>
@@ -276,7 +277,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import './js/nav.js?v=552';
-import { analyseSanitiserMesh, repairSanitiserMeshStage1, repairSanitiserBoundaryStage2B, repairSanitiserBoundaryStage2C, repairSanitiserIntersectionStage3C, repairSanitiserIntersectionStage3CBatch } from './js/sanitiser-core.js?v=12';
+import { analyseSanitiserMesh, repairSanitiserMeshStage1, repairSanitiserBoundaryStage2B, repairSanitiserBoundaryStage2C, repairSanitiserIntersectionStage3C, repairSanitiserIntersectionStage3CBatch } from './js/sanitiser-core.js?v=13';
 const $ = id => document.getElementById(id);
 const fmt = n => Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '-';
 const setStatus = msg => { $('status').textContent = msg; };
@@ -957,7 +958,7 @@ function showIntersectionInspector(san) {
   $('intersectionNote').textContent =
     (x.truncated ? 'Safety budget reached: proven lower bound only.' : 'Analysis completed within the Stage 3A safety budget.') +
     (typeSummary ? ` Stage 3B: ${typeSummary}.` : '') +
-    ' Stage 3C can safely remove proven tiny stray fragments; deeper overlaps remain blocked pending boolean union.';
+    ' Stage 3C removes proven tiny stray fragments and now runs pair-local union preflight on deeper overlaps.';
   const list = $('intersectionList');
   list.innerHTML = '';
   const safeStrayPairs = (x.pairs || []).filter(p => p.overlapType === 'STRAY FRAGMENT CONTACT');
@@ -980,6 +981,14 @@ function showIntersectionInspector(san) {
     el.innerHTML = `<b>Shell ${p.shellA+1} / ${p.shellB+1}</b> · ${p.intersections.toLocaleString()} proven crossings<br>` +
       `${p.shellAFaces.toLocaleString()} faces / ${p.shellBFaces.toLocaleString()} faces${density}<br>` +
       `<b>${p.overlapType || 'CROSSING SHELLS'}</b> · ${p.reason || ''}<br>${p.recommendation || ''}`;
+    if (p.overlapType !== 'STRAY FRAGMENT CONTACT') {
+      const preflight = document.createElement('div');
+      preflight.className = `union-preflight ${p.unionReady ? 'ready' : 'blocked'}`;
+      preflight.innerHTML = p.unionReady
+        ? `<b>UNION READY</b> · Both source shells are closed and manifold at the pair-local topology gate.`
+        : `<b>UNION BLOCKED</b> · ${p.unionBlockReason || 'Pair-local topology is not safe for a solid boolean yet.'}`;
+      el.appendChild(preflight);
+    }
     if (p.overlapType === 'STRAY FRAGMENT CONTACT') {
       const actions = document.createElement('div');
       actions.className = 'intersection-actions';

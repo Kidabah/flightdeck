@@ -674,6 +674,41 @@ export function analyseSanitiserMesh(positions, nTri) {
     positions, nTri, faceShellIds, shellFaceCounts, maxDim, avgEdge
   );
 
+  // Stage 3C union preflight is deliberately shell-local. A whole STL may have
+  // thousands of open edges while a particular intersecting pair is still made
+  // from two valid closed solids. Count topology defects for each connected shell
+  // so boolean-union eligibility is based on the actual pair, not the whole file.
+  const shellTopology = Array.from({ length: shells }, () => ({ openEdges: 0, nonManifoldEdges: 0 }));
+  for (const edge of edgeMap.values()) {
+    if (!edge.faces?.length) continue;
+    if (edge.count === 1) {
+      const sid = faceShellIds[edge.faces[0]];
+      if (sid >= 0 && shellTopology[sid]) shellTopology[sid].openEdges++;
+    } else if (edge.count > 2) {
+      const touched = new Set(edge.faces.map(fi => faceShellIds[fi]).filter(sid => sid >= 0));
+      for (const sid of touched) if (shellTopology[sid]) shellTopology[sid].nonManifoldEdges++;
+    }
+  }
+  for (const pair of intersections.pairs || []) {
+    const ta = shellTopology[pair.shellA] || { openEdges: 0, nonManifoldEdges: 0 };
+    const tb = shellTopology[pair.shellB] || { openEdges: 0, nonManifoldEdges: 0 };
+    pair.shellAOpenEdges = ta.openEdges;
+    pair.shellBOpenEdges = tb.openEdges;
+    pair.shellANonManifoldEdges = ta.nonManifoldEdges;
+    pair.shellBNonManifoldEdges = tb.nonManifoldEdges;
+    pair.unionReady =
+      pair.overlapType !== 'STRAY FRAGMENT CONTACT' &&
+      pair.shellAFaces >= 4 && pair.shellBFaces >= 4 &&
+      ta.openEdges === 0 && tb.openEdges === 0 &&
+      ta.nonManifoldEdges === 0 && tb.nonManifoldEdges === 0;
+    pair.unionBlockReason = pair.unionReady ? '' : (
+      pair.overlapType === 'STRAY FRAGMENT CONTACT'
+        ? 'Tiny fragment contacts use the safe fragment-removal path instead of boolean union.'
+        : `Shell ${pair.shellA + 1}: ${ta.openEdges} open / ${ta.nonManifoldEdges} non-manifold edges; ` +
+          `Shell ${pair.shellB + 1}: ${tb.openEdges} open / ${tb.nonManifoldEdges} non-manifold edges.`
+    );
+  }
+
   // Stage 3A evidence feeds back into Stage 2A diagnosis, but never into
   // repair authorisation. The repairEligible flag remains the only cap gate.
   const intersectingShellIds = new Set(intersections.intersectingShellIds || []);
