@@ -1,0 +1,55 @@
+name: Move Mesh Prep intersection panel once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/move-meshprep-intersection-panel.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Reposition Stage 3A panel
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('makerforge/meshprep.html')
+          s = p.read_text(encoding='utf-8')
+          block = '''    <div id="intersectionPanel" class="intersection-panel" hidden>
+      <div class="intersection-title">SHELL INTERSECTION INSPECTOR</div>
+      <div class="intersection-text">Stage 3A is diagnostic only. It detects overlapping shell bounds, then proves cross-shell triangle intersections.</div>
+      <div class="intersection-summary"><span>Shell AABB overlaps</span><span class="value" id="intersectionAabb">0</span><span>Intersecting shell pairs</span><span class="value" id="intersectionPairs">0</span><span>Triangle intersections</span><span class="value" id="intersectionHits">0</span><span>Triangle pairs tested</span><span class="value" id="intersectionTests">0</span></div>
+      <div id="intersectionNote" class="intersection-text" style="margin-top:7px"></div><div id="intersectionList" class="intersection-list"></div>
+    </div>
+
+'''
+          if s.count(block) != 1:
+              raise SystemExit(f'expected one intersection panel, found {s.count(block)}')
+          s = s.replace(block, '')
+          marker = '    <div id="boundaryPanel" class="boundary-panel" hidden>'
+          if marker not in s:
+              raise SystemExit('boundary panel marker missing')
+          s = s.replace(marker, block + marker, 1)
+          p.write_text(s, encoding='utf-8')
+      - name: Verify placement
+        shell: python
+        run: |
+          from pathlib import Path
+          s=Path('makerforge/meshprep.html').read_text(encoding='utf-8')
+          assert s.index('id="repairPanel"') < s.index('id="intersectionPanel"') < s.index('id="boundaryPanel"')
+      - name: Commit change and remove runner
+        shell: bash
+        run: |
+          rm .github/workflows/move-meshprep-intersection-panel.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add makerforge/meshprep.html .github/workflows/move-meshprep-intersection-panel.yml
+          git commit -m "Move Mesh Prep intersection inspector below repair panel"
+          git push origin HEAD:main
