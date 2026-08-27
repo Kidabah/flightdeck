@@ -242,9 +242,37 @@ function analyseShellIntersections(positions, nTri, faceShellIds, shellFaceCount
     if(triHit(a,b)){triangleIntersections++;hits.set(sp,(hits.get(sp)||0)+1);if(triangleIntersections>=maxHits){truncated=true;break outer;}}
     if(testedTrianglePairs>=maxTests){truncated=true;break outer;}
   }
-  const pairs=[...hits.entries()].map(([k,n])=>{const[a,b]=k.split('|').map(Number);return{shellA:a,shellB:b,intersections:n,shellAFaces:shellFaceCounts[a]||0,shellBFaces:shellFaceCounts[b]||0}}).sort((a,b)=>b.intersections-a.intersections);
+  const pairs=[...hits.entries()].map(([k,n])=>{
+    const[a,b]=k.split('|').map(Number);
+    const shellAFaces=shellFaceCounts[a]||0, shellBFaces=shellFaceCounts[b]||0;
+    const smallerFaces=Math.min(shellAFaces,shellBFaces);
+    const largerFaces=Math.max(shellAFaces,shellBFaces);
+    const crossingDensity=n/Math.max(1,smallerFaces);
+    let overlapType='CROSSING SHELLS';
+    let severity='REVIEW';
+    let reason='Two substantial shells have proven triangle crossings.';
+    let recommendation='Inspect the intersecting shells before any union, trim, or cap operation.';
+    if(smallerFaces<=4){
+      overlapType='STRAY FRAGMENT CONTACT';
+      severity='FRAGMENT';
+      reason='One intersecting shell is only a few faces, consistent with a stray export fragment or sliver.';
+      recommendation='Verify the tiny shell is unwanted before removing it.';
+    }else if(n>=500 || crossingDensity>=0.35){
+      overlapType='DEEP OVERLAP';
+      severity='HIGH';
+      reason='The pair has dense proven cross-shell intersections, consistent with strongly overlapping exported objects.';
+      recommendation='Resolve this pair before boundary repair; likely candidates are boolean union or internal-face trimming after review.';
+    }else if(n<=3 && smallerFaces<=32){
+      overlapType='LOCAL CONTACT';
+      severity='LOW';
+      reason='Only a few crossings are proven and one shell is relatively small.';
+      recommendation='Inspect locally; this may be a small accidental collision or intended contact.';
+    }
+    return{shellA:a,shellB:b,intersections:n,shellAFaces,shellBFaces,smallerFaces,largerFaces,crossingDensity,overlapType,severity,reason,recommendation};
+  }).sort((a,b)=>b.intersections-a.intersections);
   const intersectingShellIds = [...new Set(pairs.flatMap(pair => [pair.shellA, pair.shellB]))].sort((a,b)=>a-b);
-  return {shellAabbPairs:shellCandidates.length,intersectingShellPairs:pairs.length,triangleIntersections,testedTrianglePairs,truncated,intersectingShellIds,pairs:pairs.slice(0,100)};
+  const typeCounts = pairs.reduce((acc,pair)=>{acc[pair.overlapType]=(acc[pair.overlapType]||0)+1;return acc;},{});
+  return {shellAabbPairs:shellCandidates.length,intersectingShellPairs:pairs.length,triangleIntersections,testedTrianglePairs,truncated,intersectingShellIds,typeCounts,pairs:pairs.slice(0,100)};
 }
 
 export function analyseSanitiserMesh(positions, nTri) {

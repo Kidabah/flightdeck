@@ -57,6 +57,7 @@
 .boundary-summary{display:grid;grid-template-columns:1fr auto;gap:5px 10px;margin-top:8px;font-size:11px}
 .boundary-summary .label{color:var(--muted)}
 .boundary-summary .value{color:var(--text);font-weight:700;text-align:right}
+.boundary-summary .value.file-value{max-width:154px;white-space:normal;overflow-wrap:anywhere;word-break:break-word;line-height:1.25}
 .boundary-list{display:flex;flex-direction:column;gap:6px;margin-top:9px}
 .boundary-group{border:1px solid var(--border);border-radius:8px;background:rgba(255,255,255,.015);overflow:hidden}
 .boundary-group+.boundary-group{margin-top:6px}
@@ -212,7 +213,7 @@
         Open mesh boundaries detected. Stage 2A is diagnostic only: inspect first, repair later.
       </div>
       <div class="boundary-summary">
-        <span class="label">File</span><span class="value" id="boundaryFileName">-</span>
+        <span class="label">File</span><span class="value file-value" id="boundaryFileName">-</span>
         <span class="label">Boundary groups</span><span class="value" id="boundaryLoopCount">0</span>
         <span class="label">Open edges</span><span class="value" id="boundaryEdgeCount">0</span>
       </div>
@@ -268,7 +269,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import './js/nav.js?v=551';
-import { analyseSanitiserMesh, repairSanitiserMeshStage1, repairSanitiserBoundaryStage2B, repairSanitiserBoundaryStage2C } from './js/sanitiser-core.js?v=8';
+import { analyseSanitiserMesh, repairSanitiserMeshStage1, repairSanitiserBoundaryStage2B, repairSanitiserBoundaryStage2C } from './js/sanitiser-core.js?v=9';
 const $ = id => document.getElementById(id);
 const fmt = n => Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '-';
 const setStatus = msg => { $('status').textContent = msg; };
@@ -933,9 +934,29 @@ function showBoundaryInspector(san) {
 
 
 function showIntersectionInspector(san) {
-  const x=san?.intersections;if(!x||(!x.shellAabbPairs&&!x.intersectingShellPairs)){$('intersectionPanel').hidden=true;$('intersectionList').innerHTML='';return;}
-  $('intersectionPanel').hidden=false;$('intersectionAabb').textContent=(x.shellAabbPairs||0).toLocaleString();$('intersectionPairs').textContent=(x.intersectingShellPairs||0).toLocaleString();$('intersectionHits').textContent=(x.triangleIntersections||0).toLocaleString();$('intersectionTests').textContent=(x.testedTrianglePairs||0).toLocaleString();$('intersectionNote').textContent=x.truncated?'Safety budget reached: proven lower bound only.':'Analysis completed within the Stage 3A safety budget.';
-  const list=$('intersectionList');list.innerHTML='';(x.pairs||[]).slice(0,12).forEach(p=>{const el=document.createElement('div');el.className='intersection-item';el.innerHTML=`<b>Shell ${p.shellA+1} / ${p.shellB+1}</b> - ${p.intersections.toLocaleString()} proven crossings<br>${p.shellAFaces.toLocaleString()} faces / ${p.shellBFaces.toLocaleString()} faces`;list.appendChild(el);});
+  const x = san?.intersections;
+  if (!x || (!x.shellAabbPairs && !x.intersectingShellPairs)) {
+    $('intersectionPanel').hidden = true;
+    $('intersectionList').innerHTML = '';
+    return;
+  }
+  $('intersectionPanel').hidden = false;
+  $('intersectionAabb').textContent = (x.shellAabbPairs || 0).toLocaleString();
+  $('intersectionPairs').textContent = (x.intersectingShellPairs || 0).toLocaleString();
+  $('intersectionHits').textContent = (x.triangleIntersections || 0).toLocaleString();
+  $('intersectionTests').textContent = (x.testedTrianglePairs || 0).toLocaleString();
+  const types = x.typeCounts || {};
+  const typeSummary = Object.entries(types).sort((a,b) => b[1]-a[1]).map(([name,count]) => `${name}: ${count}`).join(' · ');
+  $('intersectionNote').textContent = (x.truncated ? 'Safety budget reached: proven lower bound only.' : 'Analysis completed within the Stage 3A safety budget.') + (typeSummary ? ` Stage 3B: ${typeSummary}.` : '');
+  const list = $('intersectionList');
+  list.innerHTML = '';
+  (x.pairs || []).slice(0,12).forEach(p => {
+    const el = document.createElement('div');
+    el.className = 'intersection-item';
+    const density = Number.isFinite(p.crossingDensity) ? ` · density ${p.crossingDensity.toFixed(2)}` : '';
+    el.innerHTML = `<b>Shell ${p.shellA+1} / ${p.shellB+1}</b> · ${p.intersections.toLocaleString()} proven crossings<br>` + `${p.shellAFaces.toLocaleString()} faces / ${p.shellBFaces.toLocaleString()} faces${density}<br>` + `<b>${p.overlapType || 'CROSSING SHELLS'}</b> · ${p.reason || ''}<br>` + `${p.recommendation || ''}`;
+    list.appendChild(el);
+  });
 }
 
 function hideBoundaryRepairComplete() {
