@@ -195,7 +195,7 @@
         <button class="btn" id="boundaryRepairSelected" type="button">REPAIR SELECTED</button>
       </div>
       <div id="boundaryRepairHint" class="boundary-repair-hint">
-        Stage 2B repairs simple triangular boundaries. Stage 2C also repairs simple planar convex four-edge boundaries. Complex, concave, twisted, and larger polygonal openings remain inspection-only.
+        Stage 2B/2C repair only simple 3/4-edge holes with proven surrounding-shell support. Isolated sheets, shell perimeters, multi-shell joins, complex, concave, twisted, and larger openings remain inspection-only.
       </div>
     </div>
 
@@ -241,7 +241,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import './js/nav.js?v=551';
-import { analyseSanitiserMesh, repairSanitiserMeshStage1, repairSanitiserBoundaryStage2B, repairSanitiserBoundaryStage2C } from './js/sanitiser-core.js?v=5';
+import { analyseSanitiserMesh, repairSanitiserMeshStage1, repairSanitiserBoundaryStage2B, repairSanitiserBoundaryStage2C } from './js/sanitiser-core.js?v=6';
 const $ = id => document.getElementById(id);
 const fmt = n => Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '-';
 const setStatus = msg => { $('status').textContent = msg; };
@@ -810,6 +810,7 @@ function highlightBoundary(index) {
     loop.closed &&
     !loop.complex &&
     loop.topology === 'CLOSED_LOOP' &&
+    loop.repairEligible === true &&
     (loop.edgeCount === 3 || loop.edgeCount === 4);
 
   $('boundaryRepairActions').hidden = !canRepairSelected;
@@ -869,6 +870,7 @@ function showBoundaryInspector(san) {
       `${loop.edgeCount.toLocaleString()} edges · ` +
       `${loop.maxSpan.toFixed(1)} mm span · ` +
       `${loop.perimeter.toFixed(1)} mm perimeter` +
+      `${(loop.edgeCount === 3 || loop.edgeCount === 4) ? (loop.repairEligible ? ' · CAP SAFE' : ' · CAP REFUSED') : ''}` +
       `<br>${loop.recommendation}` +
       `</span>`;
 

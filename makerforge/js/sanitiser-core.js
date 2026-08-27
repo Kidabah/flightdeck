@@ -9,7 +9,7 @@
  * Stage 2A is diagnostic only. It does not modify geometry.
  */
 
-function buildBoundaryDiagnostics(edgeMap, vertexPositions, modelMaxDim) {
+function buildBoundaryDiagnostics(edgeMap, vertexPositions, modelMaxDim, faceShellIds, shellFaceCounts) {
   const openEdges = [];
 
   for (const edge of edgeMap.values()) {
@@ -67,6 +67,46 @@ function buildBoundaryDiagnostics(edgeMap, vertexPositions, modelMaxDim) {
       componentEdges.length >= 3 &&
       vertexIds.every(vertexId => degree.get(vertexId) === 2);
     const complex = !closed;
+
+    const supportingFaces = new Set();
+    for (const edge of componentEdges) {
+      for (const faceId of edge.faces || []) supportingFaces.add(faceId);
+    }
+
+    const supportShellIds = new Set();
+    for (const faceId of supportingFaces) {
+      const shellId = faceShellIds?.[faceId];
+      if (Number.isInteger(shellId) && shellId >= 0) supportShellIds.add(shellId);
+    }
+
+    const supportingFaceCount = supportingFaces.size;
+    const supportShellCount = supportShellIds.size;
+    const supportShellFaceCount = supportShellCount === 1
+      ? (shellFaceCounts?.[[...supportShellIds][0]] || 0)
+      : 0;
+
+    // A simple perimeter is not automatically a hole. An isolated triangle,
+    // sheet patch or tiny standalone shell can also present as a closed 3/4-edge
+    // boundary. Capping those only hides the warning and creates zero-thickness
+    // geometry. Require every boundary edge to be backed by a distinct source
+    // face, all from one surrounding shell, and require that shell to contain
+    // additional geometry beyond the immediate support faces.
+    const simpleCapShape = closed && (componentEdges.length === 3 || componentEdges.length === 4);
+    const enoughDistinctSupport = supportingFaceCount >= componentEdges.length;
+    const oneSupportShell = supportShellCount === 1;
+    const shellHasContext = supportShellFaceCount > supportingFaceCount;
+    const repairEligible = simpleCapShape && enoughDistinctSupport && oneSupportShell && shellHasContext;
+
+    let repairBlockReason = '';
+    if (simpleCapShape && !repairEligible) {
+      if (!enoughDistinctSupport) {
+        repairBlockReason = 'Boundary belongs to an isolated/sheet-like fragment; capping would create zero-thickness geometry.';
+      } else if (!oneSupportShell) {
+        repairBlockReason = 'Boundary is supported by multiple shells; shell joining is outside safe Stage 2 scope.';
+      } else if (!shellHasContext) {
+        repairBlockReason = 'Boundary is the outer perimeter of its support shell, not a proven hole.';
+      }
+    }
 
     let perimeter = 0;
     const segments = componentEdges.map(edge => {
@@ -150,7 +190,12 @@ function buildBoundaryDiagnostics(edgeMap, vertexPositions, modelMaxDim) {
       complex,
       topology: closed ? 'CLOSED_LOOP' : 'BRANCHED_OR_OPEN',
       classification,
-      recommendation,
+      recommendation: repairBlockReason || recommendation,
+      supportingFaceCount,
+      supportShellCount,
+      supportShellFaceCount,
+      repairEligible,
+      repairBlockReason,
     });
   }
 
@@ -270,8 +315,12 @@ export function analyseSanitiserMesh(positions, nTri) {
 
       const edgeKey = ia < ib ? `${ia}|${ib}` : `${ib}|${ia}`;
       const existing = edgeMap.get(edgeKey);
-      if (existing) existing.count++;
-      else edgeMap.set(edgeKey, { count: 1, a: ia, b: ib });
+      if (existing) {
+        existing.count++;
+        existing.faces.push(i);
+      } else {
+        edgeMap.set(edgeKey, { count: 1, a: ia, b: ib, faces: [i] });
+      }
     }
   }
 
@@ -296,27 +345,36 @@ export function analyseSanitiserMesh(positions, nTri) {
   }
 
   const visited = new Uint8Array(nTri);
+  const faceShellIds = new Int32Array(nTri);
+  faceShellIds.fill(-1);
+  const shellFaceCounts = [];
   let shells = 0;
 
   for (let start = 0; start < nTri; start++) {
     if (visited[start]) continue;
 
-    shells++;
+    const shellId = shells++;
+    let shellFaceCount = 0;
     const stack = [start];
     visited[start] = 1;
+    faceShellIds[start] = shellId;
 
     while (stack.length) {
       const fi = stack.pop();
+      shellFaceCount++;
 
       for (const vi of faceVerts[fi]) {
         for (const nb of vertexFaces[vi]) {
           if (!visited[nb]) {
             visited[nb] = 1;
+            faceShellIds[nb] = shellId;
             stack.push(nb);
           }
         }
       }
     }
+
+    shellFaceCounts[shellId] = shellFaceCount;
   }
 
   const watertight =
@@ -446,7 +504,9 @@ export function analyseSanitiserMesh(positions, nTri) {
   const boundaryLoops = buildBoundaryDiagnostics(
     edgeMap,
     vertexPositions,
-    maxDim
+    maxDim,
+    faceShellIds,
+    shellFaceCounts
   );
 
   return {
@@ -628,6 +688,17 @@ export function repairSanitiserMeshStage1(positions, nTri) {
   };
 }
 
+function boundaryRepairSignature(boundary, eps) {
+  const pointKey = point =>
+    `${Math.round(point[0] / eps)},${Math.round(point[1] / eps)},${Math.round(point[2] / eps)}`;
+  const segments = (boundary?.segments || []).map(([a, b]) => {
+    const ka = pointKey(a);
+    const kb = pointKey(b);
+    return ka < kb ? `${ka}>${kb}` : `${kb}>${ka}`;
+  }).sort();
+  return `${boundary?.edgeCount || 0}|${segments.join('|')}`;
+}
+
 /**
  * Stage 2B selected-boundary repair, first conservative release.
  *
@@ -660,6 +731,19 @@ export function repairSanitiserBoundaryStage2B(positions, nTri, boundary) {
 
   if (boundary.edgeCount !== 3 || !Array.isArray(boundary.segments) || boundary.segments.length !== 3) {
     throw new Error('Stage 2B currently repairs only simple three-edge boundaries.');
+  }
+
+  const freshStage2B = analyseSanitiserMesh(positions, nTri);
+  const stage2BEps = Math.max((freshStage2B.maxDim || 0) * 1e-7, 1e-7);
+  const stage2BSig = boundaryRepairSignature(boundary, stage2BEps);
+  const stage2BFreshBoundary = freshStage2B.boundaryLoops.find(
+    loop => boundaryRepairSignature(loop, stage2BEps) === stage2BSig
+  );
+  if (!stage2BFreshBoundary) {
+    throw new Error('Selected boundary no longer matches the current mesh.');
+  }
+  if (!stage2BFreshBoundary.repairEligible) {
+    throw new Error(stage2BFreshBoundary.repairBlockReason || 'Stage 2B support-context safety check refused this cap.');
   }
 
   let minX = Infinity, minY = Infinity, minZ = Infinity;
@@ -864,6 +948,19 @@ export function repairSanitiserBoundaryStage2C(positions, nTri, boundary) {
     boundary.segments.length !== 4
   ) {
     throw new Error('Stage 2C currently repairs only simple four-edge boundaries.');
+  }
+
+  const freshStage2C = analyseSanitiserMesh(positions, nTri);
+  const stage2CEps = Math.max((freshStage2C.maxDim || 0) * 1e-7, 1e-7);
+  const stage2CSig = boundaryRepairSignature(boundary, stage2CEps);
+  const stage2CFreshBoundary = freshStage2C.boundaryLoops.find(
+    loop => boundaryRepairSignature(loop, stage2CEps) === stage2CSig
+  );
+  if (!stage2CFreshBoundary) {
+    throw new Error('Selected boundary no longer matches the current mesh.');
+  }
+  if (!stage2CFreshBoundary.repairEligible) {
+    throw new Error(stage2CFreshBoundary.repairBlockReason || 'Stage 2C support-context safety check refused this cap.');
   }
 
   let minX = Infinity, minY = Infinity, minZ = Infinity;
