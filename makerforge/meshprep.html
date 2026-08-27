@@ -99,6 +99,8 @@
 @keyframes boundarySpark{0%{transform:rotate(var(--r)) translateX(4px) scaleX(.3);opacity:1}
   100%{transform:rotate(var(--r)) translateX(54px) scaleX(1.5);opacity:0}}
 
+.intersection-panel{border:1px solid #b875ff;border-radius:8px;padding:10px;background:rgba(184,117,255,.055)}
+.intersection-title{color:#d3a7ff;font-size:11px;font-weight:800;letter-spacing:.06em;margin-bottom:6px}.intersection-text{font-size:11px;color:var(--muted);line-height:1.45}.intersection-summary{display:grid;grid-template-columns:1fr auto;gap:5px 10px;margin-top:8px;font-size:11px}.intersection-summary .value{color:var(--text);font-weight:700;text-align:right}.intersection-list{margin-top:8px;display:flex;flex-direction:column;gap:5px}.intersection-item{border:1px solid var(--border);border-radius:6px;background:var(--panel-2);padding:7px;font-size:10px;color:var(--muted)}.intersection-item b{color:var(--text)}
 </style>
 </head>
 <body>
@@ -199,6 +201,13 @@
       </div>
     </div>
 
+    <div id="intersectionPanel" class="intersection-panel" hidden>
+      <div class="intersection-title">SHELL INTERSECTION INSPECTOR</div>
+      <div class="intersection-text">Stage 3A is diagnostic only. It detects overlapping shell bounds, then proves cross-shell triangle intersections.</div>
+      <div class="intersection-summary"><span>Shell AABB overlaps</span><span class="value" id="intersectionAabb">0</span><span>Intersecting shell pairs</span><span class="value" id="intersectionPairs">0</span><span>Triangle intersections</span><span class="value" id="intersectionHits">0</span><span>Triangle pairs tested</span><span class="value" id="intersectionTests">0</span></div>
+      <div id="intersectionNote" class="intersection-text" style="margin-top:7px"></div><div id="intersectionList" class="intersection-list"></div>
+    </div>
+
     <div id="boundaryRepairComplete" class="boundary-repair-complete" hidden>
       <div class="title">BOUNDARY REPAIR COMPLETE</div>
       <div id="boundaryRepairCompleteText" class="text">-</div>
@@ -241,7 +250,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import './js/nav.js?v=551';
-import { analyseSanitiserMesh, repairSanitiserMeshStage1, repairSanitiserBoundaryStage2B, repairSanitiserBoundaryStage2C } from './js/sanitiser-core.js?v=6';
+import { analyseSanitiserMesh, repairSanitiserMeshStage1, repairSanitiserBoundaryStage2B, repairSanitiserBoundaryStage2C } from './js/sanitiser-core.js?v=7';
 const $ = id => document.getElementById(id);
 const fmt = n => Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '-';
 const setStatus = msg => { $('status').textContent = msg; };
@@ -880,6 +889,12 @@ function showBoundaryInspector(san) {
 }
 
 
+function showIntersectionInspector(san) {
+  const x=san?.intersections;if(!x||(!x.shellAabbPairs&&!x.intersectingShellPairs)){$('intersectionPanel').hidden=true;$('intersectionList').innerHTML='';return;}
+  $('intersectionPanel').hidden=false;$('intersectionAabb').textContent=(x.shellAabbPairs||0).toLocaleString();$('intersectionPairs').textContent=(x.intersectingShellPairs||0).toLocaleString();$('intersectionHits').textContent=(x.triangleIntersections||0).toLocaleString();$('intersectionTests').textContent=(x.testedTrianglePairs||0).toLocaleString();$('intersectionNote').textContent=x.truncated?'Safety budget reached: proven lower bound only.':'Analysis completed within the Stage 3A safety budget.';
+  const list=$('intersectionList');list.innerHTML='';(x.pairs||[]).slice(0,12).forEach(p=>{const el=document.createElement('div');el.className='intersection-item';el.innerHTML=`<b>Shell ${p.shellA+1} / ${p.shellB+1}</b> - ${p.intersections.toLocaleString()} proven crossings<br>${p.shellAFaces.toLocaleString()} faces / ${p.shellBFaces.toLocaleString()} faces`;list.appendChild(el);});
+}
+
 function hideBoundaryRepairComplete() {
   $('boundaryRepairComplete').hidden = true;
 }
@@ -1113,6 +1128,7 @@ $('statBaseRating').textContent = san.base.rating;
     showScaleWarning(san);
     showRepairPanel(san);
     showBoundaryInspector(san);
+    showIntersectionInspector(san);
     console.log('[Sanitiser Core 0.1]', san);
     showMesh(parsed.positions);
     $('exportBtn').disabled = false;

@@ -202,6 +202,48 @@ function buildBoundaryDiagnostics(edgeMap, vertexPositions, modelMaxDim, faceShe
   return boundaryLoops;
 }
 
+function analyseShellIntersections(positions, nTri, faceShellIds, shellFaceCounts, modelMaxDim, avgEdge) {
+  const shellCount = shellFaceCounts?.length || 0;
+  if (!nTri || shellCount < 2) return { shellAabbPairs:0, intersectingShellPairs:0, triangleIntersections:0, testedTrianglePairs:0, truncated:false, pairs:[] };
+
+  const triBounds = new Array(nTri);
+  const shellBounds = Array.from({length:shellCount},()=>({min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]}));
+  for (let fi=0; fi<nTri; fi++) {
+    const o=fi*9;
+    const ax=positions[o],ay=positions[o+1],az=positions[o+2],bx=positions[o+3],by=positions[o+4],bz=positions[o+5],cx=positions[o+6],cy=positions[o+7],cz=positions[o+8];
+    const min=[Math.min(ax,bx,cx),Math.min(ay,by,cy),Math.min(az,bz,cz)], max=[Math.max(ax,bx,cx),Math.max(ay,by,cy),Math.max(az,bz,cz)];
+    triBounds[fi]={min,max};
+    const sb=shellBounds[faceShellIds[fi]];
+    for(let d=0;d<3;d++){sb.min[d]=Math.min(sb.min[d],min[d]);sb.max[d]=Math.max(sb.max[d],max[d]);}
+  }
+  const overlap=(a,b,e=0)=>a.min[0]<=b.max[0]+e&&a.max[0]+e>=b.min[0]&&a.min[1]<=b.max[1]+e&&a.max[1]+e>=b.min[1]&&a.min[2]<=b.max[2]+e&&a.max[2]+e>=b.min[2];
+  const aabbEps=Math.max(modelMaxDim*1e-8,1e-7), shellCandidates=[];
+  for(let a=0;a<shellCount;a++) for(let b=a+1;b<shellCount;b++) if(shellFaceCounts[a]&&shellFaceCounts[b]&&overlap(shellBounds[a],shellBounds[b],aabbEps)) shellCandidates.push([a,b]);
+  if(!shellCandidates.length) return { shellAabbPairs:0, intersectingShellPairs:0, triangleIntersections:0, testedTrianglePairs:0, truncated:false, pairs:[] };
+
+  const candidateSet=new Set(shellCandidates.map(([a,b])=>`${a}|${b}`));
+  const cellSize=Math.max(avgEdge*3,modelMaxDim/40,0.5), grid=new Map(), maxCells=125;
+  const gk=(x,y,z)=>`${x},${y},${z}`;
+  for(let fi=0;fi<nTri;fi++){
+    const b=triBounds[fi],x0=Math.floor(b.min[0]/cellSize),x1=Math.floor(b.max[0]/cellSize),y0=Math.floor(b.min[1]/cellSize),y1=Math.floor(b.max[1]/cellSize),z0=Math.floor(b.min[2]/cellSize),z1=Math.floor(b.max[2]/cellSize);
+    if((x1-x0+1)*(y1-y0+1)*(z1-z0+1)>maxCells) continue;
+    for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++)for(let z=z0;z<=z1;z++){const k=gk(x,y,z);if(!grid.has(k))grid.set(k,[]);grid.get(k).push(fi);}
+  }
+  const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+  const point=(fi,v)=>{const o=fi*9+v*3;return[positions[o],positions[o+1],positions[o+2]]};
+  function segTri(p0,p1,t0,t1,t2){const dir=sub(p1,p0),e1=sub(t1,t0),e2=sub(t2,t0),h=cross(dir,e2),det=dot(e1,h),eps=Math.max(modelMaxDim*1e-10,1e-9);if(Math.abs(det)<eps)return false;const inv=1/det,s=sub(p0,t0),u=inv*dot(s,h);if(u<-eps||u>1+eps)return false;const q=cross(s,e1),v=inv*dot(dir,q);if(v<-eps||u+v>1+eps)return false;const t=inv*dot(e2,q);return t>eps&&t<1-eps;}
+  function triHit(a,b){if(!overlap(triBounds[a],triBounds[b],aabbEps))return false;const A=[point(a,0),point(a,1),point(a,2)],B=[point(b,0),point(b,1),point(b,2)];for(let i=0;i<3;i++)if(segTri(A[i],A[(i+1)%3],B[0],B[1],B[2]))return true;for(let i=0;i<3;i++)if(segTri(B[i],B[(i+1)%3],A[0],A[1],A[2]))return true;return false;}
+
+  const seen=new Set(),hits=new Map();let testedTrianglePairs=0,triangleIntersections=0,truncated=false;const maxTests=350000,maxHits=20000;
+  outer:for(const faces of grid.values())for(let i=0;i<faces.length;i++)for(let j=i+1;j<faces.length;j++){
+    const a=faces[i],b=faces[j],sa=faceShellIds[a],sb=faceShellIds[b];if(sa===sb)continue;const lo=Math.min(sa,sb),hi=Math.max(sa,sb),sp=`${lo}|${hi}`;if(!candidateSet.has(sp))continue;const tp=a<b?`${a}|${b}`:`${b}|${a}`;if(seen.has(tp))continue;seen.add(tp);testedTrianglePairs++;
+    if(triHit(a,b)){triangleIntersections++;hits.set(sp,(hits.get(sp)||0)+1);if(triangleIntersections>=maxHits){truncated=true;break outer;}}
+    if(testedTrianglePairs>=maxTests){truncated=true;break outer;}
+  }
+  const pairs=[...hits.entries()].map(([k,n])=>{const[a,b]=k.split('|').map(Number);return{shellA:a,shellB:b,intersections:n,shellAFaces:shellFaceCounts[a]||0,shellBFaces:shellFaceCounts[b]||0}}).sort((a,b)=>b.intersections-a.intersections);
+  return {shellAabbPairs:shellCandidates.length,intersectingShellPairs:pairs.length,triangleIntersections,testedTrianglePairs,truncated,pairs:pairs.slice(0,100)};
+}
+
 export function analyseSanitiserMesh(positions, nTri) {
   let minX = Infinity, minY = Infinity, minZ = Infinity;
   let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
@@ -509,6 +551,10 @@ export function analyseSanitiserMesh(positions, nTri) {
     shellFaceCounts
   );
 
+  const intersections = analyseShellIntersections(
+    positions, nTri, faceShellIds, shellFaceCounts, maxDim, avgEdge
+  );
+
   return {
     nTri,
     uniqueVertices: vertexMap.size,
@@ -529,6 +575,7 @@ export function analyseSanitiserMesh(positions, nTri) {
     watertight,
     scale,
     boundaryLoops,
+    intersections,
 
     base: {
       detected: baseTriangles > 0,
