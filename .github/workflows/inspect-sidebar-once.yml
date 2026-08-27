@@ -1,0 +1,43 @@
+name: Inspect FlightDeck sidebar once
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-sidebar-once.yml'
+permissions:
+  contents: write
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Extract sidebar context
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/static/app.js')
+          s=p.read_text(encoding='utf-8')
+          keys=['tab-strip','makerdeck','painter','chop','view-makerdeck','view-painter','view-chop']
+          out=[]
+          lines=s.splitlines()
+          hits=set()
+          for i,line in enumerate(lines):
+            low=line.lower()
+            if any(k in low for k in keys):
+              for j in range(max(0,i-5), min(len(lines),i+8)):
+                hits.add(j)
+          for j in sorted(hits): out.append(f'{j+1:06d}: {lines[j]}')
+          Path('SIDEBAR_INSPECT.txt').write_text('\n'.join(out),encoding='utf-8')
+          PY
+      - name: Commit inspect file
+        shell: bash
+        run: |
+          rm .github/workflows/inspect-sidebar-once.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add SIDEBAR_INSPECT.txt .github/workflows/inspect-sidebar-once.yml
+          git commit -m 'Add temporary sidebar inspection'
+          git push origin HEAD:main
