@@ -9,9 +9,9 @@ const BUILD = 'b614';
 
 const TOOLS = [
   { id: 'container', label: 'Container', href: 'index.html' },
+  { id: 'meshprep',  label: 'Mesh Prep', href: 'meshprep.html' },
   { id: 'painter',   label: 'STL Painter', href: 'painter.html' },
   { id: 'paper3d',   label: 'Paper3D', href: 'paper3d.html' },
-  { id: 'meshprep',  label: 'Mesh Prep', href: 'meshprep.html' },
   { id: 'chop',      label: 'Chop', href: 'chop.html' },
 ];
 
@@ -41,7 +41,7 @@ export function injectNav(targetSelector = '.md-nav') {
     <a class="md-nav-home" href="index.html" title="Back to MakerDeck">&#x2302;</a>
     <a class="md-nav-brand" href="index.html">Maker<span>Deck</span></a>
     <div class="md-nav-links">
-      ${TOOLS.map(t => `<a class="md-nav-link${t.id === active ? ' active' : ''}" href="${t.href}">${t.label}</a>`).join('')}
+      ${TOOLS.map(t => `<a class="md-nav-link md-nav-link--${t.id}${t.id === active ? ' active' : ''}" href="${t.href}">${t.label}</a>`).join('')}
     </div>
     <div class="md-nav-spacer"></div>
     <span class="md-nav-build">${BUILD}</span>

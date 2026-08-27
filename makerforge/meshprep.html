@@ -21,6 +21,7 @@
 .viewport canvas{display:block;width:100%!important;height:100%!important}
 .viewport.boundary-focus{box-shadow:inset 0 0 0 1px rgba(98,221,255,.12),inset 0 0 50px rgba(39,211,255,.035)}
 .drop-zone .icon{font-size:28px;margin-bottom:6px}
+.load-model-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px}.load-model-head .section-label{margin-bottom:0}.clear-model-btn{padding:3px 8px;font-size:10px;color:#d9bfff;border-color:rgba(184,117,255,.45)}.clear-model-btn:hover{border-color:#b875ff;background:rgba(184,117,255,.12)}
 .pill{display:inline-flex;align-items:center;min-height:24px;padding:3px 8px;border-radius:999px;
   border:1px solid var(--border);background:var(--panel-2);font-size:11px;font-weight:700;color:var(--muted)}
 .pill.good{border-color:var(--green);color:var(--green);background:rgba(52,211,153,.08)}
@@ -131,7 +132,10 @@
 
   <div class="sidebar">
     <div>
-      <div class="section-label">Load Model</div>
+      <div class="load-model-head">
+        <div class="section-label">Load Model</div>
+        <button class="btn clear-model-btn" id="clearModelBtn" type="button" disabled>CLEAR</button>
+      </div>
       <div class="drop-zone" id="dropZone">
         <div class="icon">&#x1F4E6;</div>
         Drop STL here or click to browse
@@ -271,7 +275,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import './js/nav.js?v=551';
+import './js/nav.js?v=552';
 import { analyseSanitiserMesh, repairSanitiserMeshStage1, repairSanitiserBoundaryStage2B, repairSanitiserBoundaryStage2C, repairSanitiserIntersectionStage3C, repairSanitiserIntersectionStage3CBatch } from './js/sanitiser-core.js?v=12';
 const $ = id => document.getElementById(id);
 const fmt = n => Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '-';
@@ -1292,9 +1296,61 @@ $('statBaseRating').textContent = san.base.rating;
     console.log('[Sanitiser Core 0.1]', san);
     showMesh(parsed.positions);
     $('exportBtn').disabled = false;
+    $('clearModelBtn').disabled = false;
     $('exportBtn').textContent = (repairLastResult || boundaryRepairLastResult) ? 'EXPORT REPAIRED STL' : 'EXPORT PREPARED STL';
     setStatus('Analysis complete');
   });
+}
+
+
+function clearMeshPrepModel() {
+  clearBoundaryHighlight();
+  if (wire) {
+    scene.remove(wire);
+    wire.geometry?.dispose?.();
+    wire.material?.dispose?.();
+    wire = null;
+  }
+  if (mesh) {
+    scene.remove(mesh);
+    mesh.geometry?.dispose?.();
+    mesh.material?.dispose?.();
+    mesh = null;
+  }
+
+  sourceParsed = null;
+  currentParsed = null;
+  sourceName = '';
+  scaleWarningDismissed = false;
+  scaleReference = null;
+  scaleEditingAxis = null;
+  repairDismissed = false;
+  repairLastResult = null;
+  boundaryRepairLastResult = null;
+  boundaryAnalysis = null;
+  selectedBoundaryIndex = -1;
+  resetBoundaryIds();
+
+  hideScaleWarning();
+  hideRepairPanel();
+  hideBoundaryInspector();
+  hideBoundaryRepairComplete();
+  $('intersectionPanel').hidden = true;
+  $('intersectionList').innerHTML = '';
+  $('fileInput').value = '';
+
+  for (const id of ['statFaces','statSize','statEdge','statRough','statOpen','statBad','statDegenerate','statShells','statWatertight','statBaseDetected','statBaseArea','statBaseSize','statBaseCoverage','statBaseRating']) {
+    $(id).textContent = '-';
+  }
+
+  $('fileName').textContent = 'No model loaded';
+  $('exportBtn').disabled = true;
+  $('exportBtn').textContent = 'EXPORT PREPARED STL';
+  $('clearModelBtn').disabled = true;
+  controls.target.set(0, 0, 0);
+  camera.position.set(0, 0, 100);
+  controls.update();
+  setStatus('Workspace cleared — ready for a new STL');
 }
 
 async function loadFile(file) {
@@ -1319,6 +1375,7 @@ async function loadFile(file) {
 }
 
 
+$('clearModelBtn').addEventListener('click', clearMeshPrepModel);
 $('boundaryRepairSelected').addEventListener('click', applySelectedBoundaryRepair);
 
 $('repairAuto').addEventListener('click', applyStage1Repair);
