@@ -69,6 +69,9 @@
 .boundary-item[data-class="REVIEW"] .class{color:var(--amber)}
 .boundary-item[data-class="MAJOR"] .class{color:#ff9866}
 .boundary-item[data-class="COMPLEX"] .class{color:var(--red)}
+.boundary-item[data-class="HOLE"] .class{color:var(--green)}
+.boundary-item[data-class="SHELL OPENING"] .class{color:#ffbf3f}
+.boundary-item[data-class="INTERSECTING SHELL"] .class{color:#d3a7ff}
 .boundary-note{margin-top:8px;font-size:10px;color:var(--muted);line-height:1.4}
 .boundary-repair-actions{display:flex;gap:6px;margin-top:9px}
 .boundary-repair-actions[hidden]{display:none!important}
@@ -250,7 +253,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import './js/nav.js?v=551';
-import { analyseSanitiserMesh, repairSanitiserMeshStage1, repairSanitiserBoundaryStage2B, repairSanitiserBoundaryStage2C } from './js/sanitiser-core.js?v=7';
+import { analyseSanitiserMesh, repairSanitiserMeshStage1, repairSanitiserBoundaryStage2B, repairSanitiserBoundaryStage2C } from './js/sanitiser-core.js?v=8';
 const $ = id => document.getElementById(id);
 const fmt = n => Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '-';
 const setStatus = msg => { $('status').textContent = msg; };

@@ -194,8 +194,10 @@ function buildBoundaryDiagnostics(edgeMap, vertexPositions, modelMaxDim, faceShe
       supportingFaceCount,
       supportShellCount,
       supportShellFaceCount,
+      supportShellIds: [...supportShellIds],
       repairEligible,
       repairBlockReason,
+      originalClassification: classification,
     });
   }
 
@@ -241,7 +243,8 @@ function analyseShellIntersections(positions, nTri, faceShellIds, shellFaceCount
     if(testedTrianglePairs>=maxTests){truncated=true;break outer;}
   }
   const pairs=[...hits.entries()].map(([k,n])=>{const[a,b]=k.split('|').map(Number);return{shellA:a,shellB:b,intersections:n,shellAFaces:shellFaceCounts[a]||0,shellBFaces:shellFaceCounts[b]||0}}).sort((a,b)=>b.intersections-a.intersections);
-  return {shellAabbPairs:shellCandidates.length,intersectingShellPairs:pairs.length,triangleIntersections,testedTrianglePairs,truncated,pairs:pairs.slice(0,100)};
+  const intersectingShellIds = [...new Set(pairs.flatMap(pair => [pair.shellA, pair.shellB]))].sort((a,b)=>a-b);
+  return {shellAabbPairs:shellCandidates.length,intersectingShellPairs:pairs.length,triangleIntersections,testedTrianglePairs,truncated,intersectingShellIds,pairs:pairs.slice(0,100)};
 }
 
 export function analyseSanitiserMesh(positions, nTri) {
@@ -554,6 +557,38 @@ export function analyseSanitiserMesh(positions, nTri) {
   const intersections = analyseShellIntersections(
     positions, nTri, faceShellIds, shellFaceCounts, maxDim, avgEdge
   );
+
+  // Stage 3A evidence feeds back into Stage 2A diagnosis, but never into
+  // repair authorisation. The repairEligible flag remains the only cap gate.
+  const intersectingShellIds = new Set(intersections.intersectingShellIds || []);
+  for (const loop of boundaryLoops) {
+    const supportIds = loop.supportShellIds || [];
+    const touchesProvenIntersection = supportIds.some(id => intersectingShellIds.has(id));
+
+    if (loop.complex || loop.topology !== 'CLOSED_LOOP') {
+      loop.classification = 'COMPLEX';
+      loop.recommendation = 'Boundary is branched or open-chain topology; manual inspection only.';
+      continue;
+    }
+
+    if (touchesProvenIntersection) {
+      loop.classification = 'INTERSECTING SHELL';
+      loop.recommendation = 'This boundary belongs to a shell with proven cross-shell triangle intersections. Resolve the shell overlap before attempting a cap.';
+      continue;
+    }
+
+    if (loop.repairEligible === true) {
+      loop.classification = 'HOLE';
+      loop.recommendation = loop.edgeCount === 3
+        ? 'Proven simple triangular hole with surrounding-shell support; Stage 2B cap is permitted.'
+        : 'Proven simple planar-cap candidate with surrounding-shell support; Stage 2C performs final planarity/convexity checks.';
+      continue;
+    }
+
+    loop.classification = 'SHELL OPENING';
+    loop.recommendation = loop.repairBlockReason ||
+      'Closed boundary is not proven to be a hole. Treat it as an open shell perimeter until reviewed.';
+  }
 
   return {
     nTri,
