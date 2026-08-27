@@ -11,6 +11,12 @@
   <link rel="manifest" href="/static/manifest.json">
   <meta name="theme-color" content="#0a0a0f">
   <link rel="stylesheet" href="/static/style.css?v=510">
+  <style>
+    #view-meshprep{overflow:hidden;display:flex;flex-direction:column}
+    #view-meshprep[hidden]{display:none!important}
+    #view-meshprep .meshprep-page{flex:1;min-height:0;display:flex;flex-direction:column;background:#070b12}
+    #meshprep-frame{flex:1;width:100%;height:100%;min-height:0;border:0;background:#070b12;display:block}
+  </style>
 </head>
 <body>
   <header>
@@ -66,120 +72,60 @@
       </section>
 
       <section id="view-mission" class="view" hidden>
-        <div class="mission-page" id="mission-page">
-          <div class="detail-placeholder">Loading…</div>
-        </div>
+        <div class="mission-page" id="mission-page"><div class="detail-placeholder">Loading…</div></div>
       </section>
 
       <section id="view-fleet" class="view" hidden>
-        <div class="fleet-wall-page" id="fleet-wall-page">
-          <div class="detail-placeholder">Loading…</div>
-        </div>
+        <div class="fleet-wall-page" id="fleet-wall-page"><div class="detail-placeholder">Loading…</div></div>
       </section>
 
       <section id="view-filament" class="view" hidden>
-        <div class="fleet-filament-page" id="fleet-filament-page">
-          <div class="detail-placeholder">Loading…</div>
-        </div>
+        <div class="fleet-filament-page" id="fleet-filament-page"><div class="detail-placeholder">Loading…</div></div>
       </section>
 
-      <section id="view-stats" class="view" hidden>
-        <div id="stats-page"></div>
-      </section>
-
-      <section id="view-printer" class="view" hidden>
-        <div id="printer-detail"></div>
-      </section>
-
-      <section id="view-spool" class="view" hidden>
-        <div id="spool-detail"></div>
-      </section>
-
-      <section id="view-cameras" class="view" hidden>
-        <div id="cameras-grid"></div>
-      </section>
+      <section id="view-stats" class="view" hidden><div id="stats-page"></div></section>
+      <section id="view-printer" class="view" hidden><div id="printer-detail"></div></section>
+      <section id="view-spool" class="view" hidden><div id="spool-detail"></div></section>
+      <section id="view-cameras" class="view" hidden><div id="cameras-grid"></div></section>
 
       <section id="view-queue" class="view" hidden>
-        <div class="queue-page" id="queue-page">
-          <div class="detail-placeholder">Loading…</div>
-        </div>
+        <div class="queue-page" id="queue-page"><div class="detail-placeholder">Loading…</div></div>
       </section>
-
       <section id="view-files" class="view" hidden>
-        <div class="filedesk-page" id="filedesk-page">
-          <div class="detail-placeholder">Loading…</div>
-        </div>
+        <div class="filedesk-page" id="filedesk-page"><div class="detail-placeholder">Loading…</div></div>
       </section>
-
       <section id="view-projects" class="view" hidden>
-        <div class="projects-page" id="projects-page">
-          <div class="detail-placeholder">Loading…</div>
-        </div>
+        <div class="projects-page" id="projects-page"><div class="detail-placeholder">Loading…</div></div>
       </section>
-
       <section id="view-memory" class="view" hidden>
-        <div class="memory-page" id="memory-page">
-          <div class="detail-placeholder">Loading…</div>
-        </div>
+        <div class="memory-page" id="memory-page"><div class="detail-placeholder">Loading…</div></div>
       </section>
-
       <section id="view-failures" class="view" hidden>
-        <div class="failures-page" id="failures-page">
-          <div class="detail-placeholder">Loading…</div>
-        </div>
+        <div class="failures-page" id="failures-page"><div class="detail-placeholder">Loading…</div></div>
       </section>
-
       <section id="view-spools" class="view" hidden>
-        <div class="settings-body" id="spools-body">
-          <div class="detail-placeholder">Loading…</div>
-        </div>
+        <div class="settings-body" id="spools-body"><div class="detail-placeholder">Loading…</div></div>
       </section>
-
       <section id="view-settings" class="view" hidden>
-        <div class="settings-body" id="settings-body">
-          <div class="detail-placeholder">Loading…</div>
-        </div>
+        <div class="settings-body" id="settings-body"><div class="detail-placeholder">Loading…</div></div>
       </section>
-
-      <section id="view-demo" class="view" hidden>
-        <div id="demo-page"></div>
-      </section>
-
-      <section id="view-makerworld" class="view" hidden>
-        <div id="makerworld-page"></div>
-      </section>
+      <section id="view-demo" class="view" hidden><div id="demo-page"></div></section>
+      <section id="view-makerworld" class="view" hidden><div id="makerworld-page"></div></section>
 
       <section id="view-makerdeck" class="view" hidden>
-        <div class="makerdeck-page">
-          <iframe id="makerdeck-frame" title="MakerDeck — container generator" loading="lazy"></iframe>
-        </div>
+        <div class="makerdeck-page"><iframe id="makerdeck-frame" title="MakerDeck — container generator" loading="lazy"></iframe></div>
       </section>
-
       <section id="view-meshprep" class="view" hidden>
-        <div class="makerdeck-page meshprep-page">
-          <iframe id="meshprep-frame" title="Mesh Prep — inspect and repair STL meshes" loading="lazy"></iframe>
-        </div>
+        <div class="makerdeck-page meshprep-page"><iframe id="meshprep-frame" title="Mesh Prep — inspect and repair STL meshes" loading="lazy"></iframe></div>
       </section>
-
       <section id="view-painter" class="view" hidden>
-        <div class="painter-page">
-          <iframe id="painter-frame" title="STL Painter — paint and export coloured 3MF" loading="lazy"></iframe>
-        </div>
+        <div class="painter-page"><iframe id="painter-frame" title="STL Painter — paint and export coloured 3MF" loading="lazy"></iframe></div>
       </section>
-
       <section id="view-chop" class="view" hidden>
-        <div class="chop-page">
-          <iframe id="chop-frame" title="Chop — slice STLs into printable pieces" loading="lazy"></iframe>
-        </div>
+        <div class="chop-page"><iframe id="chop-frame" title="Chop — slice STLs into printable pieces" loading="lazy"></iframe></div>
       </section>
-
-      <section id="view-manual" class="view" hidden>
-        <div id="manual-page"></div>
-      </section>
-
-      <section id="view-about" class="view" hidden>
-        <div id="about-page"></div>
-      </section>
+      <section id="view-manual" class="view" hidden><div id="manual-page"></div></section>
+      <section id="view-about" class="view" hidden><div id="about-page"></div></section>
     </div>
   </div>
 
