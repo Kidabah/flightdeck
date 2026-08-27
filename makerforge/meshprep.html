@@ -125,6 +125,9 @@
 .intersection-actions{display:flex;gap:6px;margin-top:7px}.intersection-actions .btn{width:100%;font-size:10px;padding:6px}.intersection-item[data-type="STRAY FRAGMENT CONTACT"]{border-color:rgba(52,211,153,.38)}
 .intersection-batch{margin-top:8px}.intersection-batch .btn{width:100%;font-size:10px;padding:7px;border-color:rgba(52,211,153,.55)}
 .union-preflight{margin-top:7px;padding:6px 7px;border-radius:6px;border:1px solid var(--border);font-size:10px;line-height:1.35}.union-preflight.ready{border-color:rgba(52,211,153,.5);background:rgba(52,211,153,.06);color:#86efac}.union-preflight.blocked{border-color:rgba(251,191,36,.42);background:rgba(251,191,36,.05);color:#fcd34d}.union-preflight b{color:inherit}
+
+.stage3d-prep{margin-top:7px;border:1px solid rgba(52,211,153,.45);border-radius:6px;padding:7px;background:rgba(52,211,153,.055);font-size:10px;line-height:1.4;color:var(--muted)}
+.stage3d-prep b{color:#6ee7b7}.stage3d-prep.blocked{border-color:rgba(251,191,36,.42);background:rgba(251,191,36,.045)}.stage3d-prep.blocked b{color:#fbbf24}.stage3d-prep .btn{width:100%;margin-top:7px;font-size:10px;padding:6px}
 </style>
 </head>
 <body>
@@ -277,7 +280,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import './js/nav.js?v=552';
-import { analyseSanitiserMesh, repairSanitiserMeshStage1, repairSanitiserBoundaryStage2B, repairSanitiserBoundaryStage2C, repairSanitiserIntersectionStage3C, repairSanitiserIntersectionStage3CBatch } from './js/sanitiser-core.js?v=13';
+import { analyseSanitiserMesh, repairSanitiserMeshStage1, repairSanitiserBoundaryStage2B, repairSanitiserBoundaryStage2C, repairSanitiserIntersectionStage3C, repairSanitiserIntersectionStage3CBatch, analyseSanitiserIntersectionStage3D, repairSanitiserIntersectionStage3D } from './js/sanitiser-core.js?v=14';
 const $ = id => document.getElementById(id);
 const fmt = n => Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '-';
 const setStatus = msg => { $('status').textContent = msg; };
@@ -989,6 +992,26 @@ function showIntersectionInspector(san) {
         : `<b>UNION BLOCKED</b> · ${p.unionBlockReason || 'Pair-local topology is not safe for a solid boolean yet.'}`;
       el.appendChild(preflight);
     }
+    if (p.overlapType !== 'STRAY FRAGMENT CONTACT' && !p.unionReady) {
+      try {
+        const parsed = currentParsed || sourceParsed;
+        const prep = parsed ? analyseSanitiserIntersectionStage3D(parsed.positions, parsed.nTri, p) : null;
+        if (prep) {
+          const box = document.createElement('div');
+          box.className = `stage3d-prep ${prep.canPrepare ? '' : 'blocked'}`;
+          const a = prep.shellA, b = prep.shellB;
+          box.innerHTML = prep.canPrepare
+            ? `<b>PRE-UNION REPAIR AVAILABLE</b> · ${prep.repairableOpenings} safe opening${prep.repairableOpenings===1?'':'s'} / ${prep.repairableEdges} open edges can be closed.<br>Shell ${a.shellId+1}: ${a.openEdges} open · ${a.repairableOpenings} repairable. Shell ${b.shellId+1}: ${b.openEdges} open · ${b.repairableOpenings} repairable.`
+            : `<b>PRE-UNION REPAIR BLOCKED</b> · Shell ${a.shellId+1}: ${a.openEdges} open / ${a.blockedOpenings} ambiguous. Shell ${b.shellId+1}: ${b.openEdges} open / ${b.blockedOpenings} ambiguous.`;
+          if (prep.canPrepare) {
+            const btn = document.createElement('button'); btn.type='button'; btn.className='btn'; btn.textContent='PREPARE SHELLS';
+            btn.addEventListener('click', () => applyStage3DShellPreparation(pairIndex));
+            box.appendChild(btn);
+          }
+          el.appendChild(box);
+        }
+      } catch (err) { console.warn('Stage 3D preflight unavailable:', err); }
+    }
     if (p.overlapType === 'STRAY FRAGMENT CONTACT') {
       const actions = document.createElement('div');
       actions.className = 'intersection-actions';
@@ -1001,6 +1024,31 @@ function showIntersectionInspector(san) {
   });
 }
 
+
+
+function applyStage3DShellPreparation(pairIndex) {
+  const parsed=currentParsed||sourceParsed;
+  if(!parsed){setStatus('No prepared mesh available for Stage 3D');return;}
+  try{
+    const before=analyseSanitiserMesh(parsed.positions,parsed.nTri);
+    const pair=before.intersections?.pairs?.[pairIndex];
+    if(!pair)throw new Error('Selected shell pair is no longer available; re-run analysis.');
+    const pre=analyseSanitiserIntersectionStage3D(parsed.positions,parsed.nTri,pair);
+    if(!pre.canPrepare)throw new Error('Shell-local closure safety gate no longer passes.');
+    setStatus(`Stage 3D: closing ${pre.repairableOpenings} proven shell opening${pre.repairableOpenings===1?'':'s'}...`);
+    const repaired=repairSanitiserIntersectionStage3D(parsed.positions,parsed.nTri,pair);
+    const after=analyseSanitiserMesh(repaired.positions,repaired.nTri);
+    if(after.nTri!==before.nTri+repaired.addedFaces)throw new Error('face-count safety gate failed');
+    if(after.openEdges!==before.openEdges-repaired.repairedOpenEdges)throw new Error('open-edge closure count did not match the proven target');
+    if(after.nonManifoldEdges>before.nonManifoldEdges)throw new Error('non-manifold topology increased');
+    if(after.degenerateTriangles>before.degenerateTriangles)throw new Error('degenerate triangles increased');
+    const fresh=analyseSanitiserIntersectionStage3D(repaired.positions,repaired.nTri,pair);
+    if(!fresh.alreadyReady)throw new Error('target shells did not become closed manifold solids');
+    currentParsed={positions:repaired.positions,nTri:repaired.nTri};sourceParsed=cloneParsed(currentParsed);
+    repairDismissed=false;scaleReference=null;updateAnalysis(sourceName,currentParsed);
+    setStatus(`Stage 3D complete — closed ${repaired.repairedOpenings} opening${repaired.repairedOpenings===1?'':'s'} / ${repaired.repairedOpenEdges} open edges. Pair is UNION READY.`);
+  }catch(err){console.error('Stage 3D shell preparation refused:',err);setStatus(`Stage 3D refused: ${err.message||err}`);}
+}
 
 
 function applyStage3CBatchFragmentRepair() {
