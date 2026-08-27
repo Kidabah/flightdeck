@@ -1,0 +1,116 @@
+from pathlib import Path
+
+core = Path('makerforge/js/sanitiser-core.js')
+s = core.read_text(encoding='utf-8')
+anchor = "  return {positions:new Float32Array(kept),nTri:nTri-removedFaces,removedFaces,removedShellId:removeShellId};\n}\n\nexport function analyseSanitiserMesh(positions, nTri) {"
+batch = r'''  return {positions:new Float32Array(kept),nTri:nTri-removedFaces,removedFaces,removedShellId:removeShellId};
+}
+
+/**
+ * Stage 3C batch repair for proven tiny stray-fragment shells.
+ * Shell membership is frozen from one analysis snapshot so shell renumbering
+ * cannot make a later removal target the wrong component.
+ */
+export function repairSanitiserIntersectionStage3CBatch(positions, nTri, pairs) {
+  if(!positions || !nTri || !Array.isArray(pairs)) throw new Error('Stage 3C batch repair requires a current mesh and intersection pairs.');
+  const {faceShellIds,shellFaceCounts}=buildStage3CShellIds(positions,nTri);
+  const removeShellIds=new Set();
+  for(const pair of pairs){
+    if(!pair || pair.overlapType !== 'STRAY FRAGMENT CONTACT') continue;
+    const aFaces=Number(pair.shellAFaces)||0,bFaces=Number(pair.shellBFaces)||0;
+    if(aFaces===bFaces) continue;
+    const smallerFaces=Math.min(aFaces,bFaces);
+    if(smallerFaces<1 || smallerFaces>4) continue;
+    const shellId=aFaces<bFaces ? pair.shellA : pair.shellB;
+    const actualCount=shellFaceCounts[shellId]||0;
+    if(actualCount!==smallerFaces || actualCount>4) continue;
+    removeShellIds.add(shellId);
+  }
+  if(!removeShellIds.size) throw new Error('No uniquely proven safe stray-fragment shells are available for batch removal.');
+  const kept=[];let removedFaces=0;
+  for(let fi=0;fi<nTri;fi++){
+    if(removeShellIds.has(faceShellIds[fi])){removedFaces++;continue;}
+    const o=fi*9;for(let k=0;k<9;k++)kept.push(positions[o+k]);
+  }
+  const expectedFaces=[...removeShellIds].reduce((sum,sid)=>sum+(shellFaceCounts[sid]||0),0);
+  if(removedFaces!==expectedFaces) throw new Error('Stage 3C batch removal count mismatch; original mesh preserved.');
+  return {positions:new Float32Array(kept),nTri:nTri-removedFaces,removedFaces,removedShells:removeShellIds.size,removedShellIds:[...removeShellIds]};
+}
+
+export function analyseSanitiserMesh(positions, nTri) {'''
+if anchor not in s:
+    raise SystemExit('Stage 3C core anchor not found')
+s = s.replace(anchor, batch, 1)
+core.write_text(s, encoding='utf-8')
+
+page = Path('makerforge/meshprep.html')
+h = page.read_text(encoding='utf-8')
+old_import = "import { analyseSanitiserMesh, repairSanitiserMeshStage1, repairSanitiserBoundaryStage2B, repairSanitiserBoundaryStage2C, repairSanitiserIntersectionStage3C } from './js/sanitiser-core.js?v=11';"
+new_import = "import { analyseSanitiserMesh, repairSanitiserMeshStage1, repairSanitiserBoundaryStage2B, repairSanitiserBoundaryStage2C, repairSanitiserIntersectionStage3C, repairSanitiserIntersectionStage3CBatch } from './js/sanitiser-core.js?v=12';"
+if old_import not in h:
+    raise SystemExit('Mesh Prep import anchor not found')
+h = h.replace(old_import, new_import, 1)
+
+css_anchor = '.intersection-actions{display:flex;gap:6px;margin-top:7px}.intersection-actions .btn{width:100%;font-size:10px;padding:6px}.intersection-item[data-type="STRAY FRAGMENT CONTACT"]{border-color:rgba(52,211,153,.38)}\n'
+css_new = css_anchor + '.intersection-batch{margin-top:8px}.intersection-batch .btn{width:100%;font-size:10px;padding:7px;border-color:rgba(52,211,153,.55)}\n'
+if css_anchor not in h:
+    raise SystemExit('Intersection CSS anchor not found')
+h = h.replace(css_anchor, css_new, 1)
+
+list_anchor = "  const list = $('intersectionList');\n  list.innerHTML = '';\n  (x.pairs || []).slice(0,12).forEach((p, pairIndex) => {"
+list_new = """  const list = $('intersectionList');
+  list.innerHTML = '';
+  const safeStrayPairs = (x.pairs || []).filter(p => p.overlapType === 'STRAY FRAGMENT CONTACT');
+  if (safeStrayPairs.length) {
+    const batch = document.createElement('div');
+    batch.className = 'intersection-batch';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn';
+    btn.textContent = `REMOVE ALL SAFE STRAY FRAGMENTS (${safeStrayPairs.length})`;
+    btn.addEventListener('click', applyStage3CBatchFragmentRepair);
+    batch.appendChild(btn);
+    list.appendChild(batch);
+  }
+  (x.pairs || []).slice(0,12).forEach((p, pairIndex) => {"""
+if list_anchor not in h:
+    raise SystemExit('Intersection list anchor not found')
+h = h.replace(list_anchor, list_new, 1)
+
+handler_anchor = '\nfunction applyStage3CFragmentRepair(pairIndex) {'
+handler = r'''
+
+function applyStage3CBatchFragmentRepair() {
+  const parsed = currentParsed || sourceParsed;
+  if (!parsed) { setStatus('No prepared mesh available for Stage 3C batch repair'); return; }
+  const before = analyseSanitiserMesh(parsed.positions, parsed.nTri);
+  const pairs = before.intersections?.pairs || [];
+  const safeStrayPairs = pairs.filter(p => p.overlapType === 'STRAY FRAGMENT CONTACT');
+  if (!safeStrayPairs.length) { setStatus('No proven safe stray fragments remain'); return; }
+  try {
+    setStatus('Stage 3C: removing all proven safe stray fragments...');
+    const repaired = repairSanitiserIntersectionStage3CBatch(parsed.positions, parsed.nTri, safeStrayPairs);
+    const after = analyseSanitiserMesh(repaired.positions, repaired.nTri);
+    if (after.nTri !== before.nTri - repaired.removedFaces) throw new Error('face-count safety gate failed');
+    if (after.nonManifoldEdges > before.nonManifoldEdges) throw new Error('non-manifold topology increased');
+    if (after.openEdges > before.openEdges) throw new Error('open-edge count increased');
+    if (after.degenerateTriangles > before.degenerateTriangles) throw new Error('degenerate triangles increased');
+    const beforeIx = before.intersections || {};
+    const afterIx = after.intersections || {};
+    if (!beforeIx.truncated && !afterIx.truncated && (afterIx.triangleIntersections || 0) > (beforeIx.triangleIntersections || 0)) throw new Error('proven intersections increased');
+    currentParsed = { positions: repaired.positions, nTri: repaired.nTri };
+    sourceParsed = cloneParsed(currentParsed);
+    repairDismissed = false;
+    scaleReference = null;
+    updateAnalysis(sourceName, currentParsed);
+    setStatus(`Stage 3C batch complete — removed ${repaired.removedShells} stray shell${repaired.removedShells === 1 ? '' : 's'} / ${repaired.removedFaces} face${repaired.removedFaces === 1 ? '' : 's'} and passed topology safety gates`);
+  } catch (err) {
+    console.error('Stage 3C batch fragment repair refused:', err);
+    setStatus(`Stage 3C batch repair refused: ${err.message || err}`);
+  }
+}
+'''
+if handler_anchor not in h:
+    raise SystemExit('Stage 3C single handler anchor not found')
+h = h.replace(handler_anchor, handler + handler_anchor, 1)
+page.write_text(h, encoding='utf-8')
