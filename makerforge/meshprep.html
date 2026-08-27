@@ -122,6 +122,7 @@
 .intersection-panel{border:1px solid #b875ff;border-radius:8px;padding:10px;background:rgba(184,117,255,.055)}
 .intersection-title{color:#d3a7ff;font-size:11px;font-weight:800;letter-spacing:.06em;margin-bottom:6px}.intersection-text{font-size:11px;color:var(--muted);line-height:1.45}.intersection-summary{display:grid;grid-template-columns:1fr auto;gap:5px 10px;margin-top:8px;font-size:11px}.intersection-summary .value{color:var(--text);font-weight:700;text-align:right}.intersection-list{margin-top:8px;display:flex;flex-direction:column;gap:5px}.intersection-item{border:1px solid var(--border);border-radius:6px;background:var(--panel-2);padding:7px;font-size:10px;color:var(--muted)}.intersection-item b{color:var(--text)}
 .intersection-actions{display:flex;gap:6px;margin-top:7px}.intersection-actions .btn{width:100%;font-size:10px;padding:6px}.intersection-item[data-type="STRAY FRAGMENT CONTACT"]{border-color:rgba(52,211,153,.38)}
+.intersection-batch{margin-top:8px}.intersection-batch .btn{width:100%;font-size:10px;padding:7px;border-color:rgba(52,211,153,.55)}
 </style>
 </head>
 <body>
@@ -271,7 +272,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import './js/nav.js?v=551';
-import { analyseSanitiserMesh, repairSanitiserMeshStage1, repairSanitiserBoundaryStage2B, repairSanitiserBoundaryStage2C, repairSanitiserIntersectionStage3C } from './js/sanitiser-core.js?v=11';
+import { analyseSanitiserMesh, repairSanitiserMeshStage1, repairSanitiserBoundaryStage2B, repairSanitiserBoundaryStage2C, repairSanitiserIntersectionStage3C, repairSanitiserIntersectionStage3CBatch } from './js/sanitiser-core.js?v=12';
 const $ = id => document.getElementById(id);
 const fmt = n => Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '-';
 const setStatus = msg => { $('status').textContent = msg; };
@@ -955,6 +956,18 @@ function showIntersectionInspector(san) {
     ' Stage 3C can safely remove proven tiny stray fragments; deeper overlaps remain blocked pending boolean union.';
   const list = $('intersectionList');
   list.innerHTML = '';
+  const safeStrayPairs = (x.pairs || []).filter(p => p.overlapType === 'STRAY FRAGMENT CONTACT');
+  if (safeStrayPairs.length) {
+    const batch = document.createElement('div');
+    batch.className = 'intersection-batch';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn';
+    btn.textContent = `REMOVE ALL SAFE STRAY FRAGMENTS (${safeStrayPairs.length})`;
+    btn.addEventListener('click', applyStage3CBatchFragmentRepair);
+    batch.appendChild(btn);
+    list.appendChild(batch);
+  }
   (x.pairs || []).slice(0,12).forEach((p, pairIndex) => {
     const el = document.createElement('div');
     el.className = 'intersection-item';
@@ -975,6 +988,37 @@ function showIntersectionInspector(san) {
   });
 }
 
+
+
+function applyStage3CBatchFragmentRepair() {
+  const parsed = currentParsed || sourceParsed;
+  if (!parsed) { setStatus('No prepared mesh available for Stage 3C batch repair'); return; }
+  const before = analyseSanitiserMesh(parsed.positions, parsed.nTri);
+  const pairs = before.intersections?.pairs || [];
+  const safeStrayPairs = pairs.filter(p => p.overlapType === 'STRAY FRAGMENT CONTACT');
+  if (!safeStrayPairs.length) { setStatus('No proven safe stray fragments remain'); return; }
+  try {
+    setStatus('Stage 3C: removing all proven safe stray fragments...');
+    const repaired = repairSanitiserIntersectionStage3CBatch(parsed.positions, parsed.nTri, safeStrayPairs);
+    const after = analyseSanitiserMesh(repaired.positions, repaired.nTri);
+    if (after.nTri !== before.nTri - repaired.removedFaces) throw new Error('face-count safety gate failed');
+    if (after.nonManifoldEdges > before.nonManifoldEdges) throw new Error('non-manifold topology increased');
+    if (after.openEdges > before.openEdges) throw new Error('open-edge count increased');
+    if (after.degenerateTriangles > before.degenerateTriangles) throw new Error('degenerate triangles increased');
+    const beforeIx = before.intersections || {};
+    const afterIx = after.intersections || {};
+    if (!beforeIx.truncated && !afterIx.truncated && (afterIx.triangleIntersections || 0) > (beforeIx.triangleIntersections || 0)) throw new Error('proven intersections increased');
+    currentParsed = { positions: repaired.positions, nTri: repaired.nTri };
+    sourceParsed = cloneParsed(currentParsed);
+    repairDismissed = false;
+    scaleReference = null;
+    updateAnalysis(sourceName, currentParsed);
+    setStatus(`Stage 3C batch complete — removed ${repaired.removedShells} stray shell${repaired.removedShells === 1 ? '' : 's'} / ${repaired.removedFaces} face${repaired.removedFaces === 1 ? '' : 's'} and passed topology safety gates`);
+  } catch (err) {
+    console.error('Stage 3C batch fragment repair refused:', err);
+    setStatus(`Stage 3C batch repair refused: ${err.message || err}`);
+  }
+}
 
 function applyStage3CFragmentRepair(pairIndex) {
   const parsed = currentParsed || sourceParsed;

@@ -332,6 +332,37 @@ export function repairSanitiserIntersectionStage3C(positions, nTri, pair) {
   return {positions:new Float32Array(kept),nTri:nTri-removedFaces,removedFaces,removedShellId:removeShellId};
 }
 
+/**
+ * Stage 3C batch repair for proven tiny stray-fragment shells.
+ * Shell membership is frozen from one analysis snapshot so shell renumbering
+ * cannot make a later removal target the wrong component.
+ */
+export function repairSanitiserIntersectionStage3CBatch(positions, nTri, pairs) {
+  if(!positions || !nTri || !Array.isArray(pairs)) throw new Error('Stage 3C batch repair requires a current mesh and intersection pairs.');
+  const {faceShellIds,shellFaceCounts}=buildStage3CShellIds(positions,nTri);
+  const removeShellIds=new Set();
+  for(const pair of pairs){
+    if(!pair || pair.overlapType !== 'STRAY FRAGMENT CONTACT') continue;
+    const aFaces=Number(pair.shellAFaces)||0,bFaces=Number(pair.shellBFaces)||0;
+    if(aFaces===bFaces) continue;
+    const smallerFaces=Math.min(aFaces,bFaces);
+    if(smallerFaces<1 || smallerFaces>4) continue;
+    const shellId=aFaces<bFaces ? pair.shellA : pair.shellB;
+    const actualCount=shellFaceCounts[shellId]||0;
+    if(actualCount!==smallerFaces || actualCount>4) continue;
+    removeShellIds.add(shellId);
+  }
+  if(!removeShellIds.size) throw new Error('No uniquely proven safe stray-fragment shells are available for batch removal.');
+  const kept=[];let removedFaces=0;
+  for(let fi=0;fi<nTri;fi++){
+    if(removeShellIds.has(faceShellIds[fi])){removedFaces++;continue;}
+    const o=fi*9;for(let k=0;k<9;k++)kept.push(positions[o+k]);
+  }
+  const expectedFaces=[...removeShellIds].reduce((sum,sid)=>sum+(shellFaceCounts[sid]||0),0);
+  if(removedFaces!==expectedFaces) throw new Error('Stage 3C batch removal count mismatch; original mesh preserved.');
+  return {positions:new Float32Array(kept),nTri:nTri-removedFaces,removedFaces,removedShells:removeShellIds.size,removedShellIds:[...removeShellIds]};
+}
+
 export function analyseSanitiserMesh(positions, nTri) {
   let minX = Infinity, minY = Infinity, minZ = Infinity;
   let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
