@@ -1,0 +1,38 @@
+name: Apply Mesh Prep grouped boundaries v2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/apply-meshprep-grouped-boundaries-v2.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply grouped boundary patch
+        shell: bash
+        run: python .github/scripts/group_meshprep_boundaries.py
+      - name: Verify grouped inspector
+        shell: bash
+        run: |
+          grep -q "boundary-group-header" makerforge/meshprep.html
+          grep -q "CAP BLOCKED" makerforge/meshprep.html
+          grep -q "dataset.boundaryIndex" makerforge/meshprep.html
+      - name: Commit source change and remove temporary patch files
+        shell: bash
+        run: |
+          rm .github/workflows/apply-meshprep-grouped-boundaries.yml || true
+          rm .github/workflows/apply-meshprep-grouped-boundaries-v2.yml
+          rm .github/scripts/group_meshprep_boundaries.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add makerforge/meshprep.html .github/workflows .github/scripts
+          git commit -m "Group Mesh Prep boundaries by diagnosis"
+          git push origin HEAD:main
