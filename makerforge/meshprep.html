@@ -49,6 +49,7 @@
 .repair-stats{display:grid;grid-template-columns:1fr auto;gap:5px 10px;margin-top:8px;font-size:11px}
 .repair-stats .label{color:var(--muted)}
 .repair-stats .value{color:var(--text);font-weight:700;text-align:right}
+.repair-stats .value.file-value{max-width:154px;white-space:normal;overflow-wrap:anywhere;word-break:break-word;line-height:1.25}
 .repair-actions{display:flex;gap:6px;margin-top:10px}.repair-actions[hidden]{display:none!important}.repair-actions .btn{flex:1}
 
 .boundary-panel{border:1px solid #27d3ff;border-radius:8px;padding:10px;background:rgba(39,211,255,.055)}
@@ -188,7 +189,7 @@
       <div id="repairTitle" class="repair-title">&#9888; MESH REPAIR RECOMMENDED</div>
       <div id="repairText" class="repair-text">Safe Stage 1 repairs are available.</div>
       <div class="repair-stats">
-        <span class="label">File</span><span class="value" id="repairFileName">-</span>
+        <span class="label">File</span><span class="value file-value" id="repairFileName">-</span>
         <span class="label">Degenerate faces</span><span class="value" id="repairDegenerate">0</span>
         <span class="label">Duplicate faces</span><span class="value" id="repairDuplicates">0</span>
         <span class="label">Safe repairs</span><span class="value" id="repairTotal">0</span>
