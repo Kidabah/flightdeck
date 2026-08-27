@@ -979,6 +979,31 @@ function sanitizeUnionPositions(input){
   return{positions:new Float32Array(out),removedDegenerate,removedDuplicate};
 }
 
+function repairSingleNonManifoldEdge(input){
+  const first=analyseSanitiserMesh(input,input.length/9);
+  if(first.degenerateTriangles!==0||first.nonManifoldEdges!==1||first.openEdges!==0||first.shells!==1)return null;
+  let minX=Infinity,minY=Infinity,minZ=Infinity,maxX=-Infinity,maxY=-Infinity,maxZ=-Infinity;
+  for(let i=0;i<input.length;i+=3){const x=input[i],y=input[i+1],z=input[i+2];minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);minZ=Math.min(minZ,z);maxZ=Math.max(maxZ,z);}
+  const eps=Math.max(Math.max(maxX-minX,maxY-minY,maxZ-minZ)*1e-5,1e-5);
+  const vk=(x,y,z)=>`${Math.round(x/eps)},${Math.round(y/eps)},${Math.round(z/eps)}`;
+  const edges=new Map();
+  for(let fi=0;fi<input.length/9;fi++){
+    const o=fi*9,ks=[vk(input[o],input[o+1],input[o+2]),vk(input[o+3],input[o+4],input[o+5]),vk(input[o+6],input[o+7],input[o+8])];
+    for(let e=0;e<3;e++){const a=ks[e],b=ks[(e+1)%3];if(a===b)continue;const k=a<b?`${a}|${b}`:`${b}|${a}`;let rec=edges.get(k);if(!rec){rec=[];edges.set(k,rec);}rec.push(fi);}
+  }
+  const bad=[...edges.entries()].filter(([,faces])=>faces.length!==2);
+  if(bad.length!==1||bad[0][1].length<3)return null;
+  const incident=[...new Set(bad[0][1])];
+  const winners=[];
+  for(const removeFi of incident){
+    const out=new Float32Array(input.length-9);let w=0;
+    for(let fi=0;fi<input.length/9;fi++){if(fi===removeFi)continue;const o=fi*9;for(let k=0;k<9;k++)out[w++]=input[o+k];}
+    const a=analyseSanitiserMesh(out,out.length/9);
+    if(a.degenerateTriangles===0&&a.nonManifoldEdges===0&&a.openEdges===0&&a.shells===1)winners.push({positions:out,removedFace:removeFi,analysis:a});
+  }
+  return winners.length===1?winners[0]:null;
+}
+
 function buildUnionOrder(posA,posB){
   const ga=new THREE.BufferGeometry(),gb=new THREE.BufferGeometry();
   ga.setAttribute('position',new THREE.BufferAttribute(posA,3));
@@ -1008,14 +1033,19 @@ function buildUnionPreview(pairIndex){
     const attempts=[];
     for(const [label,left,right] of [['A+B',posA,posB],['B+A',posB,posA]]){
       try{
-        const cleaned=buildUnionOrder(left,right);
-        const localAfter=analyseSanitiserMesh(cleaned.positions,cleaned.positions.length/9);
+        let cleaned=buildUnionOrder(left,right);
+        let localAfter=analyseSanitiserMesh(cleaned.positions,cleaned.positions.length/9);
+        let edgeRepair=null;
+        if(localAfter.degenerateTriangles===0&&localAfter.nonManifoldEdges===1&&localAfter.openEdges===0&&localAfter.shells===1){
+          edgeRepair=repairSingleNonManifoldEdge(cleaned.positions);
+          if(edgeRepair){cleaned={...cleaned,positions:edgeRepair.positions};localAfter=edgeRepair.analysis;}
+        }
         const localValid=localAfter.degenerateTriangles===0&&localAfter.nonManifoldEdges===0&&localAfter.openEdges===0&&localAfter.shells===1;
         const positions=new Float32Array(kept.length+cleaned.positions.length);positions.set(kept);positions.set(cleaned.positions,kept.length);
         const nTri=positions.length/9,after=analyseSanitiserMesh(positions,nTri);
         const expectedShellDelta=before.shells-1;
         const valid=localValid&&after.degenerateTriangles<=before.degenerateTriangles&&after.nonManifoldEdges<=before.nonManifoldEdges&&after.shells<=expectedShellDelta;
-        attempts.push({label,positions,nTri,after,localAfter,valid,removedDegenerate:cleaned.removedDegenerate,removedDuplicate:cleaned.removedDuplicate});
+        attempts.push({label,positions,nTri,after,localAfter,valid,edgeRepairRemovedFace:edgeRepair?.removedFace??null,removedDegenerate:cleaned.removedDegenerate,removedDuplicate:cleaned.removedDuplicate});
       }catch(error){attempts.push({label,error});}
     }
     const viable=attempts.filter(x=>x.valid).sort((a,b)=>a.after.nonManifoldEdges-b.after.nonManifoldEdges||a.after.degenerateTriangles-b.after.degenerateTriangles||a.after.openEdges-b.after.openEdges||a.after.shells-b.after.shells||a.after.nTri-b.after.nTri);
@@ -1024,9 +1054,9 @@ function buildUnionPreview(pairIndex){
       throw new Error(`no safe union candidate after cleanup — ${detail}`);
     }
     const best=viable[0],after=best.after;
-    unionCandidate={positions:best.positions,nTri:best.nTri,summary:{shellA:pair.shellA,shellB:pair.shellB,beforeFaces:before.nTri,afterFaces:after.nTri,beforeOpen:before.openEdges,afterOpen:after.openEdges,beforeShells:before.shells,afterShells:after.shells,localOpen:best.localAfter.openEdges,localNonManifold:best.localAfter.nonManifoldEdges,localDegenerate:best.localAfter.degenerateTriangles,localShells:best.localAfter.shells,order:best.label,removedDegenerate:best.removedDegenerate,removedDuplicate:best.removedDuplicate}};
+    unionCandidate={positions:best.positions,nTri:best.nTri,summary:{shellA:pair.shellA,shellB:pair.shellB,beforeFaces:before.nTri,afterFaces:after.nTri,beforeOpen:before.openEdges,afterOpen:after.openEdges,beforeShells:before.shells,afterShells:after.shells,localOpen:best.localAfter.openEdges,localNonManifold:best.localAfter.nonManifoldEdges,localDegenerate:best.localAfter.degenerateTriangles,localShells:best.localAfter.shells,order:best.label,edgeRepairRemovedFace:best.edgeRepairRemovedFace,removedDegenerate:best.removedDegenerate,removedDuplicate:best.removedDuplicate}};
     showMesh(best.positions);showIntersectionInspector(before);
-    setStatus(`Stage 3E preview ready — ${best.label}, cleanup removed ${best.removedDegenerate} degenerate / ${best.removedDuplicate} duplicate faces. ACCEPT or REJECT. Shells ${before.shells.toLocaleString()} → ${after.shells.toLocaleString()}, open edges ${before.openEdges.toLocaleString()} → ${after.openEdges.toLocaleString()}`);
+    setStatus(`Stage 3E preview ready — ${best.label}, cleanup removed ${best.removedDegenerate} degenerate / ${best.removedDuplicate} duplicate faces${best.edgeRepairRemovedFace!==null?' + 1 uniquely proven non-manifold incident face':''}. ACCEPT or REJECT. Shells ${before.shells.toLocaleString()} → ${after.shells.toLocaleString()}, open edges ${before.openEdges.toLocaleString()} → ${after.openEdges.toLocaleString()}`);
   }catch(err){
     console.error('Stage 3E union preview refused:',err);unionCandidate=null;const parsed=currentParsed||sourceParsed;if(parsed)showMesh(parsed.positions);setStatus(`Stage 3E union preview refused: ${err.message||err}`);
   }
