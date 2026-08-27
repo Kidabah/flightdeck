@@ -121,6 +121,7 @@
 
 .intersection-panel{border:1px solid #b875ff;border-radius:8px;padding:10px;background:rgba(184,117,255,.055)}
 .intersection-title{color:#d3a7ff;font-size:11px;font-weight:800;letter-spacing:.06em;margin-bottom:6px}.intersection-text{font-size:11px;color:var(--muted);line-height:1.45}.intersection-summary{display:grid;grid-template-columns:1fr auto;gap:5px 10px;margin-top:8px;font-size:11px}.intersection-summary .value{color:var(--text);font-weight:700;text-align:right}.intersection-list{margin-top:8px;display:flex;flex-direction:column;gap:5px}.intersection-item{border:1px solid var(--border);border-radius:6px;background:var(--panel-2);padding:7px;font-size:10px;color:var(--muted)}.intersection-item b{color:var(--text)}
+.intersection-actions{display:flex;gap:6px;margin-top:7px}.intersection-actions .btn{width:100%;font-size:10px;padding:6px}.intersection-item[data-type="STRAY FRAGMENT CONTACT"]{border-color:rgba(52,211,153,.38)}
 </style>
 </head>
 <body>
@@ -270,7 +271,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import './js/nav.js?v=551';
-import { analyseSanitiserMesh, repairSanitiserMeshStage1, repairSanitiserBoundaryStage2B, repairSanitiserBoundaryStage2C } from './js/sanitiser-core.js?v=9';
+import { analyseSanitiserMesh, repairSanitiserMeshStage1, repairSanitiserBoundaryStage2B, repairSanitiserBoundaryStage2C, repairSanitiserIntersectionStage3C } from './js/sanitiser-core.js?v=10';
 const $ = id => document.getElementById(id);
 const fmt = n => Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '-';
 const setStatus = msg => { $('status').textContent = msg; };
@@ -947,17 +948,58 @@ function showIntersectionInspector(san) {
   $('intersectionHits').textContent = (x.triangleIntersections || 0).toLocaleString();
   $('intersectionTests').textContent = (x.testedTrianglePairs || 0).toLocaleString();
   const types = x.typeCounts || {};
-  const typeSummary = Object.entries(types).sort((a,b) => b[1]-a[1]).map(([name,count]) => `${name}: ${count}`).join(' · ');
-  $('intersectionNote').textContent = (x.truncated ? 'Safety budget reached: proven lower bound only.' : 'Analysis completed within the Stage 3A safety budget.') + (typeSummary ? ` Stage 3B: ${typeSummary}.` : '');
+  const typeSummary = Object.entries(types).sort((a,b)=>b[1]-a[1]).map(([name,count])=>`${name}: ${count}`).join(' · ');
+  $('intersectionNote').textContent =
+    (x.truncated ? 'Safety budget reached: proven lower bound only.' : 'Analysis completed within the Stage 3A safety budget.') +
+    (typeSummary ? ` Stage 3B: ${typeSummary}.` : '') +
+    ' Stage 3C can safely remove proven tiny stray fragments; deeper overlaps remain blocked pending boolean union.';
   const list = $('intersectionList');
   list.innerHTML = '';
-  (x.pairs || []).slice(0,12).forEach(p => {
+  (x.pairs || []).slice(0,12).forEach((p, pairIndex) => {
     const el = document.createElement('div');
     el.className = 'intersection-item';
+    el.dataset.type = p.overlapType || 'CROSSING SHELLS';
     const density = Number.isFinite(p.crossingDensity) ? ` · density ${p.crossingDensity.toFixed(2)}` : '';
-    el.innerHTML = `<b>Shell ${p.shellA+1} / ${p.shellB+1}</b> · ${p.intersections.toLocaleString()} proven crossings<br>` + `${p.shellAFaces.toLocaleString()} faces / ${p.shellBFaces.toLocaleString()} faces${density}<br>` + `<b>${p.overlapType || 'CROSSING SHELLS'}</b> · ${p.reason || ''}<br>` + `${p.recommendation || ''}`;
+    el.innerHTML = `<b>Shell ${p.shellA+1} / ${p.shellB+1}</b> · ${p.intersections.toLocaleString()} proven crossings<br>` +
+      `${p.shellAFaces.toLocaleString()} faces / ${p.shellBFaces.toLocaleString()} faces${density}<br>` +
+      `<b>${p.overlapType || 'CROSSING SHELLS'}</b> · ${p.reason || ''}<br>${p.recommendation || ''}`;
+    if (p.overlapType === 'STRAY FRAGMENT CONTACT') {
+      const actions = document.createElement('div');
+      actions.className = 'intersection-actions';
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'btn'; btn.textContent = 'REMOVE STRAY FRAGMENT';
+      btn.addEventListener('click', () => applyStage3CFragmentRepair(pairIndex));
+      actions.appendChild(btn); el.appendChild(actions);
+    }
     list.appendChild(el);
   });
+}
+
+
+function applyStage3CFragmentRepair(pairIndex) {
+  const parsed = currentParsed || sourceParsed;
+  if (!parsed) { setStatus('No prepared mesh available for Stage 3C'); return; }
+  const before = analyseSanitiserMesh(parsed.positions, parsed.nTri);
+  const pair = before.intersections?.pairs?.[pairIndex];
+  if (!pair) { setStatus('Stage 3C pair is no longer available; re-run analysis'); return; }
+  try {
+    setStatus(`Stage 3C: removing proven stray fragment from Shell ${pair.shellA+1} / ${pair.shellB+1}...`);
+    const repaired = repairSanitiserIntersectionStage3C(parsed.positions, parsed.nTri, pair);
+    const after = analyseSanitiserMesh(repaired.positions, repaired.nTri);
+    if (after.nTri !== before.nTri - repaired.removedFaces) throw new Error('face-count safety gate failed');
+    if (after.nonManifoldEdges > before.nonManifoldEdges) throw new Error('non-manifold topology increased');
+    if (after.openEdges > before.openEdges) throw new Error('open-edge count increased');
+    if (after.degenerateTriangles > before.degenerateTriangles) throw new Error('degenerate triangles increased');
+    if ((after.intersections?.triangleIntersections || 0) > (before.intersections?.triangleIntersections || 0)) throw new Error('proven intersections increased');
+    currentParsed = { positions: repaired.positions, nTri: repaired.nTri };
+    sourceParsed = cloneParsed(currentParsed);
+    repairDismissed = false; scaleReference = null;
+    updateAnalysis(sourceName, currentParsed);
+    setStatus(`Stage 3C complete — removed ${repaired.removedFaces} stray face${repaired.removedFaces === 1 ? '' : 's'} and passed topology safety gates`);
+  } catch (err) {
+    console.error('Stage 3C fragment repair refused:', err);
+    setStatus(`Stage 3C repair refused: ${err.message || err}`);
+  }
 }
 
 function hideBoundaryRepairComplete() {

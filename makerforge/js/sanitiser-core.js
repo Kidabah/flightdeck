@@ -275,6 +275,63 @@ function analyseShellIntersections(positions, nTri, faceShellIds, shellFaceCount
   return {shellAabbPairs:shellCandidates.length,intersectingShellPairs:pairs.length,triangleIntersections,testedTrianglePairs,truncated,intersectingShellIds,typeCounts,pairs:pairs.slice(0,100)};
 }
 
+
+function buildStage3CShellIds(positions, nTri) {
+  let minX=Infinity,minY=Infinity,minZ=Infinity,maxX=-Infinity,maxY=-Infinity,maxZ=-Infinity;
+  for(let i=0;i<nTri;i++){
+    const o=i*9;
+    for(let v=0;v<3;v++){
+      const p=o+v*3,x=positions[p],y=positions[p+1],z=positions[p+2];
+      minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);minZ=Math.min(minZ,z);maxZ=Math.max(maxZ,z);
+    }
+  }
+  const maxDim=Math.max(maxX-minX,maxY-minY,maxZ-minZ,1e-9);
+  const eps=Math.max(maxDim*1e-7,1e-7);
+  const key=(x,y,z)=>`${Math.round(x/eps)},${Math.round(y/eps)},${Math.round(z/eps)}`;
+  const vertexMap=new Map(), faceVerts=new Array(nTri), vertexFaces=[];
+  for(let fi=0;fi<nTri;fi++){
+    const o=fi*9, ids=[];
+    for(let v=0;v<3;v++){
+      const p=o+v*3,k=key(positions[p],positions[p+1],positions[p+2]);
+      if(!vertexMap.has(k)){const id=vertexMap.size;vertexMap.set(k,id);vertexFaces[id]=[];}
+      const id=vertexMap.get(k);ids.push(id);vertexFaces[id].push(fi);
+    }
+    faceVerts[fi]=ids;
+  }
+  const visited=new Uint8Array(nTri), faceShellIds=new Int32Array(nTri);faceShellIds.fill(-1);
+  const shellFaceCounts=[];let shells=0;
+  for(let start=0;start<nTri;start++){
+    if(visited[start])continue;
+    const sid=shells++,stack=[start];visited[start]=1;faceShellIds[start]=sid;let count=0;
+    while(stack.length){
+      const fi=stack.pop();count++;
+      for(const vi of faceVerts[fi])for(const nb of vertexFaces[vi])if(!visited[nb]){visited[nb]=1;faceShellIds[nb]=sid;stack.push(nb);}
+    }
+    shellFaceCounts[sid]=count;
+  }
+  return {faceShellIds,shellFaceCounts};
+}
+
+export function repairSanitiserIntersectionStage3C(positions, nTri, pair) {
+  if(!positions || !nTri || !pair) throw new Error('Stage 3C requires a current mesh and selected shell pair.');
+  if(pair.overlapType !== 'STRAY FRAGMENT CONTACT') throw new Error('Stage 3C currently repairs only proven stray-fragment contacts. Deep overlaps require the union stage.');
+  const aFaces=Number(pair.shellAFaces)||0,bFaces=Number(pair.shellBFaces)||0;
+  const smallerFaces=Math.min(aFaces,bFaces);
+  if(smallerFaces<1 || smallerFaces>4) throw new Error('Stage 3C fragment safety gate refused this shell size.');
+  if(aFaces===bFaces) throw new Error('Stage 3C cannot safely choose which equal-sized shell is stray.');
+  const removeShellId=aFaces<bFaces ? pair.shellA : pair.shellB;
+  const {faceShellIds,shellFaceCounts}=buildStage3CShellIds(positions,nTri);
+  const actualCount=shellFaceCounts[removeShellId]||0;
+  if(actualCount!==smallerFaces || actualCount>4) throw new Error('Stage 3C shell identity changed; original mesh preserved.');
+  const kept=[];let removedFaces=0;
+  for(let fi=0;fi<nTri;fi++){
+    if(faceShellIds[fi]===removeShellId){removedFaces++;continue;}
+    const o=fi*9;for(let k=0;k<9;k++)kept.push(positions[o+k]);
+  }
+  if(removedFaces!==actualCount) throw new Error('Stage 3C removal count mismatch; original mesh preserved.');
+  return {positions:new Float32Array(kept),nTri:nTri-removedFaces,removedFaces,removedShellId:removeShellId};
+}
+
 export function analyseSanitiserMesh(positions, nTri) {
   let minX = Infinity, minY = Infinity, minZ = Infinity;
   let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
