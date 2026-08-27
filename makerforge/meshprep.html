@@ -181,6 +181,13 @@
       </div>
     </div>
 
+    <div id="intersectionPanel" class="intersection-panel" hidden>
+      <div class="intersection-title">SHELL INTERSECTION INSPECTOR</div>
+      <div class="intersection-text">Stage 3A is diagnostic only. It detects overlapping shell bounds, then proves cross-shell triangle intersections.</div>
+      <div class="intersection-summary"><span>Shell AABB overlaps</span><span class="value" id="intersectionAabb">0</span><span>Intersecting shell pairs</span><span class="value" id="intersectionPairs">0</span><span>Triangle intersections</span><span class="value" id="intersectionHits">0</span><span>Triangle pairs tested</span><span class="value" id="intersectionTests">0</span></div>
+      <div id="intersectionNote" class="intersection-text" style="margin-top:7px"></div><div id="intersectionList" class="intersection-list"></div>
+    </div>
+
     <div id="boundaryPanel" class="boundary-panel" hidden>
       <div class="boundary-title">&#10022; BOUNDARY INSPECTOR</div>
       <div class="boundary-text">
@@ -199,13 +206,6 @@
       <div id="boundaryRepairHint" class="boundary-repair-hint">
         Stage 2B/2C repair only simple 3/4-edge holes with proven surrounding-shell support. Isolated sheets, shell perimeters, multi-shell joins, complex, concave, twisted, and larger openings remain inspection-only.
       </div>
-    </div>
-
-    <div id="intersectionPanel" class="intersection-panel" hidden>
-      <div class="intersection-title">SHELL INTERSECTION INSPECTOR</div>
-      <div class="intersection-text">Stage 3A is diagnostic only. It detects overlapping shell bounds, then proves cross-shell triangle intersections.</div>
-      <div class="intersection-summary"><span>Shell AABB overlaps</span><span class="value" id="intersectionAabb">0</span><span>Intersecting shell pairs</span><span class="value" id="intersectionPairs">0</span><span>Triangle intersections</span><span class="value" id="intersectionHits">0</span><span>Triangle pairs tested</span><span class="value" id="intersectionTests">0</span></div>
-      <div id="intersectionNote" class="intersection-text" style="margin-top:7px"></div><div id="intersectionList" class="intersection-list"></div>
     </div>
 
     <div id="boundaryRepairComplete" class="boundary-repair-complete" hidden>
