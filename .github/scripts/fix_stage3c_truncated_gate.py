@@ -1,5 +1,6 @@
 from pathlib import Path
 
+# One-time patch: Stage 3C must not compare truncated lower-bound intersection totals.
 p = Path('makerforge/meshprep.html')
 s = p.read_text(encoding='utf-8')
 old = "    if ((after.intersections?.triangleIntersections || 0) > (before.intersections?.triangleIntersections || 0)) throw new Error('proven intersections increased');\n\n    currentParsed = { positions: repaired.positions, nTri: repaired.nTri };"
