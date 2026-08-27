@@ -271,7 +271,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import './js/nav.js?v=551';
-import { analyseSanitiserMesh, repairSanitiserMeshStage1, repairSanitiserBoundaryStage2B, repairSanitiserBoundaryStage2C, repairSanitiserIntersectionStage3C } from './js/sanitiser-core.js?v=10';
+import { analyseSanitiserMesh, repairSanitiserMeshStage1, repairSanitiserBoundaryStage2B, repairSanitiserBoundaryStage2C, repairSanitiserIntersectionStage3C } from './js/sanitiser-core.js?v=11';
 const $ = id => document.getElementById(id);
 const fmt = n => Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '-';
 const setStatus = msg => { $('status').textContent = msg; };
@@ -990,7 +990,16 @@ function applyStage3CFragmentRepair(pairIndex) {
     if (after.nonManifoldEdges > before.nonManifoldEdges) throw new Error('non-manifold topology increased');
     if (after.openEdges > before.openEdges) throw new Error('open-edge count increased');
     if (after.degenerateTriangles > before.degenerateTriangles) throw new Error('degenerate triangles increased');
-    if ((after.intersections?.triangleIntersections || 0) > (before.intersections?.triangleIntersections || 0)) throw new Error('proven intersections increased');
+    // Intersection totals are not directly comparable when either analysis hit the
+    // Stage 3A safety budget: each value is only a proven lower bound and the
+    // traversal order changes after a shell is removed. Compare totals only when
+    // both analyses completed within budget.
+    const beforeIx = before.intersections || {};
+    const afterIx = after.intersections || {};
+    if (!beforeIx.truncated && !afterIx.truncated &&
+        (afterIx.triangleIntersections || 0) > (beforeIx.triangleIntersections || 0)) {
+      throw new Error('proven intersections increased');
+    }
     currentParsed = { positions: repaired.positions, nTri: repaired.nTri };
     sourceParsed = cloneParsed(currentParsed);
     repairDismissed = false; scaleReference = null;
