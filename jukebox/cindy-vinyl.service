@@ -13,11 +13,11 @@ WorkingDirectory=/home/flightdeck/flightdeck/jukebox
 # Retry for up to two minutes to survive slow network/NAS startup after reboot.
 ExecStartPre=/bin/bash -c 'for i in {1..24}; do /home/flightdeck/bin/mount-cindy.sh >/dev/null 2>&1 || true; mountpoint -q /mnt/cindy/MUSIC && mountpoint -q /mnt/cindy/CHECKED && mountpoint -q /mnt/cindy/JAMAL && exit 0; sleep 5; done; echo "Cindy shares did not become ready" >&2; exit 1'
 ExecStartPre=/home/flightdeck/flightdeck/jukebox/scripts/build-cindy-library-view.sh
-ExecStart=/usr/bin/docker compose up -d
 
-# Navidrome deliberately does not scan on container startup. Once the real
-# shares and library view are ready, request a scan so Cindy is usable after boot.
-ExecStartPost=/bin/bash -c 'for i in {1..24}; do /usr/bin/docker exec cindy-navidrome /app/navidrome scan && exit 0; sleep 5; done; exit 1'
+# Bring the stack up, then restart only Navidrome after the mounts/view are known-good.
+# Navidrome's own startup scanner runs in the server process, avoiding a second CLI
+# process competing for the same SQLite database.
+ExecStart=/bin/bash -c '/usr/bin/docker compose up -d && /usr/bin/docker compose restart navidrome'
 
 [Install]
 WantedBy=multi-user.target
