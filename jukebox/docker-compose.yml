@@ -27,8 +27,15 @@ services:
       # Drop DB rows for ignored/missing recycle junk after full scans.
       ND_SCANNER_PURGEMISSING: "full"
     volumes:
-      # Real Cindy mount (ro) so absolute symlinks in the library view resolve.
-      - /mnt/cindy:/mnt/cindy:ro
+      # Real Cindy mount so absolute symlinks in the library view resolve.
+      # rslave is important: MUSIC/CHECKED/JAMAL are separate CIFS mounts created
+      # underneath /mnt/cindy after boot, and must propagate into this container.
+      - type: bind
+        source: /mnt/cindy
+        target: /mnt/cindy
+        read_only: true
+        bind:
+          propagation: rslave
       # Pi-local symlink view (excludes #recycle). Never writes to Cindy.
       - /home/flightdeck/cindy-library-view:/music:ro
       - /home/flightdeck/cindy-navidrome/data:/data
