@@ -9,14 +9,14 @@ Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=/home/flightdeck/flightdeck/jukebox
 
-# The Cindy SMB share must exist before Navidrome sees the library view.
+# Cindy is three CIFS mounts below /mnt/cindy, not a mount on /mnt/cindy itself.
 # Retry for up to two minutes to survive slow network/NAS startup after reboot.
-ExecStartPre=/bin/bash -c 'for i in {1..24}; do /home/flightdeck/bin/mount-cindy.sh >/dev/null 2>&1 || true; mountpoint -q /mnt/cindy && exit 0; sleep 5; done; echo "Cindy mount did not become ready" >&2; exit 1'
+ExecStartPre=/bin/bash -c 'for i in {1..24}; do /home/flightdeck/bin/mount-cindy.sh >/dev/null 2>&1 || true; mountpoint -q /mnt/cindy/MUSIC && mountpoint -q /mnt/cindy/CHECKED && mountpoint -q /mnt/cindy/JAMAL && exit 0; sleep 5; done; echo "Cindy shares did not become ready" >&2; exit 1'
 ExecStartPre=/home/flightdeck/flightdeck/jukebox/scripts/build-cindy-library-view.sh
 ExecStart=/usr/bin/docker compose up -d
 
 # Navidrome deliberately does not scan on container startup. Once the real
-# share and library view are ready, request a scan so Cindy is usable after boot.
+# shares and library view are ready, request a scan so Cindy is usable after boot.
 ExecStartPost=/bin/bash -c 'for i in {1..24}; do /usr/bin/docker exec cindy-navidrome /app/navidrome scan && exit 0; sleep 5; done; exit 1'
 
 [Install]
