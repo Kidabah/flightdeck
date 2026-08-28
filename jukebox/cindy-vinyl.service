@@ -14,10 +14,10 @@ WorkingDirectory=/home/flightdeck/flightdeck/jukebox
 ExecStartPre=/bin/bash -c 'for i in {1..24}; do /home/flightdeck/bin/mount-cindy.sh >/dev/null 2>&1 || true; mountpoint -q /mnt/cindy/MUSIC && mountpoint -q /mnt/cindy/CHECKED && mountpoint -q /mnt/cindy/JAMAL && exit 0; sleep 5; done; echo "Cindy shares did not become ready" >&2; exit 1'
 ExecStartPre=/home/flightdeck/flightdeck/jukebox/scripts/build-cindy-library-view.sh
 
-# Bring the stack up, then restart only Navidrome after the mounts/view are known-good.
-# Navidrome's own startup scanner runs in the server process, avoiding a second CLI
-# process competing for the same SQLite database.
-ExecStart=/bin/bash -c '/usr/bin/docker compose up -d && /usr/bin/docker compose restart navidrome'
+# Bring the stack up only after the mounts/view are known-good.
+# Navidrome's own server process handles startup/resume scanning; do not restart it
+# again here or an active scan can be cancelled with context canceled.
+ExecStart=/usr/bin/docker compose up -d
 
 [Install]
 WantedBy=multi-user.target
