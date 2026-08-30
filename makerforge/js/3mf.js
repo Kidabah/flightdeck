@@ -330,9 +330,13 @@ function appendModelSettingsObject(lines, assemblyId, name, modelParts, singlePa
     lines.push("    </part>");
   } else {
     modelParts.forEach((part, i) => {
-      lines.push(`    <part id="${part.id || i + 1}" subtype="normal_part">`);
+      const subtype = part.subtype || "normal_part";
+      lines.push(`    <part id="${part.id || i + 1}" subtype="${escapeXml(subtype)}">`);
       lines.push(`      <metadata key="name" value="${escapeXml(part.name)}"/>`);
-      lines.push(`      <metadata key="extruder" value="${part.extruder}"/>`);
+      // Negative volumes are geometry operators, not printable filament volumes.
+      if (subtype !== "negative_part") {
+        lines.push(`      <metadata key="extruder" value="${part.extruder}"/>`);
+      }
       lines.push(`      <metadata key="matrix" value="1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1"/>`);
       lines.push("    </part>");
     });

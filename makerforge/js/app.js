@@ -36,7 +36,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b623";
+const MAKERDECK_BUILD = "b624";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -913,14 +913,24 @@ function mountEmbossLabelPreviewIfNeeded() {
     return; // editing shelf alone — text lives on the back
   }
   const params = buildParams();
-  labelMaterial.color.set(state.embossTextColor || "#f8fafc");
-  applyFilamentMaterial(labelMaterial);
-  if (state.embossFace === "lid" && lidCache?.labelMesh && lidMesh) {
-    const labelGeom = toBufferGeometry(THREE, lidCache.labelMesh);
-    attachLabelPreviewMesh(labelGeom, labelMaterial, params);
-  } else if (state.embossFace !== "lid" && meshCache?.labelMesh) {
-    const labelGeom = toBufferGeometry(THREE, meshCache.labelMesh);
-    attachLabelPreviewMesh(labelGeom, labelMaterial, params);
+  if (state.embossDeboss) {
+    const cutter = state.embossFace === "lid"
+      ? lidCache?.debossCutterMesh
+      : meshCache?.debossCutterMesh;
+    if (cutter) {
+      const cutterGeom = toBufferGeometry(THREE, cutter);
+      attachLabelPreviewMesh(cutterGeom, debossPreviewMaterial, params);
+    }
+  } else {
+    labelMaterial.color.set(state.embossTextColor || "#f8fafc");
+    applyFilamentMaterial(labelMaterial);
+    if (state.embossFace === "lid" && lidCache?.labelMesh && lidMesh) {
+      const labelGeom = toBufferGeometry(THREE, lidCache.labelMesh);
+      attachLabelPreviewMesh(labelGeom, labelMaterial, params);
+    } else if (state.embossFace !== "lid" && meshCache?.labelMesh) {
+      const labelGeom = toBufferGeometry(THREE, meshCache.labelMesh);
+      attachLabelPreviewMesh(labelGeom, labelMaterial, params);
+    }
   }
 }
 
@@ -1550,6 +1560,19 @@ function collectColoredExportParts(exportCache, stamp = null, { includeLiner = t
         color: state.linerColor || "#f5f5f4",
         extruder: extruder++,
         filamentPreset: state.linerFilamentPreset || "",
+      });
+    }
+  }
+
+  if (state.embossDeboss && params.embossFace !== "lid" && exportCache.debossCutterMesh) {
+    const cutterClean = prepareMeshFor3mf(exportCache.debossCutterMesh);
+    if (cutterClean?.indices?.length) {
+      parts.push({
+        name: "Deboss (negative)",
+        mesh: cutterClean,
+        color: state.boxColor || "#38bdf8",
+        extruder: 1,
+        subtype: "negative_part",
       });
     }
   }
