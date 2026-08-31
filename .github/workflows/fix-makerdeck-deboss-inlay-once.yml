@@ -1,5 +1,6 @@
 name: Fix MakerDeck deboss inlay once
 on:
+  workflow_dispatch:
   push:
     paths:
       - '.github/workflows/fix-makerdeck-deboss-inlay-once.yml'
@@ -16,18 +17,12 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-
           def replace_once(path, old, new):
-              p = Path(path)
-              text = p.read_text(encoding='utf-8')
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f'{path}: expected exactly one match, found {count}: {old[:120]!r}')
-              p.write_text(text.replace(old, new, 1), encoding='utf-8')
-
-          p = Path('makerforge/js/app.js')
-          text = p.read_text(encoding='utf-8')
-          old = '''  if (state.embossDeboss && params.embossFace !== "lid" && exportCache.debossCutterMesh) {
+              p=Path(path); text=p.read_text(encoding='utf-8'); count=text.count(old)
+              if count != 1: raise SystemExit(f'{path}: expected one match, found {count}')
+              p.write_text(text.replace(old,new,1),encoding='utf-8')
+          p=Path('makerforge/js/app.js'); text=p.read_text(encoding='utf-8')
+          old='''  if (state.embossDeboss && params.embossFace !== "lid" && exportCache.debossCutterMesh) {
     const cutterClean = prepareMeshFor3mf(exportCache.debossCutterMesh);
     if (cutterClean?.indices?.length) {
       parts.push({
@@ -41,55 +36,25 @@ jobs:
   }
 
   return parts;'''
-          new = '''  if (state.embossDeboss && params.embossFace !== "lid") {
-    // Deboss is exported as a shallow negative pocket PLUS the normal text/art
-    // volume as a coloured inlay. Bambu subtracts the pocket from Body, then
-    // prints the inlay with the selected art colour. This keeps the outside
-    // colour automatic instead of requiring Paint in the slicer.
+          new='''  if (state.embossDeboss && params.embossFace !== "lid") {
     if (exportCache.debossCutterMesh) {
       const cutterClean = prepareMeshFor3mf(exportCache.debossCutterMesh);
-      if (cutterClean?.indices?.length) {
-        parts.push({
-          name: "Deboss pocket (negative)",
-          mesh: cutterClean,
-          color: state.boxColor || "#38bdf8",
-          extruder: 1,
-          subtype: "negative_part",
-        });
-      }
+      if (cutterClean?.indices?.length) parts.push({ name: "Deboss pocket (negative)", mesh: cutterClean, color: state.boxColor || "#38bdf8", extruder: 1, subtype: "negative_part" });
     }
     const textInlay = exportCache.labelMesh ? prepareMeshFor3mf(exportCache.labelMesh) : null;
-    if (textInlay?.indices?.length) {
-      parts.push({
-        name: "Text inlay",
-        mesh: textInlay,
-        color: state.embossTextColor || "#f8fafc",
-        extruder: extruder++,
-      });
-    }
+    if (textInlay?.indices?.length) parts.push({ name: "Text inlay", mesh: textInlay, color: state.embossTextColor || "#f8fafc", extruder: extruder++ });
     const artInlay = exportCache.graphicMesh ? prepareMeshFor3mf(exportCache.graphicMesh) : null;
-    if (artInlay?.indices?.length) {
-      parts.push({
-        name: "Art inlay",
-        mesh: artInlay,
-        color: state.embossArtColor || "#111827",
-        extruder: extruder++,
-      });
-    }
+    if (artInlay?.indices?.length) parts.push({ name: "Art inlay", mesh: artInlay, color: state.embossArtColor || "#111827", extruder: extruder++ });
     for (const cp of exportCache.graphicColourParts || []) {
       const cm = cp.mesh ? prepareMeshFor3mf(cp.mesh) : null;
-      if (cm?.indices?.length) parts.push({
-        name: `${cp.name || "Art"} inlay`, mesh: cm, color: cp.color, extruder: extruder++,
-      });
+      if (cm?.indices?.length) parts.push({ name: `${cp.name || "Art"} inlay`, mesh: cm, color: cp.color, extruder: extruder++ });
     }
   }
 
   return parts;'''
-          if text.count(old) != 1:
-              raise SystemExit(f'app.js: deboss export block expected once, found {text.count(old)}')
-          text = text.replace(old, new, 1)
-
-          old_preview = '''  if (state.embossDeboss) {
+          if text.count(old)!=1: raise SystemExit(f'deboss export block matches={text.count(old)}')
+          text=text.replace(old,new,1)
+          oldp='''  if (state.embossDeboss) {
     const cutter = state.embossFace === "lid"
       ? lidCache?.debossCutterMesh
       : meshCache?.debossCutterMesh;
@@ -98,26 +63,17 @@ jobs:
       attachLabelPreviewMesh(cutterGeom, debossPreviewMaterial, params);
     }
   } else {'''
-          new_preview = '''  if (state.embossDeboss) {
-    // Preview the printable colour inlay rather than the full cutter volume.
-    // The cutter is an internal subtraction operator in the exported 3MF.
+          newp='''  if (state.embossDeboss) {
     labelMaterial.color.set(state.embossTextColor || "#f8fafc");
     applyFilamentMaterial(labelMaterial);
     const inlay = state.embossFace === "lid" ? lidCache?.labelMesh : meshCache?.labelMesh;
     if (inlay) attachLabelPreviewMesh(toBufferGeometry(THREE, inlay), labelMaterial, params);
   } else {'''
-          if text.count(old_preview) != 1:
-              raise SystemExit(f'app.js: preview block expected once, found {text.count(old_preview)}')
-          text = text.replace(old_preview, new_preview, 1)
-          text = text.replace('const MAKERDECK_BUILD = "b624";', 'const MAKERDECK_BUILD = "b625";', 1)
-          p.write_text(text, encoding='utf-8')
-
-          replace_once(
-              'makerforge/index.html',
-              'Red preview shows the subtracting volume. <strong>3MF project</strong> exports it as a native negative part automatically. <em>STL deboss cutter</em> remains available for manual workflows.',
-              '<strong>3MF project</strong> exports a shallow negative pocket plus a coloured text/art inlay automatically. The selected art colour is preserved in Bambu; no manual painting is required. <em>STL deboss cutter</em> remains available for manual workflows.'
-          )
-          replace_once('makerforge/index.html', 'src="js/app.js?v=624"', 'src="js/app.js?v=625"')
+          if text.count(oldp)!=1: raise SystemExit(f'preview block matches={text.count(oldp)}')
+          text=text.replace(oldp,newp,1).replace('const MAKERDECK_BUILD = "b624";','const MAKERDECK_BUILD = "b625";',1)
+          p.write_text(text,encoding='utf-8')
+          replace_once('makerforge/index.html','Red preview shows the subtracting volume. <strong>3MF project</strong> exports it as a native negative part automatically. <em>STL deboss cutter</em> remains available for manual workflows.','<strong>3MF project</strong> exports a shallow negative pocket plus a coloured text/art inlay automatically. The selected art colour is preserved in Bambu; no manual painting is required. <em>STL deboss cutter</em> remains available for manual workflows.')
+          replace_once('makerforge/index.html','src="js/app.js?v=624"','src="js/app.js?v=625"')
           PY
       - name: Static checks
         run: |
