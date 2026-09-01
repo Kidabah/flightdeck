@@ -5200,9 +5200,12 @@ function embossExportCaps(params, d0) {
 
 function labelOffsets(params) {
   const depth = exportEmbossDepth(params);
+  if (params.__embossMode === "deboss-inlay") {
+    // Printable colour body: fill the pocket from its floor to the original outside surface.
+    return { d0: -depth, d1: 0, depth, deboss: true };
+  }
   if (params.__embossMode === "deboss-cutter") {
-    // Slicer-facing cutter STL: pokes 0.4mm past the surface and sinks (depth + 0.05)mm inward
-    // so the boolean subtract is clean at the outer skin.
+    // Boolean cutter reaches slightly beyond both ends for a clean subtraction.
     return { d0: -depth - 0.05, d1: 0.4, depth, deboss: true };
   }
   if (params.__hoodieArtExport) {

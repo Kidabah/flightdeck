@@ -28,7 +28,7 @@ import {
   shapeSupportsProfileArt,
   shapeSupportsArt,
   STACK_LIP_MM,
-} from "./features.js?v=600";
+} from "./features.js?v=625";
 import { getHoodieStubbyCache } from "./hoodie-stubby.js?v=623";
 import earcut from "https://esm.sh/earcut@2.2.4";
 import { buildVase, buildVaseSaucer, buildVaseAccentMesh, vaseMeta, VASE_DEFAULTS, VASE_STYLES } from "./vase.js?v=161";
@@ -2528,8 +2528,13 @@ export function buildContainer(params) {
     const previewDraft = !!params._artPreviewDraft;
     if (!isLidFace && !previewDraft) {
       if (params.embossDeboss) {
-        labelMesh = buildLabelEmboss(artMeta, params, params.embossSvgText || "", "emboss");
+        const parts = buildLabelEmbossParts(artMeta, params, params.embossSvgText || "", "deboss-inlay");
+        labelMesh = parts.text;
+        graphicMesh = parts.graphic;
+        graphicColourParts = parts.graphicColourParts || null;
         if (labelMesh) centerPositions(labelMesh.positions, 0, 0);
+        if (graphicMesh) centerPositions(graphicMesh.positions, 0, 0);
+        if (graphicColourParts?.length) for (const cp of graphicColourParts) centerPositions(cp.mesh.positions, 0, 0);
         debossCutterMesh = buildLabelEmboss(artMeta, params, params.embossSvgText || "", "deboss-cutter");
         if (debossCutterMesh) centerPositions(debossCutterMesh.positions, 0, 0);
         mesh = shellMesh;
@@ -2623,8 +2628,13 @@ export function buildLid(params) {
 
   if (params.embossFace === "lid" && shapeSupportsDecor(decorShape) && !params._artPreviewDraft) {
     if (params.embossDeboss) {
-      labelMesh = buildLabelEmboss(resolved.meta, params, params.embossSvgText || "", "emboss");
+      const parts = buildLabelEmbossParts(resolved.meta, params, params.embossSvgText || "", "deboss-inlay");
+      labelMesh = parts.text;
+      graphicMesh = parts.graphic;
+      graphicColourParts = parts.graphicColourParts || null;
       if (labelMesh) centerPositions(labelMesh.positions, 0, 0);
+      if (graphicMesh) centerPositions(graphicMesh.positions, 0, 0);
+      if (graphicColourParts?.length) for (const cp of graphicColourParts) centerPositions(cp.mesh.positions, 0, 0);
       debossCutterMesh = buildLabelEmboss(resolved.meta, params, params.embossSvgText || "", "deboss-cutter");
       if (debossCutterMesh) centerPositions(debossCutterMesh.positions, 0, 0);
       lid = shellLid;

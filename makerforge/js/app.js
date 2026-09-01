@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, HOODIE_STUBBY_PRESET, ANIMAL_PRESET, SIGN_PRESET, isDrinkHolderShape } from "./geometry.js?v=623";
-import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=623";
+import { buildContainer, buildLid, orientLidForPrint, orientLinerForPrint, toBufferGeometry, DEFAULTS, shapeSupportsJoiner, shapeSupportsDecor, shapeSupportsAccent, shapeSupportsAccentFrontFace, shapeSupportsProfileTexture, shapeSupportsProfileArt, shapeSupportsArt, shapeSupportsInsert, shapeSupportsLid, LID_TYPES, normalizeLidType, VASE_STYLES, PENCIL_PRESET, PENCIL_BOX_PRESET, TEARDROP_PRESET, STAR_PRESET, HEART_PRESET, CANISTER_SQUARE_PRESET, CANISTER_SQUARE_SET_PRESET, CANISTER_JAR_PRESET, CANISTER_STACK_PRESET, HOODIE_STUBBY_PRESET, ANIMAL_PRESET, SIGN_PRESET, isDrinkHolderShape } from "./geometry.js?v=625";
+import { EMBOSS_FONTS, ensureEmbossFontLoaded, embossFontReady, embossFontSpec, resolveEmbossFontWeight, textEmbossSizeLimits, arcRadiusLimits, buildWatertightExportMesh, buildWatertightFixedDividerExport, buildTextLabelExportMesh, buildLabelGraphicEmboss, buildMultiColourGraphicEmboss, mergeMeshes, lidCavityIntrusion, effectiveInsertTopClearance, applyExportWatermark, svgEmbossProducesMesh, parsedSvgHasFill, prepareSvgForImport, svgPrefersRasterSilhouette, shapeSupportsLiner, STACK_LIP_MM } from "./features.js?v=625";
 import { loadImageFromFile, loadImageFromDataUrl, traceCanvasAsync, traceFlattenedSvgCanvasAsync, drawTracePreview, rasterizeSvgToCanvas, flattenCanvasToInkSilhouette, normalizeMultiColourTraceData, MAX_TRACE_RECTS, MAX_TRACE_POLYGONS } from "./trace.js?v=370";
 import { meshToStl, downloadBlob, filenameFor, sanitizeMeshForStl, prepareMeshFor3mf, baseModelName, countOpenEdges, countNonManifoldEdges } from "./stl.js?v=622";
 import { buildColoredProject3mf, createZipArchiveBlob, filename3mfFor } from "./3mf.js?v=619";
@@ -36,7 +36,7 @@ import {
 
 const SESSION_KEY = "makerdeck-session-v1";
 /** Golden baseline — see makerforge/GOLDEN_BASELINE.md. Do not regress trace preview or b278 emboss. */
-const MAKERDECK_BUILD = "b624";
+const MAKERDECK_BUILD = "b625";
 const MAKERDECK_GOLDEN_BUILD = "b284";
 const SVG_FAST_RASTER_PX = 896;
 const DISPLAY_UNITS = ["mm", "cm", "in"];
@@ -914,13 +914,10 @@ function mountEmbossLabelPreviewIfNeeded() {
   }
   const params = buildParams();
   if (state.embossDeboss) {
-    const cutter = state.embossFace === "lid"
-      ? lidCache?.debossCutterMesh
-      : meshCache?.debossCutterMesh;
-    if (cutter) {
-      const cutterGeom = toBufferGeometry(THREE, cutter);
-      attachLabelPreviewMesh(cutterGeom, debossPreviewMaterial, params);
-    }
+    labelMaterial.color.set(state.embossTextColor || "#f8fafc");
+    applyFilamentMaterial(labelMaterial);
+    const cache = state.embossFace === "lid" ? lidCache : meshCache;
+    if (cache?.labelMesh) attachLabelPreviewMesh(toBufferGeometry(THREE, cache.labelMesh), labelMaterial, params);
   } else {
     labelMaterial.color.set(state.embossTextColor || "#f8fafc");
     applyFilamentMaterial(labelMaterial);
@@ -1437,7 +1434,23 @@ function collectColoredExportParts(exportCache, stamp = null, { includeLiner = t
   const mergeInsertIntoBody = mergeInsertIntoBodyExport();
   const bodyMesh = resolveBodyExportMesh(exportCache, params, separateText, stamp);
 
-  if (separateColor && (params.embossFace || "front") !== "lid") {
+  if (state.embossDeboss && (params.embossFace || "front") !== "lid") {
+    const boxShell = exportCache.boxShell || exportCache.shellMesh || exportCache;
+    const bodyClean = prepareMeshFor3mf({ positions: boxShell.positions.slice(), indices: boxShell.indices.slice() });
+    if (bodyClean?.indices?.length) parts.push({ name: "Body", mesh: bodyClean, color: state.boxColor || "#38bdf8", extruder: extruder++, filamentPreset: state.canisterFilamentPreset || "" });
+    for (const cp of exportCache.graphicColourParts || []) {
+      const cm = cp.mesh ? prepareMeshFor3mf(cp.mesh) : null;
+      if (cm?.indices?.length) parts.push({ name: `${cp.name || "Art"} inlay`, mesh: cm, color: cp.color, extruder: extruder++ });
+    }
+    if (!exportCache.graphicColourParts?.length && exportCache.graphicMesh) {
+      const art = prepareMeshFor3mf(exportCache.graphicMesh);
+      if (art?.indices?.length) parts.push({ name: "Art inlay", mesh: art, color: state.embossArtColor || "#4a3728", extruder: extruder++ });
+    }
+    if (exportCache.labelMesh) {
+      const text = prepareMeshFor3mf(exportCache.labelMesh);
+      if (text?.indices?.length) parts.push({ name: "Text inlay", mesh: text, color: state.embossTextColor || "#f8fafc", extruder: extruder++ });
+    }
+  } else if (separateColor && (params.embossFace || "front") !== "lid") {
     // Separate Body / Art / Text — each part gets its own filament slot (merged AMS broke Bambu colours).
     const hoodie = params.shape === "stubbyHolder";
     const exportParams = {
@@ -1560,19 +1573,6 @@ function collectColoredExportParts(exportCache, stamp = null, { includeLiner = t
         color: state.linerColor || "#f5f5f4",
         extruder: extruder++,
         filamentPreset: state.linerFilamentPreset || "",
-      });
-    }
-  }
-
-  if (state.embossDeboss && params.embossFace !== "lid" && exportCache.debossCutterMesh) {
-    const cutterClean = prepareMeshFor3mf(exportCache.debossCutterMesh);
-    if (cutterClean?.indices?.length) {
-      parts.push({
-        name: "Deboss (negative)",
-        mesh: cutterClean,
-        color: state.boxColor || "#38bdf8",
-        extruder: 1,
-        subtype: "negative_part",
       });
     }
   }
@@ -1808,11 +1808,25 @@ async function prepareHoodieExportParts(parts) {
   return resolveHoodieVolumeOverlaps(mergeHoodiePartsBySlot(parts));
 }
 
+async function carveDebossPocketIntoBody(parts, exportCache) {
+  if (!state.embossDeboss || (buildParams().embossFace || "front") === "lid" || !exportCache?.debossCutterMesh) return parts;
+  const bodyIndex = parts.findIndex((part) => part.name === "Body" || part.name === "Back");
+  if (bodyIndex < 0) return parts;
+  const { subtractMesh } = await import("./mesh-cut.js?v=24");
+  const carved = await subtractMesh(parts[bodyIndex].mesh, exportCache.debossCutterMesh);
+  const clean = carved ? prepareMeshFor3mf(carved) : null;
+  if (!clean?.indices?.length) throw new Error("Deboss pocket boolean returned no printable body.");
+  const next = parts.slice();
+  next[bodyIndex] = { ...next[bodyIndex], mesh: clean };
+  return next;
+}
+
 async function buildBody3mfExport(exportCache, parts) {
   const projectName = baseModelName(exportCache.meta);
+  const pocketParts = await carveDebossPocketIntoBody(parts, exportCache);
   const exportParts = state.shape === "stubbyHolder"
-    ? await prepareHoodieExportParts(parts)
-    : parts;
+    ? await prepareHoodieExportParts(pocketParts)
+    : pocketParts;
   const export3mf = {
     filamentPreset: state.shape === "stubbyHolder" ? "Bambu PLA Basic @BBL H2C" : "Generic PLA @BBL H2C 0.4 nozzle",
     ...(state.shape === "stubbyHolder" ? { splitVolumes: true } : {}),

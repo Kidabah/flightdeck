@@ -2,6 +2,20 @@
 
 # MakerDeck SESSION_NEXT (active)
 
+## b625 — Deboss pocket + printable colour inlay
+**Date:** 2026-09-01
+
+### MakerDeck
+- Deboss 3MF boolean-carves the selected cutter from Body before packaging, then exports matching closed text/art inlay bodies in their selected filament colours. A Bambu native negative part is no longer left overlapping the printable inlay.
+- Inlay depth follows Deboss depth and finishes flush with the original outside surface. The cutter reaches 0.05 mm deeper for a clean pocket floor.
+- Preview shows the printable coloured text inlay instead of the red cutter. Standalone **STL deboss cutter** remains available.
+- Build/cache: MakerDeck `b625`, `geometry.js?v=625`, `features.js?v=625`, `app.js?v=625`.
+
+### Validation / next physical gate
+- Patch runner performs JS syntax checks plus the full MakerDeck geometry regression suite before committing.
+- Next: export Deboss `COFFEE`, open the 3MF in Bambu Studio, confirm Body + Text inlay are separate filament parts and slice flush, then print the small test.
+
+
 ## 2026-08-24 — Mesh Prep Stage 2C planar convex quad repair
 
 ### Second repair operation
