@@ -1,91 +1,260 @@
-name: Fix MakerDeck deboss inlay once
+name: MakerDeck b625 pocket inlay
+
 on:
-  workflow_dispatch:
   push:
+    branches: [main]
     paths:
       - '.github/workflows/fix-makerdeck-deboss-inlay-once.yml'
+
 permissions:
   contents: write
+
 jobs:
   patch:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Patch deboss pocket plus colour inlay
+      - name: Clone and patch b625
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          python - <<'PY'
+          set -euo pipefail
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" repo
+          cd repo
+          python3 - <<'PY'
           from pathlib import Path
+
           def replace_once(path, old, new):
-              p=Path(path); text=p.read_text(encoding='utf-8'); count=text.count(old)
-              if count != 1: raise SystemExit(f'{path}: expected one match, found {count}')
-              p.write_text(text.replace(old,new,1),encoding='utf-8')
-          p=Path('makerforge/js/app.js'); text=p.read_text(encoding='utf-8')
-          old='''  if (state.embossDeboss && params.embossFace !== "lid" && exportCache.debossCutterMesh) {
-    const cutterClean = prepareMeshFor3mf(exportCache.debossCutterMesh);
-    if (cutterClean?.indices?.length) {
-      parts.push({
-        name: "Deboss (negative)",
-        mesh: cutterClean,
-        color: state.boxColor || "#38bdf8",
-        extruder: 1,
-        subtype: "negative_part",
-      });
-    }
-  }
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              n = text.count(old)
+              if n != 1:
+                  raise SystemExit(f'{path}: expected one match, found {n}: {old[:100]!r}')
+              p.write_text(text.replace(old, new, 1), encoding='utf-8')
 
-  return parts;'''
-          new='''  if (state.embossDeboss && params.embossFace !== "lid") {
-    if (exportCache.debossCutterMesh) {
-      const cutterClean = prepareMeshFor3mf(exportCache.debossCutterMesh);
-      if (cutterClean?.indices?.length) parts.push({ name: "Deboss pocket (negative)", mesh: cutterClean, color: state.boxColor || "#38bdf8", extruder: 1, subtype: "negative_part" });
-    }
-    const textInlay = exportCache.labelMesh ? prepareMeshFor3mf(exportCache.labelMesh) : null;
-    if (textInlay?.indices?.length) parts.push({ name: "Text inlay", mesh: textInlay, color: state.embossTextColor || "#f8fafc", extruder: extruder++ });
-    const artInlay = exportCache.graphicMesh ? prepareMeshFor3mf(exportCache.graphicMesh) : null;
-    if (artInlay?.indices?.length) parts.push({ name: "Art inlay", mesh: artInlay, color: state.embossArtColor || "#111827", extruder: extruder++ });
-    for (const cp of exportCache.graphicColourParts || []) {
-      const cm = cp.mesh ? prepareMeshFor3mf(cp.mesh) : null;
-      if (cm?.indices?.length) parts.push({ name: `${cp.name || "Art"} inlay`, mesh: cm, color: cp.color, extruder: extruder++ });
-    }
-  }
+          # Geometry depth: inlay occupies the deboss pocket, flush with the outside face.
+          replace_once('makerforge/js/features.js',
+          '''  if (params.__embossMode === "deboss-cutter") {
+            // Slicer-facing cutter STL: pokes 0.4mm past the surface and sinks (depth + 0.05)mm inward
+            // so the boolean subtract is clean at the outer skin.
+            return { d0: -depth - 0.05, d1: 0.4, depth, deboss: true };
+          }''',
+          '''  if (params.__embossMode === "deboss-inlay") {
+            // Printable colour body that fills the recessed pocket up to the original surface.
+            // The cutter reaches 0.05 mm deeper so coincident bottom faces cannot leave a skin.
+            return { d0: -depth, d1: 0, depth, deboss: true };
+          }
+          if (params.__embossMode === "deboss-cutter") {
+            // Boolean cutter reaches slightly beyond both ends for a clean subtraction.
+            return { d0: -depth - 0.05, d1: 0.4, depth, deboss: true };
+          }''')
 
-  return parts;'''
-          if text.count(old)!=1: raise SystemExit(f'deboss export block matches={text.count(old)}')
-          text=text.replace(old,new,1)
-          oldp='''  if (state.embossDeboss) {
-    const cutter = state.embossFace === "lid"
-      ? lidCache?.debossCutterMesh
-      : meshCache?.debossCutterMesh;
-    if (cutter) {
-      const cutterGeom = toBufferGeometry(THREE, cutter);
-      attachLabelPreviewMesh(cutterGeom, debossPreviewMaterial, params);
-    }
-  } else {'''
-          newp='''  if (state.embossDeboss) {
-    labelMaterial.color.set(state.embossTextColor || "#f8fafc");
-    applyFilamentMaterial(labelMaterial);
-    const inlay = state.embossFace === "lid" ? lidCache?.labelMesh : meshCache?.labelMesh;
-    if (inlay) attachLabelPreviewMesh(toBufferGeometry(THREE, inlay), labelMaterial, params);
-  } else {'''
-          if text.count(oldp)!=1: raise SystemExit(f'preview block matches={text.count(oldp)}')
-          text=text.replace(oldp,newp,1).replace('const MAKERDECK_BUILD = "b624";','const MAKERDECK_BUILD = "b625";',1)
-          p.write_text(text,encoding='utf-8')
-          replace_once('makerforge/index.html','Red preview shows the subtracting volume. <strong>3MF project</strong> exports it as a native negative part automatically. <em>STL deboss cutter</em> remains available for manual workflows.','<strong>3MF project</strong> exports a shallow negative pocket plus a coloured text/art inlay automatically. The selected art colour is preserved in Bambu; no manual painting is required. <em>STL deboss cutter</em> remains available for manual workflows.')
-          replace_once('makerforge/index.html','src="js/app.js?v=624"','src="js/app.js?v=625"')
+          # Keep geometry and feature modules on one cache version.
+          replace_once('makerforge/js/geometry.js', 'from "./features.js?v=600";', 'from "./features.js?v=625";')
+
+          # Standard body deboss: build separate text/art inlay solids plus the cutter.
+          replace_once('makerforge/js/geometry.js',
+          '''      if (params.embossDeboss) {
+            labelMesh = buildLabelEmboss(artMeta, params, params.embossSvgText || "", "emboss");
+            if (labelMesh) centerPositions(labelMesh.positions, 0, 0);
+            debossCutterMesh = buildLabelEmboss(artMeta, params, params.embossSvgText || "", "deboss-cutter");
+            if (debossCutterMesh) centerPositions(debossCutterMesh.positions, 0, 0);
+            mesh = shellMesh;
+          } else {''',
+          '''      if (params.embossDeboss) {
+            const parts = buildLabelEmbossParts(artMeta, params, params.embossSvgText || "", "deboss-inlay");
+            labelMesh = parts.text;
+            graphicMesh = parts.graphic;
+            graphicColourParts = parts.graphicColourParts || null;
+            if (labelMesh) centerPositions(labelMesh.positions, 0, 0);
+            if (graphicMesh) centerPositions(graphicMesh.positions, 0, 0);
+            if (graphicColourParts?.length) for (const cp of graphicColourParts) centerPositions(cp.mesh.positions, 0, 0);
+            debossCutterMesh = buildLabelEmboss(artMeta, params, params.embossSvgText || "", "deboss-cutter");
+            if (debossCutterMesh) centerPositions(debossCutterMesh.positions, 0, 0);
+            mesh = shellMesh;
+          } else {''')
+
+          # Lid deboss gets the same real inlay geometry.
+          replace_once('makerforge/js/geometry.js',
+          '''    if (params.embossDeboss) {
+              labelMesh = buildLabelEmboss(resolved.meta, params, params.embossSvgText || "", "emboss");
+              if (labelMesh) centerPositions(labelMesh.positions, 0, 0);
+              debossCutterMesh = buildLabelEmboss(resolved.meta, params, params.embossSvgText || "", "deboss-cutter");
+              if (debossCutterMesh) centerPositions(debossCutterMesh.positions, 0, 0);
+              lid = shellLid;
+            } else {''',
+          '''    if (params.embossDeboss) {
+              const parts = buildLabelEmbossParts(resolved.meta, params, params.embossSvgText || "", "deboss-inlay");
+              labelMesh = parts.text;
+              graphicMesh = parts.graphic;
+              graphicColourParts = parts.graphicColourParts || null;
+              if (labelMesh) centerPositions(labelMesh.positions, 0, 0);
+              if (graphicMesh) centerPositions(graphicMesh.positions, 0, 0);
+              if (graphicColourParts?.length) for (const cp of graphicColourParts) centerPositions(cp.mesh.positions, 0, 0);
+              debossCutterMesh = buildLabelEmboss(resolved.meta, params, params.embossSvgText || "", "deboss-cutter");
+              if (debossCutterMesh) centerPositions(debossCutterMesh.positions, 0, 0);
+              lid = shellLid;
+            } else {''')
+
+          # Hoodie uses the same split inlay path.
+          replace_once('makerforge/js/geometry.js',
+          '''    if (params.embossDeboss) {
+              labelMesh = buildLabelEmboss(artMeta, params, params.embossSvgText || "", "emboss");
+              debossCutterMesh = buildLabelEmboss(artMeta, params, params.embossSvgText || "", "deboss-cutter");
+            } else {''',
+          '''    if (params.embossDeboss) {
+              const parts = buildLabelEmbossParts(artMeta, params, params.embossSvgText || "", "deboss-inlay");
+              labelMesh = parts.text;
+              graphicMesh = parts.graphic;
+              graphicColourParts = parts.graphicColourParts || null;
+              debossCutterMesh = buildLabelEmboss(artMeta, params, params.embossSvgText || "", "deboss-cutter");
+            } else {''')
+
+          # App cache/build bump.
+          replace_once('makerforge/js/app.js', 'from "./geometry.js?v=623";', 'from "./geometry.js?v=625";')
+          replace_once('makerforge/js/app.js', 'from "./features.js?v=623";', 'from "./features.js?v=625";')
+          replace_once('makerforge/js/app.js', 'const MAKERDECK_BUILD = "b624";', 'const MAKERDECK_BUILD = "b625";')
+
+          # Preview the actual coloured inlay, not the red cutter.
+          replace_once('makerforge/js/app.js',
+          '''  if (state.embossDeboss) {
+            const cutter = state.embossFace === "lid"
+              ? lidCache?.debossCutterMesh
+              : meshCache?.debossCutterMesh;
+            if (cutter) {
+              const cutterGeom = toBufferGeometry(THREE, cutter);
+              attachLabelPreviewMesh(cutterGeom, debossPreviewMaterial, params);
+            }
+          } else {''',
+          '''  if (state.embossDeboss) {
+            labelMaterial.color.set(state.embossTextColor || "#f8fafc");
+            applyFilamentMaterial(labelMaterial);
+            const cache = state.embossFace === "lid" ? lidCache : meshCache;
+            if (cache?.labelMesh) attachLabelPreviewMesh(toBufferGeometry(THREE, cache.labelMesh), labelMaterial, params);
+            disposeArtPreview();
+            if (cache?.graphicColourParts?.length) {
+              const parent = artUsesLidFace(params) && lidMesh ? lidMesh : previewRoot;
+              for (const part of cache.graphicColourParts) {
+                const mat = buildAccentMaterial(part.color);
+                applyFilamentMaterial(mat);
+                const mesh = new THREE.Mesh(toBufferGeometry(THREE, part.mesh), mat);
+                mesh.renderOrder = 7;
+                parent.add(mesh);
+                artColourPreviewParts.push({ mesh, material: mat, edgeLines: null });
+              }
+            } else if (cache?.graphicMesh) {
+              artMaterial.color.set(state.embossArtColor || "#4a3728");
+              applyFilamentMaterial(artMaterial);
+              attachArtPreviewMesh(toBufferGeometry(THREE, cache.graphicMesh), artMaterial, params);
+            }
+          } else {''')
+
+          # Build body + inlay parts for deboss instead of a native negative volume.
+          replace_once('makerforge/js/app.js',
+          '''  if (separateColor && (params.embossFace || "front") !== "lid") {
+            // Separate Body / Art / Text — each part gets its own filament slot (merged AMS broke Bambu colours).''',
+          '''  if (state.embossDeboss && (params.embossFace || "front") !== "lid") {
+            const boxShell = exportCache.boxShell || exportCache.shellMesh || exportCache;
+            const bodyClean = prepareMeshFor3mf({ positions: boxShell.positions.slice(), indices: boxShell.indices.slice() });
+            if (bodyClean?.indices?.length) parts.push({ name: "Body", mesh: bodyClean, color: state.boxColor || "#38bdf8", extruder: extruder++, filamentPreset: state.canisterFilamentPreset || "" });
+            for (const cp of exportCache.graphicColourParts || []) {
+              const cm = cp.mesh ? prepareMeshFor3mf(cp.mesh) : null;
+              if (cm?.indices?.length) parts.push({ name: `${cp.name || "Art"} inlay`, mesh: cm, color: cp.color, extruder: extruder++ });
+            }
+            if (!exportCache.graphicColourParts?.length && exportCache.graphicMesh) {
+              const art = prepareMeshFor3mf(exportCache.graphicMesh);
+              if (art?.indices?.length) parts.push({ name: "Art inlay", mesh: art, color: state.embossArtColor || "#4a3728", extruder: extruder++ });
+            }
+            if (exportCache.labelMesh) {
+              const text = prepareMeshFor3mf(exportCache.labelMesh);
+              if (text?.indices?.length) parts.push({ name: "Text inlay", mesh: text, color: state.embossTextColor || "#f8fafc", extruder: extruder++ });
+            }
+          } else if (separateColor && (params.embossFace || "front") !== "lid") {
+            // Separate Body / Art / Text — each part gets its own filament slot (merged AMS broke Bambu colours).''')
+
+          # Remove b624 native-negative export block. b625 carves the Body mesh before packing.
+          replace_once('makerforge/js/app.js',
+          '''  if (state.embossDeboss && params.embossFace !== "lid" && exportCache.debossCutterMesh) {
+            const cutterClean = prepareMeshFor3mf(exportCache.debossCutterMesh);
+            if (cutterClean?.indices?.length) {
+              parts.push({
+                name: "Deboss (negative)",
+                mesh: cutterClean,
+                color: state.boxColor || "#38bdf8",
+                extruder: 1,
+                subtype: "negative_part",
+              });
+            }
+          }
+
+          return parts;''',
+          '''  return parts;''')
+
+          # Actual pocket boolean: subtract cutter from Body only, leaving inlay as its own filament body.
+          replace_once('makerforge/js/app.js',
+          '''async function buildBody3mfExport(exportCache, parts) {
+            const projectName = baseModelName(exportCache.meta);
+            const exportParts = state.shape === "stubbyHolder"
+              ? await prepareHoodieExportParts(parts)
+              : parts;''',
+          '''async function carveDebossPocketIntoBody(parts, exportCache) {
+            if (!state.embossDeboss || (buildParams().embossFace || "front") === "lid" || !exportCache?.debossCutterMesh) return parts;
+            const bodyIndex = parts.findIndex((part) => part.name === "Body" || part.name === "Back");
+            if (bodyIndex < 0) return parts;
+            const { subtractMesh } = await import("./mesh-cut.js?v=24");
+            const carved = await subtractMesh(parts[bodyIndex].mesh, exportCache.debossCutterMesh);
+            const clean = carved ? prepareMeshFor3mf(carved) : null;
+            if (!clean?.indices?.length) throw new Error("Deboss pocket boolean returned no printable body.");
+            const next = parts.slice();
+            next[bodyIndex] = { ...next[bodyIndex], mesh: clean };
+            return next;
+          }
+
+          async function buildBody3mfExport(exportCache, parts) {
+            const projectName = baseModelName(exportCache.meta);
+            const pocketParts = await carveDebossPocketIntoBody(parts, exportCache);
+            const exportParts = state.shape === "stubbyHolder"
+              ? await prepareHoodieExportParts(pocketParts)
+              : pocketParts;''')
+
+          # Export plan calls out the inlay explicitly.
+          replace_once('makerforge/js/app.js',
+          '''  const parts = ["Body"];
+            if (hasSeparateArtExport(params) && params.embossFace !== "lid") {''',
+          '''  const parts = ["Body"];
+            if (state.embossDeboss && params.embossFace !== "lid") {
+              if (hasGraphicArt(params)) parts.push("Art inlay");
+              if (textHasInk(params.embossText)) parts.push("Text inlay");
+            }
+            if (hasSeparateArtExport(params) && params.embossFace !== "lid") {''')
+
+          # UI/cache bust.
+          replace_once('makerforge/index.html',
+            'Red preview shows the subtracting volume. <strong>3MF project</strong> exports it as a native negative part automatically. <em>STL deboss cutter</em> remains available for manual workflows.',
+            '<strong>3MF project</strong> carves a shallow pocket into the body and fills it with separate coloured text/art geometry. The inlay finishes flush with the surface, so no manual painting is required. <em>STL deboss cutter</em> remains available for manual workflows.')
+          replace_once('makerforge/index.html', 'src="js/app.js?v=624"', 'src="js/app.js?v=625"')
+
+          # Current handoff at the top, not buried behind older work.
+          p = Path('makerforge/SESSION_NEXT.md')
+          text = p.read_text(encoding='utf-8')
+          marker = '# MakerDeck SESSION_NEXT (active)\n'
+          entry = '''\n## b625 — Deboss pocket + printable colour inlay\n**Date:** 2026-09-01\n\n### MakerDeck\n- Deboss 3MF no longer relies on a native negative part overlapping printable colour geometry. Export now boolean-carves the selected text/art cutter from Body, then ships matching closed text/art inlay bodies in their selected filament colours.\n- Inlay depth follows the Deboss depth control and ends flush at the original outside surface; the cutter extends 0.05 mm deeper for a clean pocket floor.\n- Preview shows the coloured inlay rather than the red cutter volume. Standalone **STL deboss cutter** remains available for manual workflows.\n- Cache/build: `geometry.js?v=625`, `features.js?v=625`, MakerDeck `b625`, `app.js?v=625`.\n\n### Validation / next physical check\n- Static JS syntax and MakerDeck geometry regression suite run in the b625 patch workflow before commit.\n- Physical gate: export a canister with Deboss + `COFFEE`, open the 3MF in Bambu Studio, confirm Body + Text inlay are separate printable parts/filaments and the sliced lettering is flush/recessed rather than raised. Then print the small test before a full canister.\n\n'''
+          if marker not in text: raise SystemExit('SESSION_NEXT heading not found')
+          p.write_text(text.replace(marker, marker + entry, 1), encoding='utf-8')
           PY
-      - name: Static checks
-        run: |
+
           node --check makerforge/js/app.js
+          node --check makerforge/js/features.js
+          node --check makerforge/js/geometry.js
           grep -q 'MAKERDECK_BUILD = "b625"' makerforge/js/app.js
+          grep -q '__embossMode === "deboss-inlay"' makerforge/js/features.js
           grep -q 'name: "Text inlay"' makerforge/js/app.js
-          grep -q 'name: "Deboss pocket (negative)"' makerforge/js/app.js
+          grep -q 'carveDebossPocketIntoBody' makerforge/js/app.js
           grep -q 'js/app.js?v=625' makerforge/index.html
-      - name: Commit fix
-        run: |
+          cd makerforge/test
+          ./run.sh
+          cd ../..
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add makerforge/js/app.js makerforge/index.html
-          git commit -m "MakerDeck b625: export coloured deboss inlay"
-          git push
+          git add makerforge/js/features.js makerforge/js/geometry.js makerforge/js/app.js makerforge/index.html makerforge/SESSION_NEXT.md
+          git commit -m "MakerDeck b625: carve deboss pocket with colour inlay"
+          git push origin main
