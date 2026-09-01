@@ -12,14 +12,14 @@
       "label": "Koko kidabah",
       "path": "/mnt/koko-kidabah",
       "source_kind": "nas",
-      "windows_path": "\\\\Koko\\kidabah"
+      "windows_path": "\\\\192.168.4.34\\KIDABAH"
     },
     {
-      "id": "nas-mora",
-      "label": "Mora Kidabah home",
-      "path": "/mnt/nas-mora",
-      "source_kind": "nas",
-      "windows_path": "\\\\192.168.4.77\\User Homes\\Kidabah"
+      "id": "kidabah-pc",
+      "label": "Kidabah PC",
+      "path": "/mnt/kidabah-pc",
+      "source_kind": "windows",
+      "windows_path": "\\\\192.168.4.237\\PrintShelfRoots"
     }
   ],
   "ignore_globs": [
