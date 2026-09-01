@@ -2,6 +2,20 @@
 
 # MakerDeck SESSION_NEXT (active)
 
+## b628 — Deboss cutter manifold fix
+**Date:** 2026-09-01
+
+### MakerDeck
+- Fixes b627 export failure: `Not a valid manifold mesh (Not manifold) — repair it in Mesh Prep first.`
+- Root cause: b627 made the positive `Text inlay` watertight, but the hidden `deboss-cutter` used for body subtraction was still built by the preview extrusion path and was open. `subtractMesh()` correctly rejected that cutter before creating the 3MF.
+- Both `deboss-inlay` and `deboss-cutter` now route through MakerDeck's export-grade closed-solid builders. Pocket/inlay dimensions are unchanged.
+- Build/cache: MakerDeck `b628`, `geometry.js?v=628`, `features.js?v=628`, `app.js?v=628`.
+
+### Validation / next physical gate
+- Runner checks JS syntax, full MakerDeck regression suite, and verifies both deboss modes are classified as export-grade solids.
+- Next: re-export the same `COFFEE` test. Expected: no manifold warning and no Mesh Prep error; then inspect Body + Text inlay in Bambu Studio.
+
+
 ## b627 — Close deboss Text inlay solids
 **Date:** 2026-09-01
 
