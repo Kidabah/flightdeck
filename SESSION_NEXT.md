@@ -1,3 +1,11 @@
+## 2026-09-01 — PrintShelf mount readiness fix
+
+- PrintShelf watched folders could remain configured while the Library showed `0 designs / 0 files`. The scanner guarded `/mnt` and `/media` roots with `os.path.ismount()` only; Linux bind mounts can legitimately return false there because the bind target may share the same device as its parent.
+- Scanner readiness now reads `/proc/self/mountinfo`, which reflects the PrintShelf service's own mount namespace and recognises bind, CIFS and NFS mount points. `os.path.ismount()` remains a fallback. Dead empty `/mnt/...` placeholders are still refused so a reboot cannot mark the whole library missing.
+- Unreadable roots are also refused explicitly as `not_readable`.
+- Validation: `python -m py_compile printshelf/app/scanner.py` plus source guards for mountinfo/bind-mount handling.
+- Next physical gate: pull/restart PrintShelf on the Pi and Rescan. The existing Koko Kidabah, Kidabah PC and Mora Kidabah home watched folders should index again if their mounts are present.
+
 # SESSION_NEXT (active)
 
 Recent Flightdeck / MakerDeck session notes (last ~4 weeks). Older history: [docs/archive/SESSION_NEXT_before_2026-06-28.md](docs/archive/SESSION_NEXT_before_2026-06-28.md).
