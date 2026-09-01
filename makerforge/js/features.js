@@ -2972,7 +2972,7 @@ export function getProfileWrapFaceFrame(outerProfile, meta, params = null) {
 }
 
 function isLabelExport(params) {
-  return !!params?.__labelExportStandoff;
+  return !!params?.__labelExportStandoff || params?.__embossMode === "deboss-inlay";
 }
 
 /** Full-resolution wrap row shells — export/AMS only; preview uses WRAP_TRACE_PREVIEW_MAX_ROWS. */

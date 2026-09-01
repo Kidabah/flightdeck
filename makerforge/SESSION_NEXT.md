@@ -2,6 +2,20 @@
 
 # MakerDeck SESSION_NEXT (active)
 
+## b626 — Deboss inlay manifold export fix
+**Date:** 2026-09-01
+
+### MakerDeck
+- Fixes b625 export warning where `Text inlay` could report thousands of open edges (observed: 2915 on `COFFEE`).
+- Root cause: b625 correctly introduced `deboss-inlay` depth, but generated the positive inlay through the preview vector extrusion path. Deboss inlays now count as export-grade labels, so text uses the existing watertight solid/voxel export builder and art uses the corresponding closed export slab path.
+- Pocket geometry is unchanged: coloured inlay fills from the pocket floor to the original outside surface; cutter remains 0.05 mm deeper for clean body subtraction.
+- Build/cache: MakerDeck `b626`, `geometry.js?v=626`, `features.js?v=626`, `app.js?v=626`.
+
+### Validation / next physical gate
+- Runner checks JS syntax, full MakerDeck regression suite, and verifies `deboss-inlay` is routed through `isLabelExport`.
+- Next: re-export the same `COFFEE` design. Manifold check must no longer flag `Text inlay`; then inspect Body + Text inlay in Bambu Studio before printing.
+
+
 ## b625 — Deboss pocket + printable colour inlay
 **Date:** 2026-09-01
 
