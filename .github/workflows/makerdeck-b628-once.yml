@@ -1,0 +1,38 @@
+name: MakerDeck b628 closed cutter fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/makerdeck-b628-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Patch, test and commit b628
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" repo
+          cd repo
+          python3 .github/scripts/makerdeck_b628.py
+          node --check makerforge/js/app.js
+          node --check makerforge/js/features.js
+          node --check makerforge/js/geometry.js
+          grep -q 'MAKERDECK_BUILD = "b628"' makerforge/js/app.js
+          grep -q '__embossMode === "deboss-inlay"' makerforge/js/features.js
+          grep -q '__embossMode === "deboss-cutter"' makerforge/js/features.js
+          grep -q 'js/app.js?v=628' makerforge/index.html
+          cd makerforge/test
+          ./run.sh
+          cd ../..
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add makerforge/js/features.js makerforge/js/geometry.js makerforge/js/app.js makerforge/index.html makerforge/SESSION_NEXT.md
+          git commit -m "MakerDeck b628: make deboss cutter watertight"
+          git push origin main
