@@ -2,6 +2,20 @@
 
 # MakerDeck SESSION_NEXT (active)
 
+## b627 — Close deboss Text inlay solids
+**Date:** 2026-09-01
+
+### MakerDeck
+- Fixes the second `COFFEE` deboss export failure (3100 open edges on Text inlay).
+- Root cause isolated: b626 marked deboss inlays as export-grade, but `buildEmbossText()` still sent them through its preview vector fallback, which caps only the visible/top face. That guarantees an open mesh.
+- Export-grade text, including `deboss-inlay`, now uses `buildFlatShapeGroupsSolidMesh()` so every glyph gets a fully closed printable solid. Preview-only vector emboss remains unchanged.
+- Build/cache: MakerDeck `b627`, `geometry.js?v=627`, `features.js?v=627`, `app.js?v=627`.
+
+### Validation / next physical gate
+- JS syntax + full MakerDeck regression suite pass before commit. Source guard confirms export-grade labels use the closed solid builder.
+- Next: re-export the exact same `COFFEE` design. Text inlay must report zero open/non-manifold edges before Bambu Studio inspection.
+
+
 ## b626 — Deboss inlay manifold export fix
 **Date:** 2026-09-01
 

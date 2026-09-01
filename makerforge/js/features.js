@@ -3980,7 +3980,7 @@ export function buildEmbossText(meta, params) {
   const collected = collectTextEmbossShapeGroups(meta, params, layout);
   if (!collected) return null;
 
-  if (isHoodieArtParams(params)) {
+  if (isHoodieArtParams(params) || isLabelExport(params)) {
     const solid = buildFlatShapeGroupsSolidMesh(collected.frame, collected.shapeGroups, d0, d1, params);
     if (solid?.indices?.length) return solid;
   }
