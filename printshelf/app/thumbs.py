@@ -22,10 +22,11 @@ def thumb_suffix(kind: str) -> str:
     if kind in ("3mf", "gcode.3mf"):
         return "3mf3"
     if kind == "gcode":
-        return "gcode1"
+        return "gcode2"  # embedded image or top-down extrusion toolpath
     if kind == "zip":
         return "zip2"
     return kind or "file"
+
 
 def thumb_filename(content_hash: str, kind: str) -> str:
     # Version suffixes bust caches when preview quality improves.
@@ -69,6 +70,7 @@ def resolve_thumb_name(
             f"{content_hash[:16]}_obj4.png",
             f"{content_hash[:16]}_3mf.png",
             f"{content_hash[:16]}_3mf2.png",
+            f"{content_hash[:16]}_gcode1.png",
         ]
         seen: set[str] = set()
         for name in candidates:
