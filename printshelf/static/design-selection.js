@@ -2,6 +2,7 @@
   const selectedDesignIds = new Set();
   let anchorDesignId = null;
   let observer = null;
+  let lastLibraryContext = '';
 
   function designCards() {
     return [...document.querySelectorAll('#grid .design-card[data-design-id]')];
@@ -9,6 +10,42 @@
 
   function isDesignMode() {
     return designCards().length > 0;
+  }
+
+  function libraryContextKey() {
+    const activeType = document.querySelector('#typeTabs .type-tab.active')?.dataset?.kind || '';
+    const activeMode = document.querySelector('#viewModes .view-mode.active')?.dataset?.mode || '';
+    return JSON.stringify({
+      q: document.getElementById('search')?.value || '',
+      source: document.getElementById('filterSource')?.value || '',
+      root: document.getElementById('filterRoot')?.value || '',
+      sort: document.getElementById('sortBy')?.value || '',
+      textures: !!document.getElementById('filterTextures')?.checked,
+      sliced: !!document.getElementById('filterSliced')?.checked,
+      hidden: !!document.getElementById('filterHidden')?.checked,
+      activeType,
+      activeMode,
+    });
+  }
+
+  function clearStaleDetail() {
+    const detail = document.getElementById('detail');
+    if (!detail) return;
+    window.PrintShelfViewer?.unmountOrbitViewer?.();
+    detail.innerHTML = '<div class="detail-empty">Select a file to see print details.</div>';
+    document.querySelectorAll('#grid .card.active').forEach((card) => card.classList.remove('active'));
+  }
+
+  function syncLibraryContext() {
+    const next = libraryContextKey();
+    if (!lastLibraryContext) {
+      lastLibraryContext = next;
+      return;
+    }
+    if (next === lastLibraryContext) return;
+    lastLibraryContext = next;
+    clearStaleDetail();
+    clearDesignSelection();
   }
 
   function syncDesignSelectionUi() {
@@ -98,6 +135,22 @@
     }
     return { assetIds, names };
   }
+
+  document.addEventListener('input', (event) => {
+    if (event.target.closest('#search, #filterSource, #filterRoot, #sortBy, #filterTextures, #filterSliced, #filterHidden')) {
+      syncLibraryContext();
+    }
+  }, true);
+  document.addEventListener('change', (event) => {
+    if (event.target.closest('#search, #filterSource, #filterRoot, #sortBy, #filterTextures, #filterSliced, #filterHidden')) {
+      syncLibraryContext();
+    }
+  }, true);
+  document.addEventListener('click', (event) => {
+    if (event.target.closest('#typeTabs .type-tab, #viewModes .view-mode, #crumbs .crumb, #grid .folder-card')) {
+      queueMicrotask(syncLibraryContext);
+    }
+  }, true);
 
   document.addEventListener('click', (event) => {
     const card = event.target.closest('#grid .design-card[data-design-id]');
@@ -193,6 +246,7 @@
       queueMicrotask(syncDesignSelectionUi);
     });
     observer.observe(root, { childList: true, subtree: true });
+    lastLibraryContext = libraryContextKey();
     syncDesignSelectionUi();
   }
 
