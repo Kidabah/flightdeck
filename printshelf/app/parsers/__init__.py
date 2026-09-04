@@ -3,13 +3,15 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from .gcode import parse_gcode
 from .obj import parse_obj
 from .stl import parse_stl
 from .threemf import parse_3mf
 from .ziparchive import parse_zip
 
-PRINTABLE_EXTS = {".stl", ".obj", ".3mf", ".gcode.3mf", ".gcode", ".gco", ".zip"}
+# Plain .gcode/.gco files are intentionally not library assets. They are
+# printer/profile-specific output rather than reusable designs. Keep
+# .gcode.3mf because Bambu Studio and FlightDeck use that packaged format.
+PRINTABLE_EXTS = {".stl", ".obj", ".3mf", ".gcode.3mf", ".zip"}
 
 
 def detect_kind(path: Path) -> str | None:
@@ -23,8 +25,6 @@ def detect_kind(path: Path) -> str | None:
         return "obj"
     if suf == ".3mf":
         return "3mf"
-    if suf in (".gcode", ".gco"):
-        return "gcode"
     if suf == ".zip":
         return "zip"
     return None
@@ -38,8 +38,6 @@ def parse_asset(path: Path, kind: str | None = None) -> dict[str, Any]:
         return parse_3mf(path, kind=kind)
     if kind == "obj":
         return parse_obj(path)
-    if kind == "gcode":
-        return parse_gcode(path)
     if kind == "zip":
         return parse_zip(path)
     return {"kind": kind or "unknown", "meta": {}, "sidecars": [], "error": "unsupported"}
