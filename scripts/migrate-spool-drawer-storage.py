@@ -1,0 +1,137 @@
+#!/usr/bin/env python3
+"""Migrate FlightDeck spool storage to the six-drawer physical layout.
+
+Creates 162 permanent drawer slots:
+  D1..D6, three rows per drawer, nine positions per row.
+Global spool positions run #1..#162.
+
+Also creates SUNLU Dryer as a temporary location. A small SQLite trigger keeps a
+spool's home_storage_location_id unchanged while its current storage location is
+SUNLU Dryer, so moving it back with the existing FlightDeck move path returns it
+to its remembered drawer slot.
+
+The migration is deliberately non-destructive. Existing Shelf #1/#2/#3
+locations are archived only when no active spool currently uses them as either
+current storage or home. Occupied legacy locations remain visible until those
+spools have been assigned real drawer slots.
+"""
+from __future__ import annotations
+
+import sqlite3
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from app.paths import DB_PATH
+
+DRAWERS = 6
+ROWS_PER_DRAWER = 3
+SLOTS_PER_ROW = 9
+SUNLU_NAME = "SUNLU Dryer"
+SUNLU_NOTE = "[temporary] SUNLU filament dryer; current location only, never replaces spool home"
+
+
+def slot_name(number: int) -> str:
+    per_drawer = ROWS_PER_DRAWER * SLOTS_PER_ROW
+    drawer = ((number - 1) // per_drawer) + 1
+    within_drawer = (number - 1) % per_drawer
+    row = (within_drawer // SLOTS_PER_ROW) + 1
+    return f"D{drawer} R{row} #{number}"
+
+
+def ensure_location(conn: sqlite3.Connection, name: str, notes: str, sort_order: int) -> int:
+    row = conn.execute("SELECT id, archived_at FROM spool_locations WHERE name = ?", (name,)).fetchone()
+    if row:
+        conn.execute(
+            "UPDATE spool_locations SET notes = ?, sort_order = ?, archived_at = NULL WHERE id = ?",
+            (notes, sort_order, row[0]),
+        )
+        return int(row[0])
+    cur = conn.execute(
+        "INSERT INTO spool_locations (name, notes, sort_order) VALUES (?, ?, ?)",
+        (name, notes, sort_order),
+    )
+    return int(cur.lastrowid)
+
+
+def main() -> None:
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        conn.execute("PRAGMA foreign_keys = ON")
+        created = 0
+        for number in range(1, DRAWERS * ROWS_PER_DRAWER * SLOTS_PER_ROW + 1):
+            name = slot_name(number)
+            existed = conn.execute("SELECT 1 FROM spool_locations WHERE name = ?", (name,)).fetchone()
+            ensure_location(
+                conn,
+                name,
+                f"Permanent spool home: {name}",
+                1000 + number,
+            )
+            if not existed:
+                created += 1
+
+        sunlu_id = ensure_location(conn, SUNLU_NAME, SUNLU_NOTE, 900)
+
+        # move_spool() currently treats any storage-to-storage move as a new home.
+        # This persistent DB trigger makes SUNLU the exception: it is a temporary
+        # current location and cannot steal a spool's remembered drawer home.
+        conn.execute("DROP TRIGGER IF EXISTS preserve_spool_home_in_sunlu")
+        conn.execute(
+            f"""
+            CREATE TRIGGER preserve_spool_home_in_sunlu
+            AFTER UPDATE OF storage_location_id, home_storage_location_id ON spools
+            WHEN NEW.storage_location_id = {sunlu_id}
+             AND OLD.home_storage_location_id IS NOT NULL
+             AND NEW.home_storage_location_id IS NOT OLD.home_storage_location_id
+            BEGIN
+                UPDATE spools
+                   SET home_storage_location_id = OLD.home_storage_location_id
+                 WHERE id = NEW.id;
+            END
+            """
+        )
+
+        archived_legacy = []
+        retained_legacy = []
+        for legacy in ("Shelf #1", "Shelf #2", "Shelf #3"):
+            row = conn.execute(
+                "SELECT id FROM spool_locations WHERE name = ? AND archived_at IS NULL",
+                (legacy,),
+            ).fetchone()
+            if not row:
+                continue
+            loc_id = int(row[0])
+            usage = conn.execute(
+                """SELECT COUNT(*) FROM spools
+                   WHERE archived_at IS NULL
+                     AND (storage_location_id = ? OR home_storage_location_id = ?)""",
+                (loc_id, loc_id),
+            ).fetchone()[0]
+            if usage:
+                retained_legacy.append(f"{legacy} ({usage} spool(s))")
+            else:
+                conn.execute(
+                    "UPDATE spool_locations SET archived_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (loc_id,),
+                )
+                archived_legacy.append(legacy)
+
+        conn.commit()
+        total = DRAWERS * ROWS_PER_DRAWER * SLOTS_PER_ROW
+        print(f"Drawer storage ready: {total} permanent slots ({created} newly created).")
+        print(f"Temporary location ready: {SUNLU_NAME} (id {sunlu_id}).")
+        if archived_legacy:
+            print("Archived unused legacy locations: " + ", ".join(archived_legacy))
+        if retained_legacy:
+            print("Kept occupied legacy locations for safe reassignment: " + ", ".join(retained_legacy))
+        print("SUNLU home-location protection trigger installed.")
+    finally:
+        conn.close()
+
+
+if __name__ == "__main__":
+    main()
