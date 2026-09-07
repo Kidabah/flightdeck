@@ -1,12 +1,13 @@
 const DRAWER_RE = /^D([1-6]) R([1-3]) #(\d{1,3})$/;
-const LEGACY_RE = /^Shelf #\d+$/i;
 const SUNLU_NAME = "SUNLU Dryer";
 
 let refreshTimer = null;
 let observer = null;
 let assigning = false;
-let selectedSpoolId = null;
+let selectedSpoolIds = new Set();
+let selectionAnchorId = null;
 let lastSnapshot = null;
+let bulkAssigning = false;
 
 function esc(value) {
   return String(value ?? "")
@@ -24,64 +25,27 @@ function activeOnSpoolsPage() {
 function drawerMeta(location) {
   const match = DRAWER_RE.exec(String(location?.name || "").trim());
   if (!match) return null;
-  return {
-    drawer: Number(match[1]),
-    row: Number(match[2]),
-    number: Number(match[3]),
-  };
+  return { drawer: Number(match[1]), row: Number(match[2]), number: Number(match[3]) };
 }
 
-function spoolDisplayId(spool) {
-  return spool?.display_id ?? spool?.id ?? "?";
-}
-
+function spoolDisplayId(spool) { return spool?.display_id ?? spool?.id ?? "?"; }
+function spoolBrand(spool) { return spool?.brand || "Unknown brand"; }
 function spoolName(spool) {
   const material = spool?.material || "Filament";
   const subtype = spool?.subtype ? ` ${spool.subtype}` : "";
   const colour = spool?.color_name || spool?.colour_name || "Unknown colour";
   return `${material}${subtype} · ${colour}`;
 }
-
-function spoolBrand(spool) {
-  return spool?.brand || "Unknown brand";
-}
-
 function spoolColour(spool) {
   const raw = String(spool?.color_hex || spool?.colour_hex || "").trim();
   return /^#[0-9a-f]{6}$/i.test(raw) ? raw : "#64748b";
 }
-
-function isArchived(spool) {
-  return Boolean(spool?.archived_at);
-}
-
-function currentLocationId(spool) {
-  const value = spool?.storage_location_id;
-  return value == null ? null : Number(value);
-}
-
-function homeLocationId(spool) {
-  const value = spool?.home_storage_location_id;
-  return value == null ? null : Number(value);
-}
-
-function currentPrinter(spool) {
-  return spool?.location_printer_id || null;
-}
-
-function currentPrinterSlot(spool) {
-  const value = spool?.location_slot;
-  return value == null ? null : Number(value);
-}
-
-function locationsById(locations) {
-  return new Map(locations.map(loc => [Number(loc.id), loc]));
-}
-
-function locationName(id, byId) {
-  if (id == null) return "Unassigned";
-  return byId.get(Number(id))?.name || `Location ${id}`;
-}
+function isArchived(spool) { return Boolean(spool?.archived_at); }
+function currentLocationId(spool) { return spool?.storage_location_id == null ? null : Number(spool.storage_location_id); }
+function homeLocationId(spool) { return spool?.home_storage_location_id == null ? null : Number(spool.home_storage_location_id); }
+function currentPrinter(spool) { return spool?.location_printer_id || null; }
+function currentPrinterSlot(spool) { return spool?.location_slot == null ? null : Number(spool.location_slot); }
+function locationsById(locations) { return new Map(locations.map(loc => [Number(loc.id), loc])); }
 
 function effectiveHome(spool, byId) {
   const homeId = homeLocationId(spool);
@@ -112,7 +76,7 @@ async function apiJson(url, options = {}) {
     ...options,
   });
   let payload = null;
-  try { payload = await response.json(); } catch (_) { /* response may be empty */ }
+  try { payload = await response.json(); } catch (_) {}
   if (!response.ok) {
     const detail = payload?.detail?.message || payload?.detail || payload?.message || `HTTP ${response.status}`;
     throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
@@ -121,10 +85,7 @@ async function apiJson(url, options = {}) {
 }
 
 async function loadSnapshot() {
-  const [spools, locations] = await Promise.all([
-    apiJson("/api/spools"),
-    apiJson("/api/spool-locations"),
-  ]);
+  const [spools, locations] = await Promise.all([apiJson("/api/spools"), apiJson("/api/spool-locations")]);
   return {
     spools: Array.isArray(spools) ? spools.filter(s => !isArchived(s)) : [],
     locations: Array.isArray(locations) ? locations : [],
@@ -169,30 +130,36 @@ function buildSnapshotModel(snapshot) {
   return { byId, drawers, homeSpoolByLocation, quickCandidates };
 }
 
+function selectedEligible(model) {
+  const eligible = model.quickCandidates.filter(item => item.reason.eligible);
+  return eligible.filter(item => selectedSpoolIds.has(Number(item.spool.id)));
+}
+
 function drawerHtml(drawerNumber, rows, model) {
   const used = rows.filter(item => model.homeSpoolByLocation.has(Number(item.loc.id))).length;
   const first = rows[0]?.meta?.number ?? "?";
   const last = rows.at(-1)?.meta?.number ?? "?";
+  const bulkReady = assigning && selectedSpoolIds.size > 0;
   const rowGroups = [1, 2, 3].map(rowNumber => {
     const slots = rows.filter(item => item.meta.row === rowNumber);
+    const freeCount = slots.filter(item => !model.homeSpoolByLocation.has(Number(item.loc.id))).length;
     return `
       <div class="fd-storage-row">
-        <div class="fd-storage-row-label">R${rowNumber}</div>
-        <div class="fd-storage-slots">
-          ${slots.map(item => slotHtml(item, model)).join("")}
-        </div>
+        <button type="button" class="fd-storage-row-label${bulkReady ? " bulk-target" : ""}"
+                data-bulk-row="${drawerNumber}:${rowNumber}" ${bulkReady ? "" : "disabled"}
+                title="${bulkReady ? `Fill D${drawerNumber} R${rowNumber} left-to-right (${freeCount} free)` : `D${drawerNumber} R${rowNumber}`}">R${rowNumber}</button>
+        <div class="fd-storage-slots">${slots.map(item => slotHtml(item, model)).join("")}</div>
       </div>`;
   }).join("");
 
   return `
     <section class="fd-storage-drawer" data-drawer="${drawerNumber}">
-      <header class="fd-storage-drawer-head">
-        <div>
-          <strong>D${drawerNumber}</strong>
-          <span>#${first}–#${last}</span>
-        </div>
+      <button type="button" class="fd-storage-drawer-head${bulkReady ? " bulk-target" : ""}"
+              data-bulk-drawer="${drawerNumber}" ${bulkReady ? "" : "disabled"}
+              title="${bulkReady ? `Fill D${drawerNumber} left-to-right` : `Drawer D${drawerNumber}`}">
+        <div><strong>D${drawerNumber}</strong><span>#${first}–#${last}</span></div>
         <span class="fd-storage-count">${used}/27 home slots</span>
-      </header>
+      </button>
       ${rowGroups}
     </section>`;
 }
@@ -201,7 +168,7 @@ function slotHtml(item, model) {
   const loc = item.loc;
   const spool = model.homeSpoolByLocation.get(Number(loc.id));
   const status = statusForHomeSpool(spool, loc, model.byId);
-  const selected = assigning && selectedSpoolId != null;
+  const selected = assigning && selectedSpoolIds.size > 0;
   const occupied = Boolean(spool);
   const targetClass = selected && !occupied ? " assign-target" : "";
   const colour = spool ? spoolColour(spool) : "transparent";
@@ -210,11 +177,8 @@ function slotHtml(item, model) {
     : `${loc.name} · empty`;
   return `
     <button class="fd-storage-slot ${occupied ? "occupied" : "empty"}${targetClass}"
-            type="button"
-            data-location-id="${loc.id}"
-            data-slot-number="${item.meta.number}"
-            ${occupied ? "data-occupied=\"1\"" : ""}
-            title="${esc(tooltip)}">
+            type="button" data-location-id="${loc.id}" data-slot-number="${item.meta.number}"
+            ${occupied ? "data-occupied=\"1\"" : ""} title="${esc(tooltip)}">
       <span class="fd-storage-slot-no">#${item.meta.number}</span>
       ${spool ? `<span class="fd-storage-swatch" style="--spool-colour:${esc(colour)}"></span>` : `<span class="fd-storage-plus">+</span>`}
       <span class="fd-storage-slot-main">${spool ? `S${esc(spoolDisplayId(spool))}` : "Empty"}</span>
@@ -222,58 +186,52 @@ function slotHtml(item, model) {
     </button>`;
 }
 
-function quickAssignHtml(model) {
-  const candidates = model.quickCandidates;
-  const eligible = candidates.filter(item => item.reason.eligible);
-  const blocked = candidates.filter(item => !item.reason.eligible);
-  const selected = eligible.find(item => Number(item.spool.id) === Number(selectedSpoolId));
-
-  return `
-    <section class="fd-storage-quick ${assigning ? "is-open" : ""}" ${assigning ? "" : "hidden"}>
-      <div class="fd-storage-quick-head">
-        <div>
-          <strong>Fast initial assignment</strong>
-          <span>Pick the spool in your hand, then click its empty drawer position.</span>
-        </div>
-        <button type="button" class="fd-storage-btn ghost" data-storage-action="close-quick">Done</button>
-      </div>
-      <div class="fd-storage-quick-grid">
-        <div class="fd-storage-candidates">
-          <div class="fd-storage-candidate-title">Ready to assign <span>${eligible.length}</span></div>
-          ${eligible.length ? eligible.map(item => candidateHtml(item, model, true)).join("") : `<div class="fd-storage-empty-note">No legacy-stored spools need a drawer home. 🎉</div>`}
-        </div>
-        <div class="fd-storage-quick-info">
-          <div class="fd-storage-selected ${selected ? "has-selection" : ""}">
-            ${selected ? `
-              <span class="fd-storage-swatch big" style="--spool-colour:${esc(spoolColour(selected.spool))}"></span>
-              <div><b>Spool #${esc(spoolDisplayId(selected.spool))}</b><span>${esc(spoolBrand(selected.spool))} · ${esc(spoolName(selected.spool))}</span></div>
-              <strong>Now click an empty drawer slot →</strong>` : `
-              <div><b>Select a spool</b><span>Then the empty drawer slots light up.</span></div>`}
-          </div>
-          ${blocked.length ? `
-            <details class="fd-storage-protected">
-              <summary>${blocked.length} protected / away spool${blocked.length === 1 ? "" : "s"}</summary>
-              <div class="fd-storage-protected-list">${blocked.map(item => candidateHtml(item, model, false)).join("")}</div>
-            </details>` : ""}
-        </div>
-      </div>
-    </section>`;
-}
-
-function candidateHtml(item, model, enabled) {
+function candidateHtml(item, enabled) {
   const spool = item.spool;
-  const selected = enabled && Number(spool.id) === Number(selectedSpoolId);
+  const selected = enabled && selectedSpoolIds.has(Number(spool.id));
   return `
-    <button type="button"
-            class="fd-storage-candidate ${selected ? "selected" : ""} ${enabled ? "" : "blocked"}"
+    <button type="button" class="fd-storage-candidate ${selected ? "selected" : ""} ${enabled ? "" : "blocked"}"
             ${enabled ? `data-spool-id="${spool.id}"` : "disabled"}>
       <span class="fd-storage-swatch" style="--spool-colour:${esc(spoolColour(spool))}"></span>
       <span class="fd-storage-candidate-copy">
         <b>#${esc(spoolDisplayId(spool))} · ${esc(spoolBrand(spool))}</b>
         <span>${esc(spoolName(spool))}</span>
       </span>
-      <em>${esc(item.reason.label)}</em>
+      <em>${selected ? "Selected" : esc(item.reason.label)}</em>
     </button>`;
+}
+
+function quickAssignHtml(model) {
+  const candidates = model.quickCandidates;
+  const eligible = candidates.filter(item => item.reason.eligible);
+  const blocked = candidates.filter(item => !item.reason.eligible);
+  const selected = selectedEligible(model);
+  const selectedText = selected.length === 1
+    ? `Spool #${esc(spoolDisplayId(selected[0].spool))}`
+    : `${selected.length} spools selected`;
+
+  return `
+    <section class="fd-storage-quick ${assigning ? "is-open" : ""}" ${assigning ? "" : "hidden"}>
+      <div class="fd-storage-quick-head">
+        <div>
+          <strong>Fast initial assignment</strong>
+          <span>Click one spool, or click the first then Shift-click the last to select a range. Click a slot, row, or drawer above to place them.</span>
+        </div>
+        <button type="button" class="fd-storage-btn ghost" data-storage-action="close-quick">Done</button>
+      </div>
+      <div class="fd-storage-quick-grid">
+        <div class="fd-storage-candidates">
+          <div class="fd-storage-candidate-title">Ready to assign <span>${eligible.length}</span></div>
+          ${eligible.length ? eligible.map(item => candidateHtml(item, true)).join("") : `<div class="fd-storage-empty-note">No legacy-stored spools need a drawer home. 🎉</div>`}
+        </div>
+        <div class="fd-storage-quick-info">
+          <div class="fd-storage-selected ${selected.length ? "has-selection" : ""}">
+            ${selected.length ? `<div><b>${selectedText}</b><span>${selected.length === 1 ? `${esc(spoolBrand(selected[0].spool))} · ${esc(spoolName(selected[0].spool))}` : "Click R1/R2/R3 or a drawer header to fill left-to-right."}</span></div><strong>${selected.length === 1 ? "Choose a slot, row or drawer ↑" : "Choose a row or drawer ↑"}</strong>` : `<div><b>Select a spool</b><span>Shift-click the last spool to select a whole range.</span></div>`}
+          </div>
+          ${blocked.length ? `<details class="fd-storage-protected"><summary>${blocked.length} protected / away spool${blocked.length === 1 ? "" : "s"}</summary><div class="fd-storage-protected-list">${blocked.map(item => candidateHtml(item, false)).join("")}</div></details>` : ""}
+        </div>
+      </div>
+    </section>`;
 }
 
 function storageHtml(snapshot) {
@@ -281,11 +239,8 @@ function storageHtml(snapshot) {
   const drawerLocations = model.drawers.length;
   const occupiedHomes = model.homeSpoolByLocation.size;
   const sunlu = snapshot.locations.find(loc => loc.name === SUNLU_NAME);
-  const sunluSpools = sunlu
-    ? snapshot.spools.filter(spool => currentLocationId(spool) === Number(sunlu.id))
-    : [];
+  const sunluSpools = sunlu ? snapshot.spools.filter(spool => currentLocationId(spool) === Number(sunlu.id)) : [];
   const legacySpools = model.quickCandidates.filter(item => item.reason.eligible).length;
-
   const drawers = [1, 2, 3, 4, 5, 6].map(number => {
     const rows = model.drawers.filter(item => item.meta.drawer === number);
     return drawerHtml(number, rows, model);
@@ -294,35 +249,15 @@ function storageHtml(snapshot) {
   return `
     <div class="fd-storage-shell">
       <section class="fd-storage-hero">
-        <div>
-          <span class="fd-storage-kicker">FLIGHTDECK STORAGE</span>
-          <h2>Six-drawer spool home</h2>
-          <p>D1–D6 · R1–R3 · positions #1–162. Home stays reserved while a spool is loaded or visiting SUNLU.</p>
-        </div>
-        <div class="fd-storage-actions">
-          <button type="button" class="fd-storage-btn primary" data-storage-action="quick">${assigning ? "Assigning…" : "Fast assign"}</button>
-          <button type="button" class="fd-storage-btn" data-storage-action="refresh">Refresh</button>
-        </div>
+        <div><span class="fd-storage-kicker">FLIGHTDECK STORAGE</span><h2>Six-drawer spool home</h2><p>D1–D6 · R1–R3 · positions #1–162. Home stays reserved while a spool is loaded or visiting SUNLU.</p></div>
+        <div class="fd-storage-actions"><button type="button" class="fd-storage-btn primary" data-storage-action="quick">${assigning ? "Assigning…" : "Fast assign"}</button><button type="button" class="fd-storage-btn" data-storage-action="refresh">Refresh</button></div>
       </section>
-
       <section class="fd-storage-stats">
-        <div><b>${drawerLocations}</b><span>drawer positions</span></div>
-        <div><b>${occupiedHomes}</b><span>homes assigned</span></div>
-        <div><b>${162 - occupiedHomes}</b><span>homes free</span></div>
-        <div class="${legacySpools ? "needs-action" : ""}"><b>${legacySpools}</b><span>legacy spools to place</span></div>
-        <div class="sunlu"><b>${sunluSpools.length}</b><span>currently in SUNLU</span></div>
+        <div><b>${drawerLocations}</b><span>drawer positions</span></div><div><b>${occupiedHomes}</b><span>homes assigned</span></div><div><b>${162 - occupiedHomes}</b><span>homes free</span></div><div class="${legacySpools ? "needs-action" : ""}"><b>${legacySpools}</b><span>legacy spools to place</span></div><div class="sunlu"><b>${sunluSpools.length}</b><span>currently in SUNLU</span></div>
       </section>
-
-      ${quickAssignHtml(model)}
-
       <div class="fd-storage-drawers">${drawers}</div>
-
-      <section class="fd-storage-legend">
-        <span><i class="home"></i> At home</span>
-        <span><i class="away"></i> Home reserved, spool away</span>
-        <span><i class="sunlu"></i> In SUNLU temporarily</span>
-        <span><i class="empty"></i> Empty home</span>
-      </section>
+      ${quickAssignHtml(model)}
+      <section class="fd-storage-legend"><span><i class="home"></i> At home</span><span><i class="away"></i> Home reserved, spool away</span><span><i class="sunlu"></i> In SUNLU temporarily</span><span><i class="empty"></i> Empty home</span></section>
     </div>`;
 }
 
@@ -335,62 +270,137 @@ function ensureRoot() {
     root = document.createElement("div");
     root.id = "fd-drawer-storage";
     body.prepend(root);
-  } else if (body.firstElementChild !== root) {
-    body.prepend(root);
-  }
+  } else if (body.firstElementChild !== root) body.prepend(root);
   return root;
 }
 
+function handleCandidateClick(spoolId, shiftKey, snapshot) {
+  const model = buildSnapshotModel(snapshot);
+  const eligibleIds = model.quickCandidates.filter(item => item.reason.eligible).map(item => Number(item.spool.id));
+  if (!eligibleIds.includes(spoolId)) return;
+
+  if (shiftKey && selectionAnchorId != null && eligibleIds.includes(selectionAnchorId)) {
+    const a = eligibleIds.indexOf(selectionAnchorId);
+    const b = eligibleIds.indexOf(spoolId);
+    const [start, end] = a < b ? [a, b] : [b, a];
+    selectedSpoolIds = new Set(eligibleIds.slice(start, end + 1));
+  } else {
+    selectedSpoolIds = new Set([spoolId]);
+    selectionAnchorId = spoolId;
+  }
+  renderSnapshot(snapshot);
+}
+
+function targetLocations(model, drawerNumber, rowNumber = null) {
+  return model.drawers
+    .filter(item => item.meta.drawer === drawerNumber && (rowNumber == null || item.meta.row === rowNumber))
+    .filter(item => !model.homeSpoolByLocation.has(Number(item.loc.id)))
+    .sort((a, b) => a.meta.number - b.meta.number);
+}
+
+async function assignMany(targets) {
+  if (bulkAssigning) return;
+  const snapshot = lastSnapshot;
+  if (!snapshot) return;
+  const model = buildSnapshotModel(snapshot);
+  const selected = selectedEligible(model);
+  if (!selected.length) {
+    flash("Select at least one spool first.", "warn");
+    return;
+  }
+  if (targets.length < selected.length) {
+    flash(`Not enough empty positions there: ${targets.length} free for ${selected.length} selected.`, "warn");
+    return;
+  }
+
+  bulkAssigning = true;
+  const completed = [];
+  try {
+    for (let i = 0; i < selected.length; i++) {
+      const spool = selected[i].spool;
+      const target = targets[i];
+      await apiJson(`/api/spools/${spool.id}/move`, {
+        method: "POST",
+        body: JSON.stringify({ printer_id: null, slot: null, storage_location_id: Number(target.loc.id), replace_existing: false, sync_ams: false }),
+      });
+      completed.push(`#${spoolDisplayId(spool)}→#${target.meta.number}`);
+    }
+    selectedSpoolIds.clear();
+    selectionAnchorId = null;
+    const fresh = await loadSnapshot();
+    const nextModel = buildSnapshotModel(fresh);
+    const next = nextModel.quickCandidates.find(item => item.reason.eligible);
+    if (assigning && next) {
+      selectedSpoolIds = new Set([Number(next.spool.id)]);
+      selectionAnchorId = Number(next.spool.id);
+    }
+    renderSnapshot(fresh);
+    flash(`Assigned ${completed.length} spool${completed.length === 1 ? "" : "s"}: ${completed.join(", ")}`, "ok");
+  } catch (error) {
+    const fresh = await loadSnapshot().catch(() => snapshot);
+    selectedSpoolIds.clear();
+    selectionAnchorId = null;
+    renderSnapshot(fresh);
+    flash(`Bulk assign stopped after ${completed.length}: ${error.message}`, "error");
+  } finally {
+    bulkAssigning = false;
+  }
+}
+
+async function assignSingle(locationId, slotNumber) {
+  if (selectedSpoolIds.size !== 1) {
+    flash("For a single position, select exactly one spool. For a range, click R1/R2/R3 or the drawer header.", "warn");
+    return;
+  }
+  const snapshot = lastSnapshot;
+  const model = snapshot ? buildSnapshotModel(snapshot) : null;
+  const selected = model ? selectedEligible(model) : [];
+  if (selected.length !== 1) {
+    flash("That spool is no longer safe for Fast Assign. Refreshing…", "warn");
+    await refresh(true);
+    return;
+  }
+  await assignMany([{ loc: { id: locationId }, meta: { number: slotNumber } }]);
+}
+
 function bindInteractions(root, snapshot) {
-  root.onclick = async (event) => {
+  root.onclick = async event => {
     const actionButton = event.target.closest("[data-storage-action]");
     if (actionButton && root.contains(actionButton)) {
       const action = actionButton.dataset.storageAction;
-      if (action === "refresh") {
-        await refresh(true);
-        return;
-      }
-      if (action === "quick") {
-        assigning = true;
-        renderSnapshot(snapshot);
-        return;
-      }
-      if (action === "close-quick") {
-        assigning = false;
-        selectedSpoolId = null;
-        renderSnapshot(snapshot);
-        return;
-      }
+      if (action === "refresh") return refresh(true);
+      if (action === "quick") { assigning = true; renderSnapshot(snapshot); return; }
+      if (action === "close-quick") { assigning = false; selectedSpoolIds.clear(); selectionAnchorId = null; renderSnapshot(snapshot); return; }
     }
 
     const spoolButton = event.target.closest("[data-spool-id]");
     if (spoolButton && root.contains(spoolButton)) {
-      selectedSpoolId = Number(spoolButton.dataset.spoolId);
-      renderSnapshot(snapshot);
+      handleCandidateClick(Number(spoolButton.dataset.spoolId), event.shiftKey, snapshot);
+      return;
+    }
+
+    const model = buildSnapshotModel(lastSnapshot || snapshot);
+    const rowButton = event.target.closest("[data-bulk-row]");
+    if (rowButton && root.contains(rowButton)) {
+      const [drawer, row] = rowButton.dataset.bulkRow.split(":").map(Number);
+      await assignMany(targetLocations(model, drawer, row));
+      return;
+    }
+
+    const drawerButton = event.target.closest("[data-bulk-drawer]");
+    if (drawerButton && root.contains(drawerButton)) {
+      await assignMany(targetLocations(model, Number(drawerButton.dataset.bulkDrawer)));
       return;
     }
 
     const slotButton = event.target.closest(".fd-storage-slot");
     if (!slotButton || !root.contains(slotButton)) return;
-    if (!assigning || selectedSpoolId == null) {
-      flash("Choose Fast assign and select a spool first.", "warn");
-      return;
-    }
-    if (slotButton.dataset.occupied === "1") {
-      flash("That drawer position already has a home spool.", "warn");
-      return;
-    }
-
+    if (!assigning || selectedSpoolIds.size === 0) { flash("Choose Fast assign and select a spool first.", "warn"); return; }
+    if (slotButton.dataset.occupied === "1") { flash("That drawer position already has a home spool.", "warn"); return; }
     const locationId = Number(slotButton.dataset.locationId);
     const slotNumber = Number(slotButton.dataset.slotNumber);
-    if (!Number.isFinite(locationId) || !Number.isFinite(slotNumber)) {
-      flash("That drawer position is missing its location mapping. Refreshing…", "error");
-      await refresh(true);
-      return;
-    }
-
-    slotButton.disabled = true;
-    await assignSelectedSpool(locationId, slotNumber);
+    if (!Number.isFinite(locationId) || !Number.isFinite(slotNumber)) { flash("That drawer position is missing its location mapping.", "error"); return; }
+    await assignSingle(locationId, slotNumber);
   };
 }
 
@@ -406,52 +416,12 @@ function flash(message, kind = "ok") {
   const root = document.getElementById("fd-drawer-storage");
   if (!root) return;
   let node = root.querySelector(".fd-storage-toast");
-  if (!node) {
-    node = document.createElement("div");
-    node.className = "fd-storage-toast";
-    root.append(node);
-  }
+  if (!node) { node = document.createElement("div"); node.className = "fd-storage-toast"; root.append(node); }
   node.className = `fd-storage-toast ${kind}`;
   node.textContent = message;
   node.hidden = false;
   clearTimeout(refreshTimer);
-  refreshTimer = setTimeout(() => { node.hidden = true; }, 2600);
-}
-
-async function assignSelectedSpool(locationId, slotNumber) {
-  if (!selectedSpoolId) return;
-  const spool = lastSnapshot?.spools?.find(s => Number(s.id) === Number(selectedSpoolId));
-  const model = lastSnapshot ? buildSnapshotModel(lastSnapshot) : null;
-  const eligibility = spool && model ? quickAssignReason(spool, model.byId) : null;
-  if (!spool || !eligibility?.eligible) {
-    flash("That spool is no longer safe for Fast Assign. Refreshing…", "warn");
-    await refresh(true);
-    return;
-  }
-
-  const oldId = selectedSpoolId;
-  try {
-    await apiJson(`/api/spools/${oldId}/move`, {
-      method: "POST",
-      body: JSON.stringify({
-        printer_id: null,
-        slot: null,
-        storage_location_id: locationId,
-        replace_existing: false,
-        sync_ams: false,
-      }),
-    });
-    selectedSpoolId = null;
-    const snapshot = await loadSnapshot();
-    const nextModel = buildSnapshotModel(snapshot);
-    const next = nextModel.quickCandidates.find(item => item.reason.eligible);
-    if (assigning && next) selectedSpoolId = Number(next.spool.id);
-    renderSnapshot(snapshot);
-    flash(`Spool #${spoolDisplayId(spool)} → position #${slotNumber}. Home and current updated.`, "ok");
-  } catch (error) {
-    selectedSpoolId = oldId;
-    flash(`Could not assign: ${error.message}`, "error");
-  }
+  refreshTimer = setTimeout(() => { node.hidden = true; }, 3200);
 }
 
 async function refresh(showFeedback = false) {
@@ -464,12 +434,7 @@ async function refresh(showFeedback = false) {
     renderSnapshot(snapshot);
     if (showFeedback) flash("Drawer storage refreshed.", "ok");
   } catch (error) {
-    root.innerHTML = `
-      <div class="fd-storage-load-error">
-        <b>Drawer storage could not load</b>
-        <span>${esc(error.message)}</span>
-        <button type="button" class="fd-storage-btn" data-storage-action="refresh">Try again</button>
-      </div>`;
+    root.innerHTML = `<div class="fd-storage-load-error"><b>Drawer storage could not load</b><span>${esc(error.message)}</span><button type="button" class="fd-storage-btn" data-storage-action="refresh">Try again</button></div>`;
     bindInteractions(root, lastSnapshot || { spools: [], locations: [] });
   } finally {
     root.classList.remove("is-loading");
@@ -494,8 +459,5 @@ function boot() {
   scheduleRefresh();
 }
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", boot, { once: true });
-} else {
-  boot();
-}
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });
+else boot();
