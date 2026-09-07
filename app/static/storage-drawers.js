@@ -342,32 +342,56 @@ function ensureRoot() {
 }
 
 function bindInteractions(root, snapshot) {
-  root.querySelector('[data-storage-action="refresh"]')?.addEventListener("click", () => refresh(true));
-  root.querySelector('[data-storage-action="quick"]')?.addEventListener("click", () => {
-    assigning = true;
-    renderSnapshot(snapshot);
-  });
-  root.querySelector('[data-storage-action="close-quick"]')?.addEventListener("click", () => {
-    assigning = false;
-    selectedSpoolId = null;
-    renderSnapshot(snapshot);
-  });
+  root.onclick = async (event) => {
+    const actionButton = event.target.closest("[data-storage-action]");
+    if (actionButton && root.contains(actionButton)) {
+      const action = actionButton.dataset.storageAction;
+      if (action === "refresh") {
+        await refresh(true);
+        return;
+      }
+      if (action === "quick") {
+        assigning = true;
+        renderSnapshot(snapshot);
+        return;
+      }
+      if (action === "close-quick") {
+        assigning = false;
+        selectedSpoolId = null;
+        renderSnapshot(snapshot);
+        return;
+      }
+    }
 
-  root.querySelectorAll("[data-spool-id]").forEach(button => {
-    button.addEventListener("click", () => {
-      selectedSpoolId = Number(button.dataset.spoolId);
+    const spoolButton = event.target.closest("[data-spool-id]");
+    if (spoolButton && root.contains(spoolButton)) {
+      selectedSpoolId = Number(spoolButton.dataset.spoolId);
       renderSnapshot(snapshot);
-    });
-  });
+      return;
+    }
 
-  root.querySelectorAll(".fd-storage-slot.assign-target").forEach(button => {
-    button.addEventListener("click", async () => {
-      if (!selectedSpoolId || button.dataset.occupied === "1") return;
-      const locationId = Number(button.dataset.locationId);
-      const slotNumber = Number(button.dataset.slotNumber);
-      await assignSelectedSpool(locationId, slotNumber);
-    });
-  });
+    const slotButton = event.target.closest(".fd-storage-slot");
+    if (!slotButton || !root.contains(slotButton)) return;
+    if (!assigning || selectedSpoolId == null) {
+      flash("Choose Fast assign and select a spool first.", "warn");
+      return;
+    }
+    if (slotButton.dataset.occupied === "1") {
+      flash("That drawer position already has a home spool.", "warn");
+      return;
+    }
+
+    const locationId = Number(slotButton.dataset.locationId);
+    const slotNumber = Number(slotButton.dataset.slotNumber);
+    if (!Number.isFinite(locationId) || !Number.isFinite(slotNumber)) {
+      flash("That drawer position is missing its location mapping. Refreshing…", "error");
+      await refresh(true);
+      return;
+    }
+
+    slotButton.disabled = true;
+    await assignSelectedSpool(locationId, slotNumber);
+  };
 }
 
 function renderSnapshot(snapshot) {
@@ -446,7 +470,7 @@ async function refresh(showFeedback = false) {
         <span>${esc(error.message)}</span>
         <button type="button" class="fd-storage-btn" data-storage-action="refresh">Try again</button>
       </div>`;
-    root.querySelector('[data-storage-action="refresh"]')?.addEventListener("click", () => refresh(true));
+    bindInteractions(root, lastSnapshot || { spools: [], locations: [] });
   } finally {
     root.classList.remove("is-loading");
   }
