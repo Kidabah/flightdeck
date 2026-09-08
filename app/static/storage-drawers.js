@@ -8,6 +8,7 @@ let selectedSpoolIds = new Set();
 let selectionAnchorId = null;
 let lastSnapshot = null;
 let bulkAssigning = false;
+let lastAssignment = null;
 
 function esc(value) {
   return String(value ?? "")
@@ -107,6 +108,12 @@ function statusForHomeSpool(spool, homeLoc, byId) {
   return { text: "Home reserved", className: "away" };
 }
 
+function displaySortValue(spool) {
+  const value = String(spoolDisplayId(spool));
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? { numeric, text: value } : { numeric: Number.MAX_SAFE_INTEGER, text: value };
+}
+
 function buildSnapshotModel(snapshot) {
   const byId = locationsById(snapshot.locations);
   const drawers = snapshot.locations
@@ -125,7 +132,11 @@ function buildSnapshotModel(snapshot) {
   const quickCandidates = snapshot.spools
     .map(spool => ({ spool, reason: quickAssignReason(spool, byId) }))
     .filter(item => !drawerMeta(effectiveHome(item.spool, byId)))
-    .sort((a, b) => Number(spoolDisplayId(a.spool)) - Number(spoolDisplayId(b.spool)));
+    .sort((a, b) => {
+      const av = displaySortValue(a.spool);
+      const bv = displaySortValue(b.spool);
+      return av.numeric - bv.numeric || av.text.localeCompare(bv.text, undefined, { numeric: true, sensitivity: "base" });
+    });
 
   return { byId, drawers, homeSpoolByLocation, quickCandidates };
 }
@@ -228,6 +239,7 @@ function quickAssignHtml(model) {
           <div class="fd-storage-selected ${selected.length ? "has-selection" : ""}">
             ${selected.length ? `<div><b>${selectedText}</b><span>${selected.length === 1 ? `${esc(spoolBrand(selected[0].spool))} · ${esc(spoolName(selected[0].spool))}` : "Click R1/R2/R3 or a drawer header to fill left-to-right."}</span></div><strong>${selected.length === 1 ? "Choose a slot, row or drawer ↑" : "Choose a row or drawer ↑"}</strong>` : `<div><b>Select a spool</b><span>Shift-click the last spool to select a whole range.</span></div>`}
           </div>
+          ${lastAssignment ? `<button type="button" class="fd-storage-btn" data-storage-action="undo">↶ Undo last assignment (${lastAssignment.items.length})</button>` : ""}
           ${blocked.length ? `<details class="fd-storage-protected"><summary>${blocked.length} protected / away spool${blocked.length === 1 ? "" : "s"}</summary><div class="fd-storage-protected-list">${blocked.map(item => candidateHtml(item, false)).join("")}</div></details>` : ""}
         </div>
       </div>
@@ -298,6 +310,39 @@ function targetLocations(model, drawerNumber, rowNumber = null) {
     .sort((a, b) => a.meta.number - b.meta.number);
 }
 
+async function moveSpoolToStorage(spoolId, storageLocationId) {
+  return apiJson(`/api/spools/${spoolId}/move`, {
+    method: "POST",
+    body: JSON.stringify({ printer_id: null, slot: null, storage_location_id: Number(storageLocationId), replace_existing: false, sync_ams: false }),
+  });
+}
+
+async function undoLastAssignment() {
+  if (bulkAssigning || !lastAssignment?.items?.length) return;
+  bulkAssigning = true;
+  const undoing = lastAssignment;
+  const restored = [];
+  try {
+    for (const item of [...undoing.items].reverse()) {
+      if (item.previousStorageLocationId == null) throw new Error(`Spool #${item.displayId} has no previous storage location to restore.`);
+      await moveSpoolToStorage(item.spoolId, item.previousStorageLocationId);
+      restored.push(item.displayId);
+    }
+    lastAssignment = null;
+    selectedSpoolIds.clear();
+    selectionAnchorId = null;
+    const fresh = await loadSnapshot();
+    renderSnapshot(fresh);
+    flash(`Undid ${restored.length} assignment${restored.length === 1 ? "" : "s"}.`, "ok");
+  } catch (error) {
+    const fresh = await loadSnapshot().catch(() => lastSnapshot);
+    renderSnapshot(fresh);
+    flash(`Undo stopped after ${restored.length}: ${error.message}`, "error");
+  } finally {
+    bulkAssigning = false;
+  }
+}
+
 async function assignMany(targets) {
   if (bulkAssigning) return;
   const snapshot = lastSnapshot;
@@ -315,16 +360,23 @@ async function assignMany(targets) {
 
   bulkAssigning = true;
   const completed = [];
+  const undoItems = [];
   try {
     for (let i = 0; i < selected.length; i++) {
       const spool = selected[i].spool;
       const target = targets[i];
-      await apiJson(`/api/spools/${spool.id}/move`, {
-        method: "POST",
-        body: JSON.stringify({ printer_id: null, slot: null, storage_location_id: Number(target.loc.id), replace_existing: false, sync_ams: false }),
-      });
+      const previousStorageLocationId = currentLocationId(spool);
+      await moveSpoolToStorage(spool.id, target.loc.id);
       completed.push(`#${spoolDisplayId(spool)}→#${target.meta.number}`);
+      undoItems.push({
+        spoolId: Number(spool.id),
+        displayId: String(spoolDisplayId(spool)),
+        previousStorageLocationId,
+        targetStorageLocationId: Number(target.loc.id),
+        targetSlotNumber: Number(target.meta.number),
+      });
     }
+    lastAssignment = { items: undoItems };
     selectedSpoolIds.clear();
     selectionAnchorId = null;
     const fresh = await loadSnapshot();
@@ -337,6 +389,7 @@ async function assignMany(targets) {
     renderSnapshot(fresh);
     flash(`Assigned ${completed.length} spool${completed.length === 1 ? "" : "s"}: ${completed.join(", ")}`, "ok");
   } catch (error) {
+    if (undoItems.length) lastAssignment = { items: undoItems };
     const fresh = await loadSnapshot().catch(() => snapshot);
     selectedSpoolIds.clear();
     selectionAnchorId = null;
@@ -370,6 +423,7 @@ function bindInteractions(root, snapshot) {
       const action = actionButton.dataset.storageAction;
       if (action === "refresh") return refresh(true);
       if (action === "quick") { assigning = true; renderSnapshot(snapshot); return; }
+      if (action === "undo") { await undoLastAssignment(); return; }
       if (action === "close-quick") { assigning = false; selectedSpoolIds.clear(); selectionAnchorId = null; renderSnapshot(snapshot); return; }
     }
 
