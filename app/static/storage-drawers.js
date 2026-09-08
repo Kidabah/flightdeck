@@ -1,5 +1,6 @@
 const DRAWER_RE = /^D([1-6]) R([1-3]) #(\d{1,3})$/;
 const SUNLU_NAME = "SUNLU Dryer";
+const UNDO_STORAGE_KEY = "flightdeck.storage.lastAssignment";
 
 let refreshTimer = null;
 let observer = null;
@@ -8,7 +9,24 @@ let selectedSpoolIds = new Set();
 let selectionAnchorId = null;
 let lastSnapshot = null;
 let bulkAssigning = false;
-let lastAssignment = null;
+let lastAssignment = loadStoredUndo();
+
+function loadStoredUndo() {
+  try {
+    const parsed = JSON.parse(sessionStorage.getItem(UNDO_STORAGE_KEY) || "null");
+    return parsed?.items?.length ? parsed : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function storeUndo(value) {
+  lastAssignment = value?.items?.length ? value : null;
+  try {
+    if (lastAssignment) sessionStorage.setItem(UNDO_STORAGE_KEY, JSON.stringify(lastAssignment));
+    else sessionStorage.removeItem(UNDO_STORAGE_KEY);
+  } catch (_) {}
+}
 
 function esc(value) {
   return String(value ?? "")
@@ -239,7 +257,6 @@ function quickAssignHtml(model) {
           <div class="fd-storage-selected ${selected.length ? "has-selection" : ""}">
             ${selected.length ? `<div><b>${selectedText}</b><span>${selected.length === 1 ? `${esc(spoolBrand(selected[0].spool))} · ${esc(spoolName(selected[0].spool))}` : "Click R1/R2/R3 or a drawer header to fill left-to-right."}</span></div><strong>${selected.length === 1 ? "Choose a slot, row or drawer ↑" : "Choose a row or drawer ↑"}</strong>` : `<div><b>Select a spool</b><span>Shift-click the last spool to select a whole range.</span></div>`}
           </div>
-          ${lastAssignment ? `<button type="button" class="fd-storage-btn" data-storage-action="undo">↶ Undo last assignment (${lastAssignment.items.length})</button>` : ""}
           ${blocked.length ? `<details class="fd-storage-protected"><summary>${blocked.length} protected / away spool${blocked.length === 1 ? "" : "s"}</summary><div class="fd-storage-protected-list">${blocked.map(item => candidateHtml(item, false)).join("")}</div></details>` : ""}
         </div>
       </div>
@@ -257,12 +274,13 @@ function storageHtml(snapshot) {
     const rows = model.drawers.filter(item => item.meta.drawer === number);
     return drawerHtml(number, rows, model);
   }).join("");
+  const undoLabel = lastAssignment?.items?.length ? `↶ Undo (${lastAssignment.items.length})` : "↶ Undo";
 
   return `
     <div class="fd-storage-shell">
       <section class="fd-storage-hero">
         <div><span class="fd-storage-kicker">FLIGHTDECK STORAGE</span><h2>Six-drawer spool home</h2><p>D1–D6 · R1–R3 · positions #1–162. Home stays reserved while a spool is loaded or visiting SUNLU.</p></div>
-        <div class="fd-storage-actions"><button type="button" class="fd-storage-btn primary" data-storage-action="quick">${assigning ? "Assigning…" : "Fast assign"}</button><button type="button" class="fd-storage-btn" data-storage-action="refresh">Refresh</button></div>
+        <div class="fd-storage-actions"><button type="button" class="fd-storage-btn primary" data-storage-action="quick">${assigning ? "Assigning…" : "Fast assign"}</button><button type="button" class="fd-storage-btn" data-storage-action="undo" ${lastAssignment ? "" : "disabled"} title="${lastAssignment ? "Undo the most recent Fast Assign action" : "Nothing to undo yet"}">${undoLabel}</button><button type="button" class="fd-storage-btn" data-storage-action="refresh">Refresh</button></div>
       </section>
       <section class="fd-storage-stats">
         <div><b>${drawerLocations}</b><span>drawer positions</span></div><div><b>${occupiedHomes}</b><span>homes assigned</span></div><div><b>${162 - occupiedHomes}</b><span>homes free</span></div><div class="${legacySpools ? "needs-action" : ""}"><b>${legacySpools}</b><span>legacy spools to place</span></div><div class="sunlu"><b>${sunluSpools.length}</b><span>currently in SUNLU</span></div>
@@ -328,7 +346,7 @@ async function undoLastAssignment() {
       await moveSpoolToStorage(item.spoolId, item.previousStorageLocationId);
       restored.push(item.displayId);
     }
-    lastAssignment = null;
+    storeUndo(null);
     selectedSpoolIds.clear();
     selectionAnchorId = null;
     const fresh = await loadSnapshot();
@@ -376,7 +394,7 @@ async function assignMany(targets) {
         targetSlotNumber: Number(target.meta.number),
       });
     }
-    lastAssignment = { items: undoItems };
+    storeUndo({ items: undoItems });
     selectedSpoolIds.clear();
     selectionAnchorId = null;
     const fresh = await loadSnapshot();
@@ -389,7 +407,7 @@ async function assignMany(targets) {
     renderSnapshot(fresh);
     flash(`Assigned ${completed.length} spool${completed.length === 1 ? "" : "s"}: ${completed.join(", ")}`, "ok");
   } catch (error) {
-    if (undoItems.length) lastAssignment = { items: undoItems };
+    if (undoItems.length) storeUndo({ items: undoItems });
     const fresh = await loadSnapshot().catch(() => snapshot);
     selectedSpoolIds.clear();
     selectionAnchorId = null;
