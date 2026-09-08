@@ -12,6 +12,10 @@ a printer, or visiting SUNLU, get their matching Home reserved without changing
 their Current location. Legacy-stored spools that have not been assigned yet are
 left alone for Fast Assign.
 
+Drawer moves are also guarded at the database layer. Once a numbered spool is
+sent to drawer storage, FlightDeck redirects it to the drawer position with the
+same number, regardless of which older storage UI path initiated the move.
+
 Also creates SUNLU Dryer as a temporary location. A small SQLite trigger keeps a
 spool's home_storage_location_id unchanged while its current storage location is
 SUNLU Dryer, so moving it back with the existing FlightDeck move path returns it
@@ -133,6 +137,36 @@ def normalise_numbered_homes(
     return repaired_drawer, reserved_away
 
 
+def install_numbered_drawer_guard(
+    conn: sqlite3.Connection,
+    slot_ids: dict[int, int],
+) -> None:
+    """Redirect any numbered spool moved to a drawer back to its numbered home."""
+    drawer_ids_sql = ", ".join(str(value) for value in sorted(slot_ids.values()))
+    cases = " ".join(
+        f"WHEN {number} THEN {location_id}"
+        for number, location_id in sorted(slot_ids.items())
+    )
+    target_case = f"CASE NEW.id {cases} END"
+
+    conn.execute("DROP TRIGGER IF EXISTS enforce_numbered_drawer_home")
+    conn.execute(
+        f"""
+        CREATE TRIGGER enforce_numbered_drawer_home
+        AFTER UPDATE OF storage_location_id ON spools
+        WHEN NEW.id BETWEEN 1 AND {TOTAL_SLOTS}
+         AND NEW.storage_location_id IN ({drawer_ids_sql})
+         AND NEW.storage_location_id IS NOT ({target_case})
+        BEGIN
+            UPDATE spools
+               SET storage_location_id = ({target_case}),
+                   home_storage_location_id = ({target_case})
+             WHERE id = NEW.id;
+        END
+        """
+    )
+
+
 def main() -> None:
     conn = sqlite3.connect(DB_PATH)
     try:
@@ -172,6 +206,10 @@ def main() -> None:
             END
             """
         )
+
+        # Older Quick Move paths can still target a drawer row/slot directly.
+        # Once the target is any drawer location, enforce the numbered Home rule.
+        install_numbered_drawer_guard(conn, slot_ids)
 
         repaired_drawer, reserved_away = normalise_numbered_homes(
             conn,
@@ -215,6 +253,7 @@ def main() -> None:
         if retained_legacy:
             print("Kept occupied legacy locations for safe reassignment: " + ", ".join(retained_legacy))
         print("SUNLU home-location protection trigger installed.")
+        print("Numbered drawer-home guard installed.")
     finally:
         conn.close()
 
