@@ -1,116 +1,13 @@
 const DRAWER_RE = /^D([1-6]) R([1-3]) #(\d{1,3})$/;
 let menuState = null;
-
-function esc(value) {
-  return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
-}
-
-async function json(url, options = {}) {
-  const response = await fetch(url, { cache: "no-store", headers: { "Content-Type": "application/json", ...(options.headers || {}) }, ...options });
-  let body = null;
-  try { body = await response.json(); } catch (_) {}
-  if (!response.ok) throw new Error(body?.detail?.message || body?.detail || body?.message || `HTTP ${response.status}`);
-  return body;
-}
-
-function closeMenu() {
-  document.getElementById("fd-position-menu")?.remove();
-  menuState = null;
-}
-
-function currentText(spool, locations) {
-  if (spool.location_printer_id) {
-    const slot = spool.location_slot == null ? "" : ` · slot ${Number(spool.location_slot) + 1}`;
-    return `${spool.location_printer_id}${slot}`;
-  }
-  const loc = locations.find(item => Number(item.id) === Number(spool.storage_location_id));
-  return loc?.name || "Away / location not set";
-}
-
-async function positionData(locationId) {
-  const [spools, locations] = await Promise.all([json("/api/spools"), json("/api/spool-locations")]);
-  const location = locations.find(item => Number(item.id) === Number(locationId));
-  const spool = spools.find(item => Number(item.home_storage_location_id) === Number(locationId)) ||
-    spools.find(item => Number(item.storage_location_id) === Number(locationId) && DRAWER_RE.test(String(location?.name || "")));
-  return { spool, location, locations };
-}
-
-function openSwatch(spoolId) {
-  closeMenu();
-  location.hash = `#/spool/${Number(spoolId)}`;
-}
-
-async function markHome(spool, homeLocation) {
-  await json(`/api/spools/${spool.id}/move`, {
-    method: "POST",
-    body: JSON.stringify({ printer_id: null, slot: null, storage_location_id: Number(homeLocation.id), replace_existing: false, sync_ams: false }),
-  });
-  closeMenu();
-  window.dispatchEvent(new HashChangeEvent("hashchange"));
-}
-
-function renderMenu(anchor, data) {
-  closeMenu();
-  const { spool, location, locations } = data;
-  const node = document.createElement("div");
-  node.id = "fd-position-menu";
-  node.className = "fd-position-menu";
-  const slotName = location?.name || `Position #${anchor.dataset.slotNumber || "?"}`;
-  if (!spool) {
-    node.innerHTML = `<div class="fd-position-menu-head"><b>${esc(slotName)}</b><span>Unassigned home</span></div><button type="button" data-pos-action="assign">＋ Assign with Fast Assign</button>`;
-  } else {
-    const displayId = spool.display_id ?? spool.id;
-    const atHome = !spool.location_printer_id && Number(spool.storage_location_id) === Number(location.id);
-    node.innerHTML = `
-      <div class="fd-position-menu-head"><b>S${esc(displayId)} · ${esc(slotName)}</b><span>${atHome ? "Physically at home" : `Away · ${esc(currentText(spool, locations))}`}</span></div>
-      <button type="button" data-pos-action="home" ${atHome ? "disabled" : ""}>🏠 <span><b>Home</b><small>${atHome ? "Already in this position" : "Return this spool to its permanent home"}</small></span></button>
-      <button type="button" data-pos-action="away">↗ <span><b>Away</b><small>${atHome ? "Choose its destination in Swatch View" : `Currently ${esc(currentText(spool, locations))}`}</small></span></button>
-      <button type="button" data-pos-action="swatch">● <span><b>Swatch View</b><small>Assignments, details and filament moves</small></span></button>`;
-  }
-  document.body.append(node);
-  const rect = anchor.getBoundingClientRect();
-  const width = Math.min(330, window.innerWidth - 24);
-  node.style.width = `${width}px`;
-  const left = Math.max(12, Math.min(rect.left + rect.width / 2 - width / 2, window.innerWidth - width - 12));
-  const below = rect.bottom + 8;
-  const top = below + node.offsetHeight <= window.innerHeight - 12 ? below : Math.max(12, rect.top - node.offsetHeight - 8);
-  node.style.left = `${left}px`;
-  node.style.top = `${top}px`;
-  menuState = { anchor, data };
-  node.onclick = async event => {
-    const button = event.target.closest("[data-pos-action]");
-    if (!button || button.disabled) return;
-    const action = button.dataset.posAction;
-    try {
-      if (action === "home") await markHome(spool, location);
-      if (action === "swatch" || action === "away") openSwatch(spool.id);
-      if (action === "assign") {
-        closeMenu();
-        document.querySelector('#fd-drawer-storage [data-storage-action="quick"]')?.click();
-      }
-    } catch (error) {
-      button.disabled = false;
-      button.title = String(error.message || error);
-      alert(`FlightDeck storage: ${error.message || error}`);
-    }
-  };
-}
-
-document.addEventListener("click", async event => {
-  const root = document.getElementById("fd-drawer-storage");
-  const slot = event.target.closest("#fd-drawer-storage .fd-storage-slot");
-  if (slot && root?.contains(slot)) {
-    const fastAssignOpen = Boolean(root.querySelector(".fd-storage-quick:not([hidden])"));
-    if (fastAssignOpen && root.querySelector(".fd-storage-candidate.selected")) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    try { renderMenu(slot, await positionData(Number(slot.dataset.locationId))); }
-    catch (error) { alert(`FlightDeck storage: ${error.message || error}`); }
-    return;
-  }
-  if (menuState && !event.target.closest("#fd-position-menu")) closeMenu();
-}, true);
-
-window.addEventListener("hashchange", closeMenu);
-window.addEventListener("resize", closeMenu);
-window.addEventListener("scroll", closeMenu, true);
+function esc(value){return String(value??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");}
+async function json(url,options={}){const response=await fetch(url,{cache:"no-store",headers:{"Content-Type":"application/json",...(options.headers||{})},...options});let body=null;try{body=await response.json();}catch(_){}if(!response.ok)throw new Error(body?.detail?.message||body?.detail||body?.message||`HTTP ${response.status}`);return body;}
+function closeMenu(){document.getElementById("fd-position-menu")?.remove();menuState=null;}
+function currentText(spool,locations){if(spool.location_printer_id){const slot=spool.location_slot==null?"":` · slot ${Number(spool.location_slot)+1}`;return `${spool.location_printer_id}${slot}`;}const loc=locations.find(item=>Number(item.id)===Number(spool.storage_location_id));return loc?.name||"Away / location not set";}
+async function positionData(locationId){const[spools,locations]=await Promise.all([json("/api/spools"),json("/api/spool-locations")]);const location=locations.find(item=>Number(item.id)===Number(locationId));const spool=spools.find(item=>Number(item.home_storage_location_id)===Number(locationId))||spools.find(item=>Number(item.storage_location_id)===Number(locationId)&&DRAWER_RE.test(String(location?.name||"")));return{spool,location,locations};}
+function openDetails(spoolId){closeMenu();location.hash=`#/spool/${Number(spoolId)}`;}
+function openAwayAssignment(spoolId){closeMenu();const selector=`[data-action="assign"][data-id="${CSS.escape(String(spoolId))}"]`;const button=document.querySelector(`#spools-body ${selector}`)||document.querySelector(selector);if(button){button.click();return;}location.hash="#/spools";setTimeout(()=>document.querySelector(`#spools-body ${selector}`)?.click(),100);}
+async function markHome(spool,homeLocation){await json(`/api/spools/${spool.id}/move`,{method:"POST",body:JSON.stringify({printer_id:null,slot:null,storage_location_id:Number(homeLocation.id),replace_existing:false,sync_ams:false})});closeMenu();window.dispatchEvent(new HashChangeEvent("hashchange"));}
+function renderMenu(anchor,data){closeMenu();const{spool,location,locations}=data;const node=document.createElement("div");node.id="fd-position-menu";node.className="fd-position-menu";const slotName=location?.name||`Position #${anchor.dataset.slotNumber||"?"}`;if(!spool){node.innerHTML=`<div class="fd-position-menu-head"><b>${esc(slotName)}</b><span>Unassigned home</span></div><button type="button" data-pos-action="assign">＋ Assign with Fast Assign</button>`;}else{const displayId=spool.display_id??spool.id;const atHome=!spool.location_printer_id&&Number(spool.storage_location_id)===Number(location.id);node.innerHTML=`<div class="fd-position-menu-head"><b>S${esc(displayId)} · ${esc(slotName)}</b><span>${atHome?"Physically at home":`Away · ${esc(currentText(spool,locations))}`}</span></div><button type="button" data-pos-action="home" ${atHome?"disabled":""}>🏠 <span><b>Home</b><small>${atHome?"Already in this position":"Return this spool to its permanent home"}</small></span></button><button type="button" data-pos-action="away">↗ <span><b>Away</b><small>${atHome?"Choose where this spool is going":`Currently ${esc(currentText(spool,locations))}`}</small></span></button><button type="button" data-pos-action="details">● <span><b>Detailed View</b><small>Full spool details, weight confidence and filament moves</small></span></button>`;}document.body.append(node);const rect=anchor.getBoundingClientRect();const width=Math.min(330,window.innerWidth-24);node.style.width=`${width}px`;const left=Math.max(12,Math.min(rect.left+rect.width/2-width/2,window.innerWidth-width-12));const below=rect.bottom+8;const top=below+node.offsetHeight<=window.innerHeight-12?below:Math.max(12,rect.top-node.offsetHeight-8);node.style.left=`${left}px`;node.style.top=`${top}px`;menuState={anchor,data};node.onclick=async event=>{const button=event.target.closest("[data-pos-action]");if(!button||button.disabled)return;const action=button.dataset.posAction;try{if(action==="home")await markHome(spool,location);if(action==="away")openAwayAssignment(spool.id);if(action==="details")openDetails(spool.id);if(action==="assign"){closeMenu();document.querySelector('#fd-drawer-storage [data-storage-action="quick"]')?.click();}}catch(error){button.disabled=false;button.title=String(error.message||error);alert(`FlightDeck storage: ${error.message||error}`);}};}
+document.addEventListener("click",async event=>{const root=document.getElementById("fd-drawer-storage");const slot=event.target.closest("#fd-drawer-storage .fd-storage-slot");if(slot&&root?.contains(slot)){const fastAssignOpen=Boolean(root.querySelector(".fd-storage-quick:not([hidden])"));if(fastAssignOpen&&root.querySelector(".fd-storage-candidate.selected"))return;event.preventDefault();event.stopImmediatePropagation();try{renderMenu(slot,await positionData(Number(slot.dataset.locationId)));}catch(error){alert(`FlightDeck storage: ${error.message||error}`);}return;}if(menuState&&!event.target.closest("#fd-position-menu"))closeMenu();},true);
+window.addEventListener("hashchange",closeMenu);window.addEventListener("resize",closeMenu);window.addEventListener("scroll",closeMenu,true);
