@@ -5,6 +5,13 @@ Creates 162 permanent drawer slots:
   D1..D6, three rows per drawer, nine positions per row.
 Global spool positions run #1..#162.
 
+Existing FlightDeck spool numbers are the physical drawer-home numbers. If a
+spool has already been assigned into drawer storage, this migration normalises
+it back to its matching numbered position. Spools that are currently loaded in
+a printer, or visiting SUNLU, get their matching Home reserved without changing
+their Current location. Legacy-stored spools that have not been assigned yet are
+left alone for Fast Assign.
+
 Also creates SUNLU Dryer as a temporary location. A small SQLite trigger keeps a
 spool's home_storage_location_id unchanged while its current storage location is
 SUNLU Dryer, so moving it back with the existing FlightDeck move path returns it
@@ -30,6 +37,7 @@ from app.paths import DB_PATH
 DRAWERS = 6
 ROWS_PER_DRAWER = 3
 SLOTS_PER_ROW = 9
+TOTAL_SLOTS = DRAWERS * ROWS_PER_DRAWER * SLOTS_PER_ROW
 SUNLU_NAME = "SUNLU Dryer"
 SUNLU_NOTE = "[temporary] SUNLU filament dryer; current location only, never replaces spool home"
 
@@ -57,20 +65,90 @@ def ensure_location(conn: sqlite3.Connection, name: str, notes: str, sort_order:
     return int(cur.lastrowid)
 
 
+def column_names(conn: sqlite3.Connection, table: str) -> set[str]:
+    return {str(row[1]) for row in conn.execute(f"PRAGMA table_info({table})")}
+
+
+def normalise_numbered_homes(
+    conn: sqlite3.Connection,
+    slot_ids: dict[int, int],
+    drawer_location_ids: set[int],
+    sunlu_id: int,
+) -> tuple[int, int]:
+    """Repair numbered drawer homes without auto-placing untouched legacy spools.
+
+    Rules:
+      * An active spool whose numeric id is 1..162 owns the same numbered drawer home.
+      * If it is already in any drawer slot, correct both Current and Home to that
+        matching numbered slot. This fixes compressed assignments such as S5 at #4.
+      * If it is currently loaded in a printer or in SUNLU, reserve the matching
+        Home only and leave Current untouched.
+      * If it is still sitting in legacy storage and has never entered a drawer,
+        leave it for Fast Assign.
+    """
+    cols = column_names(conn, "spools")
+    if not {"id", "storage_location_id", "home_storage_location_id"}.issubset(cols):
+        return 0, 0
+
+    printer_col = "location_printer_id" if "location_printer_id" in cols else None
+    select_cols = ["id", "storage_location_id", "home_storage_location_id"]
+    if printer_col:
+        select_cols.append(printer_col)
+
+    rows = conn.execute(
+        f"SELECT {', '.join(select_cols)} FROM spools WHERE archived_at IS NULL"
+    ).fetchall()
+
+    repaired_drawer = 0
+    reserved_away = 0
+    for row in rows:
+        spool_id = int(row[0])
+        if spool_id < 1 or spool_id > TOTAL_SLOTS:
+            continue
+        target_id = slot_ids.get(spool_id)
+        if target_id is None:
+            continue
+
+        current_id = int(row[1]) if row[1] is not None else None
+        home_id = int(row[2]) if row[2] is not None else None
+        printer_id = row[3] if printer_col else None
+
+        if current_id in drawer_location_ids:
+            if current_id != target_id or home_id != target_id:
+                conn.execute(
+                    "UPDATE spools SET storage_location_id = ?, home_storage_location_id = ? WHERE id = ?",
+                    (target_id, target_id, spool_id),
+                )
+                repaired_drawer += 1
+            continue
+
+        is_away = bool(printer_id) or current_id == sunlu_id
+        if is_away and home_id != target_id:
+            conn.execute(
+                "UPDATE spools SET home_storage_location_id = ? WHERE id = ?",
+                (target_id, spool_id),
+            )
+            reserved_away += 1
+
+    return repaired_drawer, reserved_away
+
+
 def main() -> None:
     conn = sqlite3.connect(DB_PATH)
     try:
         conn.execute("PRAGMA foreign_keys = ON")
         created = 0
-        for number in range(1, DRAWERS * ROWS_PER_DRAWER * SLOTS_PER_ROW + 1):
+        slot_ids: dict[int, int] = {}
+        for number in range(1, TOTAL_SLOTS + 1):
             name = slot_name(number)
             existed = conn.execute("SELECT 1 FROM spool_locations WHERE name = ?", (name,)).fetchone()
-            ensure_location(
+            loc_id = ensure_location(
                 conn,
                 name,
                 f"Permanent spool home: {name}",
                 1000 + number,
             )
+            slot_ids[number] = loc_id
             if not existed:
                 created += 1
 
@@ -93,6 +171,13 @@ def main() -> None:
                  WHERE id = NEW.id;
             END
             """
+        )
+
+        repaired_drawer, reserved_away = normalise_numbered_homes(
+            conn,
+            slot_ids,
+            set(slot_ids.values()),
+            sunlu_id,
         )
 
         archived_legacy = []
@@ -121,9 +206,10 @@ def main() -> None:
                 archived_legacy.append(legacy)
 
         conn.commit()
-        total = DRAWERS * ROWS_PER_DRAWER * SLOTS_PER_ROW
-        print(f"Drawer storage ready: {total} permanent slots ({created} newly created).")
+        print(f"Drawer storage ready: {TOTAL_SLOTS} permanent slots ({created} newly created).")
         print(f"Temporary location ready: {SUNLU_NAME} (id {sunlu_id}).")
+        print(f"Numbered drawer assignments repaired: {repaired_drawer}.")
+        print(f"Away spool homes reserved by spool number: {reserved_away}.")
         if archived_legacy:
             print("Archived unused legacy locations: " + ", ".join(archived_legacy))
         if retained_legacy:
