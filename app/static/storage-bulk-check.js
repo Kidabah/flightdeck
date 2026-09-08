@@ -1,5 +1,6 @@
 const selected = new Set();
 let busy = false;
+let enhanceQueued = false;
 
 function candidateId(node) { return Number(node?.dataset?.spoolId); }
 
@@ -14,9 +15,10 @@ function syncCandidate(node) {
     node.prepend(mark);
   }
   const checked = selected.has(id);
-  mark.textContent = checked ? '✓' : '';
+  const wanted = checked ? '✓' : '';
+  if (mark.textContent !== wanted) mark.textContent = wanted;
   node.classList.toggle('fd-checkbox-selected', checked);
-  node.setAttribute('aria-pressed', checked ? 'true' : 'false');
+  if (node.getAttribute('aria-pressed') !== (checked ? 'true' : 'false')) node.setAttribute('aria-pressed', checked ? 'true' : 'false');
 }
 
 function eligibleCandidates(root) {
@@ -34,20 +36,30 @@ function syncToolbar(root) {
     title.after(tools);
   }
   const count = tools.querySelector('.fd-storage-check-count');
-  if (count) count.textContent = `${selected.size} selected`;
+  const wantedCount = `${selected.size} selected`;
+  if (count && count.textContent !== wantedCount) count.textContent = wantedCount;
   const assign = tools.querySelector('[data-check-action="assign"]');
   if (assign) assign.disabled = busy || selected.size === 0;
 }
 
 function enhance() {
+  enhanceQueued = false;
   const root = document.getElementById('fd-drawer-storage');
   if (!root) return;
   eligibleCandidates(root).forEach(syncCandidate);
   syncToolbar(root);
   const hint = root.querySelector('.fd-storage-quick-head span');
-  if (hint) hint.textContent = 'Tick any spools you physically have, skip any you do not, then choose Assign selected. Each numbered spool goes straight to its matching numbered drawer home.';
+  const hintText = 'Tick any spools you physically have, skip any you do not, then choose Assign selected. Each numbered spool goes straight to its matching numbered drawer home.';
+  if (hint && hint.textContent !== hintText) hint.textContent = hintText;
   const emptyHint = root.querySelector('.fd-storage-selected:not(.has-selection) span');
-  if (emptyHint) emptyHint.textContent = 'Use the check marks in the list. You can skip any spool that is not in your hand.';
+  const emptyText = 'Use the check marks in the list. You can skip any spool that is not in your hand.';
+  if (emptyHint && emptyHint.textContent !== emptyText) emptyHint.textContent = emptyText;
+}
+
+function scheduleEnhance() {
+  if (enhanceQueued) return;
+  enhanceQueued = true;
+  requestAnimationFrame(enhance);
 }
 
 async function apiJson(url, options = {}) {
@@ -70,11 +82,7 @@ async function assignChecked(root) {
       const match = /^D[1-6] R[1-3] #(\d{1,3})$/.exec(String(loc?.name || '').trim());
       if (match) byNumber.set(Number(match[1]), loc);
     }
-    const ids = [...selected].sort((a, b) => {
-      const av = Number(byId.get(a)?.display_id ?? a);
-      const bv = Number(byId.get(b)?.display_id ?? b);
-      return av - bv;
-    });
+    const ids = [...selected].sort((a, b) => Number(byId.get(a)?.display_id ?? a) - Number(byId.get(b)?.display_id ?? b));
     const completed = [];
     for (const id of ids) {
       const spool = byId.get(id);
@@ -123,10 +131,14 @@ document.addEventListener('click', event => {
   syncToolbar(root);
 }, true);
 
-const observer = new MutationObserver(() => queueMicrotask(enhance));
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => { observer.observe(document.body, { childList: true, subtree: true }); enhance(); }, { once: true });
-} else {
+const observer = new MutationObserver(records => {
+  if (!records.some(record => [...record.addedNodes].some(node => node.nodeType === 1 && (node.id === 'fd-drawer-storage' || node.querySelector?.('#fd-drawer-storage, .fd-storage-candidate'))))) return;
+  scheduleEnhance();
+});
+
+function boot() {
   observer.observe(document.body, { childList: true, subtree: true });
-  enhance();
+  scheduleEnhance();
 }
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
+else boot();
