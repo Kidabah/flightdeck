@@ -40,6 +40,12 @@ function syncToolbar(root) {
   if (count && count.textContent !== wantedCount) count.textContent = wantedCount;
   const assign = tools.querySelector('[data-check-action="assign"]');
   if (assign) assign.disabled = busy || selected.size === 0;
+  const done = root.querySelector('[data-storage-action="close-quick"]');
+  if (done) {
+    done.disabled = busy;
+    done.textContent = selected.size ? `Done · Assign ${selected.size}` : 'Done';
+    done.title = selected.size ? `Assign ${selected.size} checked spool${selected.size === 1 ? '' : 's'} to their numbered drawer homes and finish` : 'Close Fast Assign';
+  }
 }
 
 function enhance() {
@@ -49,7 +55,7 @@ function enhance() {
   eligibleCandidates(root).forEach(syncCandidate);
   syncToolbar(root);
   const hint = root.querySelector('.fd-storage-quick-head span');
-  const hintText = 'Tick any spools you physically have, skip any you do not, then choose Assign selected. Each numbered spool goes straight to its matching numbered drawer home.';
+  const hintText = 'Tick any spools you physically have and skip any you do not. Done saves every checked spool straight to its matching numbered drawer home.';
   if (hint && hint.textContent !== hintText) hint.textContent = hintText;
   const emptyHint = root.querySelector('.fd-storage-selected:not(.has-selection) span');
   const emptyText = 'Use the check marks in the list. You can skip any spool that is not in your hand.';
@@ -109,6 +115,15 @@ async function assignChecked(root) {
 document.addEventListener('click', event => {
   const root = document.getElementById('fd-drawer-storage');
   if (!root) return;
+
+  const done = event.target.closest('[data-storage-action="close-quick"]');
+  if (done && root.contains(done) && selected.size) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    assignChecked(root);
+    return;
+  }
+
   const action = event.target.closest('[data-check-action]');
   if (action && root.contains(action)) {
     event.preventDefault();
