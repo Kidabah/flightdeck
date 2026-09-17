@@ -330,12 +330,12 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
     <a class="logo" href="index.html" title="MakerDeck home">Maker<span>Deck</span> · STL Painter</a>
     <nav class="tool-nav" aria-label="MakerDeck tools">
       <a href="index.html">Container</a>
-      <a href="painter.html?v=628" class="active" aria-current="page">STL Painter</a>
+      <a href="painter.html?v=629" class="active" aria-current="page">STL Painter</a>
       <a href="paper3d.html">Paper3D</a>
       <a href="meshprep.html">Mesh Prep</a>
       <a href="chop.html">Chop</a>
     </nav>
-    <div class="build">b628</div>
+    <div class="build">b629</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -350,10 +350,10 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
 
       <!-- TAB: Model -->
       <div class="tab-page active" id="tabModel">
-        <div class="section-label">Load STL</div>
+        <div class="section-label">Load model</div>
         <div class="drop-zone" id="dropZone">
-          Drop STL or 3MF here<br><span style="font-size:11px;color:var(--muted)">or click to browse</span>
-          <input type="file" id="fileInput" accept=".stl,.3mf">
+          Drop STL, OBJ, or 3MF here<br><span style="font-size:11px;color:var(--muted)">or click to browse</span>
+          <input type="file" id="fileInput" accept=".stl,.obj,.3mf,model/obj,text/plain">
         </div>
 
         <div class="section-label">Orientation</div>
@@ -653,8 +653,8 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
 
         <div class="section-label" style="margin-top:20px">Batch Process</div>
         <div class="batch-zone" id="batchZone">
-          Drop a folder of STLs
-          <input type="file" id="batchInput" accept=".stl,.3mf" multiple webkitdirectory>
+          Drop a folder of STLs / OBJs
+          <input type="file" id="batchInput" accept=".stl,.obj,.3mf" multiple webkitdirectory>
         </div>
         <div class="batch-list" id="batchList"></div>
         <button class="btn" id="batchBtn" disabled style="margin-top:6px;width:100%">Process All</button>
@@ -705,9 +705,9 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
   <footer class="footer">
     <div class="footer-status">
       <span class="status-dot idle" id="statusDot"></span>
-      <span id="statusText">Ready — load an STL to begin</span>
+      <span id="statusText">Ready — load an STL or OBJ to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b628</span>
+    <span>MakerDeck · STL Painter b629</span>
   </footer>
 </div>
 
@@ -728,12 +728,12 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import {
-  parseSTLBinary, deduplicateVertices, detectFeatures, cleanClusters,
+  parseSTLBinary, parseOBJ, deduplicateVertices, detectFeatures, cleanClusters,
   buildFaceAdj, findPaintBoundary, brushDabFaces, smartFillFaces,
   paintClassOf, upgradePaintResolution, export3MF,
   findMeshIslands, buildIslandMap, floodFillSameClass, floodFillSameSlot, selectIsland,
   import3MF, buildSymmetryMap, masksToFacePaint, facePaintToMasks, MAX_PAINT_SLOTS
-} from './js/painter.js?v=628';
+} from './js/painter.js?v=629';
 import {
   rasterizeSvgText, rasterizeImageFile, makeStampFrame, mirrorStampFrameX,
   nearestSlot, parseHexColor, extractSvgFillHexes, extractRasterPalette, stampSizeMm, buildStampSlabs,
@@ -3412,17 +3412,15 @@ function runResolutionUpgrade(levels) {
 }
 
 /* ================================================================== */
-/*  LOAD STL                                                          */
+/*  LOAD MESH (STL / OBJ)                                             */
 /* ================================================================== */
 
-async function loadSTL(file) {
+async function applyLoadedSoup(file, vertices, normals, nTri, stemExt) {
   setStatus(`Loading ${file.name}…`, 'working');
   clearSceneModel();
   resetInteraction();
-  S.fileName = file.name.replace(/\.stl$/i, '');
+  S.fileName = file.name.replace(stemExt, '');
 
-  const buf = await file.arrayBuffer();
-  const { vertices, normals, nTri } = parseSTLBinary(buf);
   S.rawVertices = vertices; S.rawNormals = normals; S.nTri = nTri;
 
   const { verts, faces, nVerts } = deduplicateVertices(vertices, nTri);
@@ -3457,6 +3455,18 @@ async function loadSTL(file) {
   setStatus(`Loaded ${file.name} — ${nTri.toLocaleString()} faces${orientation.thin ? ', laid flat' : ''}`, 'idle');
 }
 
+async function loadSTL(file) {
+  const buf = await file.arrayBuffer();
+  const { vertices, normals, nTri } = parseSTLBinary(buf);
+  await applyLoadedSoup(file, vertices, normals, nTri, /\.stl$/i);
+}
+
+async function loadOBJFile(file) {
+  const text = await file.text();
+  const { vertices, normals, nTri } = parseOBJ(text);
+  await applyLoadedSoup(file, vertices, normals, nTri, /\.obj$/i);
+}
+
 /* ================================================================== */
 /*  LOAD FILE (dispatcher)                                            */
 /* ================================================================== */
@@ -3464,7 +3474,15 @@ async function loadSTL(file) {
 function loadFile(file) {
   const name = file.name.toLowerCase();
   if (name.endsWith('.3mf')) load3MF(file);
-  else loadSTL(file);
+  else if (name.endsWith('.obj')) loadOBJFile(file).catch(err => {
+    console.error(err);
+    setStatus(err?.message || 'OBJ load failed', 'error');
+  });
+  else if (name.endsWith('.stl')) loadSTL(file).catch(err => {
+    console.error(err);
+    setStatus(err?.message || 'STL load failed', 'error');
+  });
+  else setStatus('Unsupported file — drop an STL, OBJ, or 3MF', 'error');
 }
 
 /* ================================================================== */
@@ -4515,7 +4533,10 @@ exportBtn.addEventListener('click', async () => {
 let batchFiles = [];
 batchZone.addEventListener('click', () => batchInput.click());
 batchInput.addEventListener('change', () => {
-  batchFiles = Array.from(batchInput.files).filter(f => f.name.toLowerCase().endsWith('.stl'));
+  batchFiles = Array.from(batchInput.files).filter(f => {
+    const n = f.name.toLowerCase();
+    return n.endsWith('.stl') || n.endsWith('.obj');
+  });
   batchListEl.innerHTML = '';
   for (const f of batchFiles) {
     const div = document.createElement('div'); div.className = 'batch-item';
@@ -4542,8 +4563,10 @@ batchBtn.addEventListener('click', async () => {
     setStatus(`Processing ${fi+1}/${batchFiles.length}: ${file.name}`, 'working');
     await new Promise(r => setTimeout(r, 10));
     try {
-      const buffer = await file.arrayBuffer();
-      const parsed = parseSTLBinary(buffer);
+      const lower = file.name.toLowerCase();
+      const parsed = lower.endsWith('.obj')
+        ? parseOBJ(await file.text())
+        : parseSTLBinary(await file.arrayBuffer());
       const deduped = deduplicateVertices(parsed.vertices, parsed.nTri);
       orientSTLZUpAndSeat(deduped.verts, deduped.nVerts);
       const result = detectFeatures(deduped.verts, deduped.faces, deduped.nVerts, parsed.nTri, opts);
@@ -4560,11 +4583,11 @@ batchBtn.addEventListener('click', async () => {
           filamentType: Array(colors.length).fill(filType),
           filamentProfile: profile,
           printerModel: $('printerModel')?.value || 'Bambu Lab X1 Carbon',
-          projectName: file.name.replace(/\.stl$/i, ''),
+          projectName: file.name.replace(/\.(stl|obj)$/i, ''),
         });
       const blob = new Blob([zip],{type:'application/vnd.ms-package.3dmanufacturing-3dmodel+xml'});
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-      a.download = file.name.replace(/\.stl$/i, '_painted.3mf'); document.body.appendChild(a); a.click();
+      a.download = file.name.replace(/\.(stl|obj)$/i, '_painted.3mf'); document.body.appendChild(a); a.click();
       document.body.removeChild(a); URL.revokeObjectURL(a.href);
       const el = document.getElementById(elId);
       if (el) { el.querySelector('.status').className = 'status done'; el.querySelector('.status').textContent = 'done'; }

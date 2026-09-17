@@ -1,3 +1,11 @@
+## 2026-09-17 Session update (Painter OBJ drop-in)
+
+Latest commit: pending — Painter **b629**. Drop/browse now accepts **`.obj`** alongside STL/3MF (batch folder too). Quads/ngons fan-triangulate; same seat-on-bed orientation as STL.
+
+Hard refresh Painter **b629** (`painter.html?v=629`; `painter.js?v=629`; Flightdeck shell `app.js?v=737`). Drop an OBJ and paint.
+
+---
+
 ## 2026-09-01 — PrintShelf mount readiness fix
 
 - PrintShelf watched folders could remain configured while the Library showed `0 designs / 0 files`. The scanner guarded `/mnt` and `/media` roots with `os.path.ismount()` only; Linux bind mounts can legitimately return false there because the bind target may share the same device as its parent.

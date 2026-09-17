@@ -4136,7 +4136,7 @@ function _ensureMeshPrepFrame() {
 function _ensurePainterFrame() {
   const frame = document.getElementById('painter-frame');
   if (!frame || frame.dataset.loaded === '1') return;
-  frame.src = '/makerdeck/painter.html?v=626';
+  frame.src = '/makerdeck/painter.html?v=629';
   frame.dataset.loaded = '1';
 }
 

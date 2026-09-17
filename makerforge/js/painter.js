@@ -27,6 +27,67 @@ export function parseSTLBinary(buffer) {
   return { vertices, normals, nTri };
 }
 
+/**
+ * Wavefront OBJ → same flat soup as parseSTLBinary ({vertices, normals, nTri}).
+ * Triangles + fan-triangulated quads/ngons. Ignores materials / groups / curves.
+ */
+export function parseOBJ(text) {
+  const positions = [];
+  const faceVerts = [];
+  const lines = String(text).split(/\r?\n/);
+  for (let li = 0; li < lines.length; li++) {
+    const line = lines[li].trim();
+    if (!line || line[0] === '#') continue;
+    if (line.startsWith('v ')) {
+      const p = line.slice(2).trim().split(/\s+/);
+      if (p.length < 3) continue;
+      positions.push(parseFloat(p[0]), parseFloat(p[1]), parseFloat(p[2]));
+      continue;
+    }
+    if (line.startsWith('f ')) {
+      const parts = line.slice(2).trim().split(/\s+/);
+      if (parts.length < 3) continue;
+      const idxs = [];
+      for (const part of parts) {
+        const tok = part.split('/')[0];
+        let vi = parseInt(tok, 10);
+        if (!Number.isFinite(vi) || vi === 0) continue;
+        if (vi < 0) vi = positions.length / 3 + vi + 1;
+        idxs.push(vi);
+      }
+      if (idxs.length < 3) continue;
+      for (let i = 1; i < idxs.length - 1; i++) {
+        for (const vi of [idxs[0], idxs[i], idxs[i + 1]]) {
+          const o = (vi - 1) * 3;
+          if (o < 0 || o + 2 >= positions.length) {
+            throw new Error(`OBJ face references missing vertex ${vi}`);
+          }
+          faceVerts.push(positions[o], positions[o + 1], positions[o + 2]);
+        }
+      }
+    }
+  }
+  const nTri = Math.floor(faceVerts.length / 9);
+  if (!nTri) throw new Error('No triangles found in OBJ file');
+  const vertices = new Float32Array(nTri * 9);
+  const normals = new Float32Array(nTri * 3);
+  for (let i = 0; i < nTri; i++) {
+    const b = i * 9;
+    for (let k = 0; k < 9; k++) vertices[b + k] = faceVerts[b + k];
+    const ax = vertices[b], ay = vertices[b + 1], az = vertices[b + 2];
+    const bx = vertices[b + 3], by = vertices[b + 4], bz = vertices[b + 5];
+    const cx = vertices[b + 6], cy = vertices[b + 7], cz = vertices[b + 8];
+    let nx = (by - ay) * (cz - az) - (bz - az) * (cy - ay);
+    let ny = (bz - az) * (cx - ax) - (bx - ax) * (cz - az);
+    let nz = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+    const len = Math.hypot(nx, ny, nz) || 1;
+    normals[i * 3] = nx / len;
+    normals[i * 3 + 1] = ny / len;
+    normals[i * 3 + 2] = nz / len;
+  }
+  return { vertices, normals, nTri };
+}
+
 /* ------------------------------------------------------------------ */
 /*  Vertex Deduplication                                              */
 /* ------------------------------------------------------------------ */

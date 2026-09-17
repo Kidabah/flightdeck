@@ -2,6 +2,21 @@
 
 # MakerDeck SESSION_NEXT (active)
 
+## 2026-09-17 — Painter b629 OBJ load
+
+### What
+- STL Painter drop zone / browse / batch now accepts **`.obj`** (with STL + 3MF).
+- `parseOBJ()` in `js/painter.js` builds the same flat triangle soup as binary STL (fan-triangulates quads/ngons, computes face normals).
+- Smoke: `node makerforge/test/painter-obj.mjs`.
+
+### Cache-bust
+- Hard refresh **b629** — `painter.html?v=629`, `painter.js?v=629`, Flightdeck shell `app.js?v=737`, MakerDeck index Painter link `painter.html?v=629`.
+
+### Next
+- Drop an OBJ → paint → export 3MF as usual. Weird Blender unit scales may still need Flip/Spin after load.
+
+---
+
 ## b628 — Deboss cutter manifold fix
 **Date:** 2026-09-01
 
