@@ -1,6 +1,6 @@
 ## 2026-09-17 Session update (Painter OBJ drop-in)
 
-Latest commit: pending — Painter **b629**. Drop/browse now accepts **`.obj`** alongside STL/3MF (batch folder too). Quads/ngons fan-triangulate; same seat-on-bed orientation as STL.
+Latest commit: `ef0e7cb` — Painter **b629**. Drop/browse now accepts **`.obj`** alongside STL/3MF (batch folder too). Quads/ngons fan-triangulate; same seat-on-bed orientation as STL.
 
 Hard refresh Painter **b629** (`painter.html?v=629`; `painter.js?v=629`; Flightdeck shell `app.js?v=737`). Drop an OBJ and paint.
 
