@@ -1,3 +1,11 @@
+## 2026-09-18 Session update (Jarvis HUD polish)
+
+Latest commit: pending — Jarvis viewer now has Flightdeck-flavoured command chrome: cyan HUD ring, speaking/model chips, RING/CUBE/FACE views, EYES organ (WATCH/HOLO/FOCUS stubs), denser starfield, search bar, and more workshop notes for a fuller galaxy.
+
+Hard refresh `http://100.106.112.104:4700` (Ctrl+F5). `systemctl --user restart jarvis` after pull.
+
+---
+
 ## 2026-09-18 Session update (Jarvis workshop on Flightdeck Pi)
 
 Latest commit: `4d7953e` — **Jarvis** lives at `jarvis/` (runtime on Pi via user systemd). Dedicated 16GB Pi deferred until a spare PSU exists; current 8GB Flightdeck Pi has ~5.8 Gi available and runs Jarvis fine on **:4700**.

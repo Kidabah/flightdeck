@@ -3,68 +3,181 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Jarvis — Workshop Galaxy</title>
+  <title>Jarvis — Flightdeck Command</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --bg: #030712;
-      --panel: rgba(15, 23, 42, 0.92);
+      --bg: #020617;
+      --panel: rgba(2, 12, 28, 0.82);
       --ink: #e2e8f0;
-      --muted: #94a3b8;
-      --accent: #38bdf8;
+      --muted: #7dd3fc99;
+      --accent: #22d3ee;
+      --accent-dim: #0891b2;
       --warn: #fbbf24;
+      --ok: #4ade80;
+      --line: rgba(34, 211, 238, 0.28);
+      --glow: 0 0 24px rgba(34, 211, 238, 0.35);
     }
     * { box-sizing: border-box; }
-    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; }
+    html, body {
+      margin: 0; height: 100%; overflow: hidden; color: var(--ink);
+      background:
+        radial-gradient(1200px 700px at 70% 20%, rgba(8, 47, 73, 0.55), transparent 60%),
+        radial-gradient(900px 500px at 15% 80%, rgba(14, 116, 144, 0.2), transparent 55%),
+        var(--bg);
+      font-family: "IBM Plex Sans", system-ui, sans-serif;
+    }
     #graph { position: absolute; inset: 0; }
-    #stars { position: absolute; inset: 0; pointer-events: none; opacity: 0.55; }
+    #stars { position: absolute; inset: 0; pointer-events: none; opacity: 0.7; }
+    #vignette {
+      position: absolute; inset: 0; pointer-events: none; z-index: 2;
+      background: radial-gradient(ellipse at center, transparent 45%, rgba(2, 6, 23, 0.75) 100%);
+    }
+
+    #topbar {
+      position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+      z-index: 8; width: min(420px, calc(100vw - 360px));
+    }
+    #search {
+      width: 100%; border-radius: 999px; border: 1px solid var(--line);
+      background: rgba(2, 12, 28, 0.75); color: var(--ink);
+      padding: 10px 18px; font: inherit; outline: none;
+      box-shadow: var(--glow); backdrop-filter: blur(12px);
+    }
+    #search::placeholder { color: #67e8f87a; }
+    #search:focus { border-color: var(--accent); }
+
+    #brand {
+      position: absolute; top: 18px; left: 18px; z-index: 8;
+      padding: 10px 14px; border-radius: 14px;
+      background: var(--panel); border: 1px solid var(--line);
+      backdrop-filter: blur(12px); box-shadow: var(--glow);
+    }
+    #brand strong {
+      display: block; font-family: Orbitron, sans-serif; letter-spacing: 0.18em;
+      font-size: 0.72rem; color: var(--accent);
+    }
+    #brand span { font-size: 0.82rem; color: #94a3b8; }
+
+    #share-dot {
+      display: none; position: absolute; top: 18px; left: 180px; z-index: 8;
+      background: rgba(127, 29, 29, 0.9); color: #fecaca; border: 1px solid #ef4444;
+      border-radius: 999px; padding: 8px 12px; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em;
+    }
+
+    #hud {
+      position: absolute; top: 18px; right: 18px; width: 280px; z-index: 8;
+      display: grid; gap: 12px; justify-items: center;
+    }
+    .ring-wrap {
+      position: relative; width: 220px; height: 220px;
+      filter: drop-shadow(0 0 18px rgba(34, 211, 238, 0.45));
+    }
+    .ring-wrap svg { width: 100%; height: 100%; }
+    .ring-core {
+      position: absolute; inset: 38px; border-radius: 50%;
+      background: radial-gradient(circle at 40% 35%, rgba(34, 211, 238, 0.18), rgba(2, 6, 23, 0.95) 70%);
+      border: 1px solid rgba(34, 211, 238, 0.45);
+      display: grid; place-items: center; text-align: center;
+    }
+    .ring-core b {
+      font-family: Orbitron, sans-serif; letter-spacing: 0.22em; font-size: 0.95rem; color: var(--accent);
+      text-shadow: 0 0 12px rgba(34, 211, 238, 0.8);
+    }
+    .ring-core small { display: block; margin-top: 6px; color: #94a3b8; font-size: 0.68rem; letter-spacing: 0.08em; }
+    .ring-wrap[data-mode="speaking"] .ring-core {
+      box-shadow: inset 0 0 30px rgba(34, 211, 238, 0.25), 0 0 28px rgba(34, 211, 238, 0.35);
+      animation: pulse 1.4s ease-in-out infinite;
+    }
+    .ring-wrap[data-mode="listening"] .ring-core {
+      box-shadow: inset 0 0 30px rgba(74, 222, 128, 0.2), 0 0 24px rgba(74, 222, 128, 0.25);
+    }
+    .ring-wrap[data-mode="thinking"] .ring-core {
+      box-shadow: inset 0 0 30px rgba(251, 191, 36, 0.18), 0 0 24px rgba(251, 191, 36, 0.2);
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.03); }
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spin-slow { transform-origin: 110px 110px; animation: spin 18s linear infinite; }
+    .spin-rev { transform-origin: 110px 110px; animation: spin 28s linear infinite reverse; }
+
+    .chips { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; width: 100%; }
+    .chip {
+      border-radius: 999px; border: 1px solid var(--line); background: rgba(2, 12, 28, 0.85);
+      color: var(--accent); padding: 7px 12px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em;
+    }
+    .chip.live { border-color: var(--accent); box-shadow: var(--glow); background: rgba(8, 145, 178, 0.25); }
+    .chip.model { color: #e0f2fe; }
+
+    .modes, .organs {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; width: 100%;
+    }
+    .organs { grid-template-columns: repeat(2, 1fr); }
+    .modes button, .organs button {
+      border: 1px solid var(--line); background: rgba(2, 12, 28, 0.75); color: #94a3b8;
+      border-radius: 10px; padding: 8px 6px; font: inherit; font-size: 0.68rem; font-weight: 700;
+      letter-spacing: 0.08em; cursor: pointer;
+    }
+    .modes button.active, .organs button.active {
+      color: var(--accent); border-color: var(--accent); box-shadow: var(--glow);
+      background: rgba(8, 145, 178, 0.2);
+    }
+    .organs button:disabled { opacity: 0.45; cursor: default; }
+
     #side {
-      position: absolute; top: 16px; right: 16px; width: min(360px, calc(100vw - 32px));
-      background: var(--panel); border: 1px solid #1e293b; border-radius: 14px;
-      padding: 14px 16px; backdrop-filter: blur(10px); display: none; max-height: 55vh; overflow: auto;
-      z-index: 5;
+      position: absolute; top: 270px; right: 18px; width: 280px; z-index: 7;
+      background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+      padding: 12px 14px; backdrop-filter: blur(12px); display: none; max-height: 28vh; overflow: auto;
+      box-shadow: var(--glow);
     }
-    #side h2 { margin: 0 0 6px; font-size: 1.05rem; }
-    #side .group { color: var(--accent); font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; }
-    #side p { margin: 10px 0 0; color: var(--muted); font-size: 0.9rem; line-height: 1.45; white-space: pre-wrap; }
+    #side h2 { margin: 0 0 6px; font-size: 0.98rem; font-family: Orbitron, sans-serif; letter-spacing: 0.04em; }
+    #side .group { color: var(--accent); font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; }
+    #side p { margin: 8px 0 0; color: #94a3b8; font-size: 0.84rem; line-height: 1.4; white-space: pre-wrap; }
+
     #dock {
-      position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%);
-      width: min(720px, calc(100vw - 24px)); z-index: 6;
-      display: grid; gap: 8px;
+      position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%);
+      width: min(760px, calc(100vw - 40px)); z-index: 8; display: grid; gap: 10px;
     }
-    #status {
-      text-align: center; font-size: 0.78rem; color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase;
-      min-height: 1.2em;
+    #answer {
+      background: rgba(2, 12, 28, 0.88); border: 1px solid var(--line); border-radius: 16px;
+      padding: 12px 16px; min-height: 2.8em; color: var(--ink); font-size: 0.95rem; line-height: 1.45;
+      box-shadow: var(--glow); backdrop-filter: blur(12px);
     }
-    #status[data-mode="listening"] { color: #4ade80; }
-    #status[data-mode="thinking"] { color: var(--warn); }
-    #status[data-mode="speaking"] { color: var(--accent); }
     .row { display: flex; gap: 8px; align-items: stretch; }
     #chat-input {
-      flex: 1; border-radius: 12px; border: 1px solid #334155; background: #0b1220; color: var(--ink);
-      padding: 12px 14px; font: inherit; outline: none;
+      flex: 1; border-radius: 14px; border: 1px solid var(--line); background: rgba(2, 12, 28, 0.9);
+      color: var(--ink); padding: 12px 14px; font: inherit; outline: none;
     }
-    #chat-input:focus { border-color: var(--accent); }
+    #chat-input:focus { border-color: var(--accent); box-shadow: var(--glow); }
     button.tool {
-      border: 1px solid #334155; background: #111827; color: var(--ink); border-radius: 12px;
-      padding: 0 14px; font: inherit; font-weight: 700; cursor: pointer; white-space: nowrap;
+      border: 1px solid var(--line); background: rgba(2, 12, 28, 0.9); color: var(--ink);
+      border-radius: 14px; padding: 0 14px; font: inherit; font-size: 0.75rem; font-weight: 800;
+      letter-spacing: 0.06em; cursor: pointer; white-space: nowrap;
     }
-    button.tool:hover { border-color: var(--accent); }
-    button.tool.active { background: #14532d; border-color: #22c55e; }
-    #answer {
-      background: var(--panel); border: 1px solid #1e293b; border-radius: 12px; padding: 10px 12px;
-      min-height: 2.6em; color: var(--ink); font-size: 0.95rem; line-height: 1.4;
+    button.tool:hover { border-color: var(--accent); color: var(--accent); }
+    button.tool.active { background: rgba(8, 145, 178, 0.28); border-color: var(--accent); color: var(--accent); box-shadow: var(--glow); }
+
+    #tray {
+      display: flex; justify-content: center; gap: 10px; margin-top: 2px;
     }
-    #brand {
-      position: absolute; top: 16px; left: 16px; z-index: 5;
-      background: var(--panel); border: 1px solid #1e293b; border-radius: 12px; padding: 10px 14px;
+    #tray button {
+      width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--line);
+      background: rgba(2, 12, 28, 0.85); color: var(--accent); cursor: pointer;
+      box-shadow: var(--glow); font-size: 0.95rem;
     }
-    #brand strong { display: block; letter-spacing: 0.08em; font-size: 0.72rem; color: var(--accent); }
-    #brand span { font-size: 0.85rem; color: var(--muted); }
-    #share-dot {
-      display: none; position: absolute; top: 16px; left: 50%; transform: translateX(-50%); z-index: 7;
-      background: #7f1d1d; color: #fecaca; border: 1px solid #ef4444; border-radius: 999px;
-      padding: 6px 12px; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.05em;
+    #tray button:hover { border-color: var(--accent); }
+
+    #status-line {
+      text-align: center; font-size: 0.7rem; letter-spacing: 0.14em; text-transform: uppercase;
+      color: #64748b; min-height: 1em;
     }
+    #status-line[data-mode="listening"] { color: var(--ok); }
+    #status-line[data-mode="thinking"] { color: var(--warn); }
+    #status-line[data-mode="speaking"] { color: var(--accent); }
   </style>
   <script src="//unpkg.com/3d-force-graph"></script>
   <script src="/graph-data.js"></script>
@@ -72,42 +185,113 @@
 <body>
   <canvas id="stars"></canvas>
   <div id="graph"></div>
-  <div id="brand"><strong>JARVIS</strong><span id="brand-sub">booting…</span></div>
+  <div id="vignette"></div>
+
+  <div id="brand"><strong>FLIGHTDECK · JARVIS</strong><span id="brand-sub">booting…</span></div>
   <div id="share-dot">SCREEN SHARE LIVE</div>
+  <div id="topbar"><input id="search" type="search" placeholder="Search notes / printers…" autocomplete="off" /></div>
+
+  <aside id="hud">
+    <div class="ring-wrap" id="ring-wrap" data-mode="idle">
+      <svg viewBox="0 0 220 220" aria-hidden="true">
+        <circle cx="110" cy="110" r="104" fill="none" stroke="rgba(34,211,238,0.15)" stroke-width="2" />
+        <g class="spin-slow">
+          <circle cx="110" cy="110" r="96" fill="none" stroke="rgba(34,211,238,0.55)" stroke-width="2"
+            stroke-dasharray="8 10 3 14 18 10" />
+        </g>
+        <g class="spin-rev">
+          <circle cx="110" cy="110" r="84" fill="none" stroke="rgba(125,211,252,0.35)" stroke-width="1.5"
+            stroke-dasharray="2 8 20 6" />
+        </g>
+        <circle cx="110" cy="110" r="72" fill="none" stroke="rgba(34,211,238,0.25)" stroke-width="1" />
+      </svg>
+      <div class="ring-core">
+        <div>
+          <b>J.A.R.V.I.S.</b>
+          <small id="ring-state">STANDBY</small>
+        </div>
+      </div>
+    </div>
+    <div class="chips">
+      <span class="chip" id="speak-chip">● IDLE</span>
+      <span class="chip model" id="model-chip">MODEL</span>
+    </div>
+    <div class="modes" role="tablist" aria-label="Galaxy view">
+      <button type="button" class="active" data-view="ring">RING</button>
+      <button type="button" data-view="cube">CUBE</button>
+      <button type="button" data-view="face">FACE</button>
+    </div>
+    <div class="organs" aria-label="Organs">
+      <button type="button" id="eyes-btn">EYES</button>
+      <button type="button" id="watch-btn" disabled title="Coming soon">WATCH</button>
+      <button type="button" id="holo-btn" disabled title="Coming soon">HOLO</button>
+      <button type="button" id="focus-btn" disabled title="Coming soon">FOCUS</button>
+    </div>
+  </aside>
+
   <aside id="side"><div class="group" id="side-group"></div><h2 id="side-title"></h2><p id="side-body"></p></aside>
+
   <div id="dock">
-    <div id="status" data-mode="idle">Ready</div>
+    <div id="status-line" data-mode="idle">Ready</div>
     <div id="answer">Ask about your notes, or say “run a calibration on BigBoy”.</div>
     <div class="row">
-      <input id="chat-input" type="text" placeholder="Speak or type…" autocomplete="off" />
+      <input id="chat-input" type="text" placeholder="Speak or type, sir…" autocomplete="off" />
       <button class="tool" id="mic-btn" type="button" title="Microphone">MIC</button>
-      <button class="tool" id="share-btn" type="button" title="Share screen for sight">EYES</button>
       <button class="tool" id="send-btn" type="button">ASK</button>
     </div>
+    <div id="tray">
+      <button type="button" id="tray-mic" title="Mic">🎙</button>
+      <button type="button" id="tray-eyes" title="Eyes / screen">👁</button>
+      <button type="button" id="tray-refresh" title="Refresh graph">↻</button>
+      <button type="button" id="tray-mute" title="Toggle mute URL">🔇</button>
+    </div>
   </div>
+
 <script>
 const FINISH_MS = 900;
 const MUTE = new URLSearchParams(location.search).has('mute');
 
-const statusEl = document.getElementById('status');
+const statusEl = document.getElementById('status-line');
 const answerEl = document.getElementById('answer');
 const inputEl = document.getElementById('chat-input');
 const micBtn = document.getElementById('mic-btn');
-const shareBtn = document.getElementById('share-btn');
 const sendBtn = document.getElementById('send-btn');
+const eyesBtn = document.getElementById('eyes-btn');
 const side = document.getElementById('side');
 const shareDot = document.getElementById('share-dot');
 const brandSub = document.getElementById('brand-sub');
+const ringWrap = document.getElementById('ring-wrap');
+const ringState = document.getElementById('ring-state');
+const speakChip = document.getElementById('speak-chip');
+const modelChip = document.getElementById('model-chip');
+const searchEl = document.getElementById('search');
 
 let graph = null;
 let speaking = false;
 let shareStream = null;
 let shareVideo = null;
 let unlockedAudio = false;
+let viewMode = 'ring';
 
 function setStatus(mode, text) {
   statusEl.dataset.mode = mode;
   statusEl.textContent = text;
+  ringWrap.dataset.mode = mode;
+  const labels = { idle: 'STANDBY', listening: 'LISTENING', thinking: 'THINKING', speaking: 'SPEAKING' };
+  ringState.textContent = labels[mode] || 'STANDBY';
+  if (mode === 'speaking') {
+    speakChip.textContent = '● SPEAKING';
+    speakChip.classList.add('live');
+  } else if (mode === 'listening') {
+    speakChip.textContent = '● LISTENING';
+    speakChip.classList.add('live');
+  } else if (mode === 'thinking') {
+    speakChip.textContent = '● THINKING';
+    speakChip.classList.add('live');
+  } else {
+    speakChip.textContent = '● IDLE';
+    speakChip.classList.remove('live');
+  }
 }
 
 function speak(text) {
@@ -139,26 +323,22 @@ function openNode(node) {
 function highlightNodes(ids) {
   const set = new Set(ids || []);
   graph.nodeColor(n => set.has(n.id) ? '#fbbf24' : colorForGroup(n.group));
-  graph.nodeVal(n => set.has(n.id) ? 8 : 3);
+  graph.nodeVal(n => set.has(n.id) ? 10 : (viewMode === 'face' ? 5 : 3.6));
 }
 
 function colorForGroup(group) {
   const key = String(group || 'notes');
   let h = 0;
   for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) % 360;
-  return `hsl(${h} 70% 60%)`;
+  return `hsl(${h} 80% 62%)`;
 }
 
 function flyToNode(id) {
   const node = (GRAPH.nodes || []).find(n => n.id === id);
   if (!node || node.x == null) return;
   openNode(node);
-  const dist = 90;
-  graph.cameraPosition(
-    { x: node.x, y: node.y, z: node.z + dist },
-    node,
-    1200
-  );
+  const dist = viewMode === 'face' ? 55 : 95;
+  graph.cameraPosition({ x: node.x, y: node.y, z: node.z + dist }, node, 1100);
 }
 
 function applySources(payload) {
@@ -167,11 +347,8 @@ function applySources(payload) {
     if (ids.length >= 4) highlightNodes(ids);
     return;
   }
-  if (ids.length >= 4) {
-    highlightNodes(ids);
-    return;
-  }
   highlightNodes(ids);
+  if (ids.length >= 4) return;
   flyToNode(ids[0]);
 }
 
@@ -191,11 +368,11 @@ async function ask(question) {
       payload = await r.json();
       if (!r.ok) throw new Error(payload.detail || 'remember failed');
       if (payload.id != null) {
-        // Soft reload graph data
         const script = document.createElement('script');
         script.src = '/graph-data.js?t=' + Date.now();
         script.onload = () => {
           graph.graphData(GRAPH);
+          applyViewMode(viewMode);
           highlightNodes([payload.id]);
           flyToNode(payload.id);
         };
@@ -254,7 +431,6 @@ async function captureShareFrame() {
   return canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
 }
 
-// --- Speech recognition with finish window ---
 let recognition = null;
 let pending = '';
 let finishTimer = null;
@@ -306,46 +482,98 @@ function armRecognition() {
   };
 }
 
-micBtn.addEventListener('click', () => {
-  unlockedAudio = true;
-  if (!recognition) armRecognition();
-  if (!recognition) return;
-  try { recognition.start(); } catch (_) {}
-});
-
-sendBtn.addEventListener('click', () => {
-  unlockedAudio = true;
-  ask(inputEl.value);
-});
-inputEl.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    unlockedAudio = true;
-    ask(inputEl.value);
-  }
-});
-
-shareBtn.addEventListener('click', async () => {
+async function toggleEyes() {
   unlockedAudio = true;
   if (shareStream) {
     shareStream.getTracks().forEach(t => t.stop());
     shareStream = null;
     shareVideo = null;
     shareDot.style.display = 'none';
-    shareBtn.classList.remove('active');
+    eyesBtn.classList.remove('active');
     return;
   }
   try {
     shareStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
     shareDot.style.display = 'block';
-    shareBtn.classList.add('active');
+    eyesBtn.classList.add('active');
     shareStream.getVideoTracks()[0].addEventListener('ended', () => {
       shareStream = null;
       shareVideo = null;
       shareDot.style.display = 'none';
-      shareBtn.classList.remove('active');
+      eyesBtn.classList.remove('active');
     });
-  } catch (err) {
+  } catch (_) {
     answerEl.textContent = 'Screen share cancelled.';
+  }
+}
+
+function applyViewMode(mode) {
+  viewMode = mode;
+  document.querySelectorAll('.modes button').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.view === mode);
+  });
+  if (!graph) return;
+  const controls = graph.controls();
+  if (mode === 'ring') {
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.55;
+    graph.cameraPosition({ x: 0, y: 0, z: 280 }, { x: 0, y: 0, z: 0 }, 900);
+  } else if (mode === 'cube') {
+    controls.autoRotate = false;
+    graph.cameraPosition({ x: 180, y: 140, z: 180 }, { x: 0, y: 0, z: 0 }, 900);
+  } else {
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.25;
+    graph.cameraPosition({ x: 40, y: 20, z: 120 }, { x: 0, y: 0, z: 0 }, 900);
+  }
+  graph.nodeVal(viewMode === 'face' ? 5 : 3.6);
+  graph.nodeRelSize(viewMode === 'face' ? 7 : 5);
+}
+
+micBtn.addEventListener('click', () => {
+  unlockedAudio = true;
+  if (!recognition) armRecognition();
+  if (!recognition) return;
+  try { recognition.start(); } catch (_) {}
+});
+document.getElementById('tray-mic').addEventListener('click', () => micBtn.click());
+sendBtn.addEventListener('click', () => { unlockedAudio = true; ask(inputEl.value); });
+inputEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { unlockedAudio = true; ask(inputEl.value); }
+});
+eyesBtn.addEventListener('click', toggleEyes);
+document.getElementById('tray-eyes').addEventListener('click', toggleEyes);
+document.getElementById('tray-refresh').addEventListener('click', () => {
+  const script = document.createElement('script');
+  script.src = '/graph-data.js?t=' + Date.now();
+  script.onload = () => { graph.graphData(GRAPH); applyViewMode(viewMode); brandSub.textContent = `${(GRAPH.nodes || []).length} notes · live`; };
+  document.body.appendChild(script);
+});
+document.getElementById('tray-mute').addEventListener('click', () => {
+  const url = new URL(location.href);
+  if (url.searchParams.has('mute')) url.searchParams.delete('mute');
+  else url.searchParams.set('mute', '1');
+  location.href = url.toString();
+});
+
+document.querySelectorAll('.modes button').forEach(btn => {
+  btn.addEventListener('click', () => applyViewMode(btn.dataset.view));
+});
+
+searchEl.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  const q = searchEl.value.trim().toLowerCase();
+  if (!q) return;
+  const hit = (GRAPH.nodes || []).find(n =>
+    String(n.label || '').toLowerCase().includes(q) ||
+    String(n.group || '').toLowerCase().includes(q) ||
+    String(n.excerpt || '').toLowerCase().includes(q)
+  );
+  if (hit) {
+    highlightNodes([hit.id]);
+    flyToNode(hit.id);
+  } else {
+    ask(searchEl.value.trim());
   }
 });
 
@@ -355,15 +583,25 @@ function paintStars() {
   const resize = () => {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
-    ctx.fillStyle = '#030712';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    for (let i = 0; i < 180; i++) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (let i = 0; i < 320; i++) {
       const x = Math.random() * canvas.width;
       const y = Math.random() * canvas.height;
-      const r = Math.random() * 1.4;
-      ctx.fillStyle = `rgba(226,232,240,${0.2 + Math.random() * 0.6})`;
+      const r = Math.random() * 1.6;
+      ctx.fillStyle = `rgba(186,230,253,${0.15 + Math.random() * 0.7})`;
       ctx.beginPath();
       ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    for (let i = 0; i < 18; i++) {
+      const x = Math.random() * canvas.width;
+      const y = Math.random() * canvas.height;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, 40 + Math.random() * 50);
+      g.addColorStop(0, 'rgba(34,211,238,0.18)');
+      g.addColorStop(1, 'transparent');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, 60, 0, Math.PI * 2);
       ctx.fill();
     }
   };
@@ -375,29 +613,32 @@ function bootGraph() {
   const data = (typeof GRAPH !== 'undefined') ? GRAPH : { nodes: [], links: [] };
   graph = ForceGraph3D()(document.getElementById('graph'))
     .graphData(data)
-    .backgroundColor('#03071200')
+    .backgroundColor('#00000000')
+    .showNavInfo(false)
     .nodeLabel('label')
     .nodeColor(n => colorForGroup(n.group))
-    .nodeVal(3)
-    .linkColor(() => 'rgba(148,163,184,0.35)')
-    .linkWidth(0.4)
+    .nodeVal(3.6)
+    .nodeRelSize(5)
+    .nodeOpacity(0.95)
+    .linkColor(() => 'rgba(125,211,252,0.28)')
+    .linkWidth(0.55)
+    .linkOpacity(0.55)
     .onNodeClick(node => {
       unlockedAudio = true;
       openNode(node);
       highlightNodes([node.id]);
       flyToNode(node.id);
     });
-  graph.controls().autoRotate = true;
-  graph.controls().autoRotateSpeed = 0.35;
+  applyViewMode('ring');
 }
 
 async function bootGreeting() {
   try {
     const r = await fetch('/api/hello');
     const data = await r.json();
-    brandSub.textContent = `${data.note_count || 0} notes · ${data.model || 'model'}`;
+    brandSub.textContent = `${data.note_count || 0} notes · workshop`;
+    modelChip.textContent = prettyModel(data.model || 'MODEL');
     answerEl.textContent = data.greeting || '';
-    // First spoken line only after interaction — wait for first click.
     const once = () => {
       if (!unlockedAudio) unlockedAudio = true;
       speak(data.greeting || '');
@@ -407,6 +648,11 @@ async function bootGreeting() {
   } catch (_) {
     brandSub.textContent = 'offline brain';
   }
+}
+
+function prettyModel(raw) {
+  const s = String(raw || 'MODEL');
+  return s.replace(/gpt-?/i, 'GPT ').replace(/-/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase();
 }
 
 paintStars();
