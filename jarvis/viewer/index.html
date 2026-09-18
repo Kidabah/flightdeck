@@ -503,6 +503,20 @@ function isWakePhrase(t) {
     || /\bamy\b.*\bwake up\b/i.test(s);
 }
 
+function isWhistlePhrase(t) {
+  const s = String(t || '').trim().toLowerCase().replace(/[.,!?]+$/g, '');
+  if (!s) return false;
+  return /^(amy[, ]+)?(please[, ]+)?(whistle|sing|give me a whistle|do a whistle|whistle for me|sing for me)(,?\s*please)?$/i.test(s)
+    || /^(can you|could you|will you) (please )?(whistle|sing)\b/i.test(s);
+}
+
+function doWhistle() {
+  unlockedAudio = true;
+  if (asleep) wakeAmy('force');
+  bumpIdle();
+  whistle();
+}
+
 function bumpIdle() {
   nudgedIdle = false;
   if (idleTimer) clearTimeout(idleTimer);
@@ -862,6 +876,12 @@ async function ask(question) {
   }
   const q = String(question || '').trim();
   if (!q) return;
+  if (isWhistlePhrase(q) && !pendingFiles.length) {
+    doWhistle();
+    answerEl.textContent = '♪';
+    setStatus(wantListen ? 'listening' : 'idle', wantListen ? 'Listening' : 'Ready');
+    return;
+  }
   bumpIdle();
   duckMic();
   answerEl.textContent = '…';
@@ -1021,6 +1041,11 @@ function armRecognition() {
     }
     if (isWakePhrase(chunk)) {
       bumpIdle();
+      return;
+    }
+    if (isWhistlePhrase(chunk)) {
+      doWhistle();
+      answerEl.textContent = '♪';
       return;
     }
     if (isInterrupt(chunk)) {

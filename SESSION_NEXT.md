@@ -1,3 +1,11 @@
+## 2026-09-19 Session update (Amy on-demand whistle)
+
+Latest commit: _(pending)_ — Say or type **whistle** / **sing** (or “whistle for me”) and Amy plays the idle whistle tone immediately — no 3‑minute wait.
+
+Hard refresh Amy (`Cache-Control: no-store` on viewer). No backend restart required.
+
+---
+
 ## 2026-09-18 Session update (Amy Hands search fix)
 
 Latest commit: `39d0f46` — Fixed `NameError: re is not defined` in Amy Hands `/search`. PC agent restarted; folder search works again.
