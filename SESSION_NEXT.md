@@ -1,3 +1,8 @@
+## 2026-09-19 Session update (Amy desktop Whisper mic)
+
+Latest commit: _(pending)_ — Real pywebview Amy app uses OpenAI Whisper STT (/?desktop=1) because WebView2 can't run Google SpeechRecognition. Nova TTS still on. `.\start-amy-desktop.ps1` opens the framed app; `--chrome` fallback remains.
+
+---
 ## 2026-09-19 Session update (Amy OpenAI Nova TTS)
 
 Latest commit: `0f2db71` â€” `tts_provider: openai` + voice **nova** for tonight (ElevenLabs free quota exhausted). Falls back to Laura when provider is elevenlabs again. Desktop AppData config updated; restart local Amy / hard refresh.

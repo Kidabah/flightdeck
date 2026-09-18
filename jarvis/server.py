@@ -807,6 +807,52 @@ def synthesize_openai_tts(text: str) -> bytes:
         raise RuntimeError(f"OpenAI TTS HTTP {exc.code}: {raw[:220]}") from exc
 
 
+def transcribe_openai(audio: bytes, *, filename: str = "speech.webm", mime: str = "audio/webm") -> str:
+    """OpenAI Whisper STT — used by the desktop WebView (SpeechRecognition is broken there)."""
+    cfg = RUNTIME["config"]
+    key = str(cfg.get("openai_api_key") or "").strip()
+    if not key or key.startswith("PUT-YOUR"):
+        raise RuntimeError("OpenAI key not set for STT.")
+    if not audio:
+        raise RuntimeError("Empty audio.")
+    base = str(cfg.get("openai_base_url") or "https://api.openai.com/v1").rstrip("/")
+    model = str(cfg.get("openai_stt_model") or "whisper-1").strip() or "whisper-1"
+    boundary = f"----AmySTT{int(time.time() * 1000)}"
+    disposition = f'form-data; name="file"; filename="{filename}"'
+    parts = [
+        f"--{boundary}\r\nContent-Disposition: form-data; name=\"model\"\r\n\r\n{model}\r\n".encode(),
+        (
+            f"--{boundary}\r\nContent-Disposition: {disposition}\r\n"
+            f"Content-Type: {mime}\r\n\r\n"
+        ).encode()
+        + audio
+        + b"\r\n",
+        f"--{boundary}--\r\n".encode(),
+    ]
+    body = b"".join(parts)
+    req = urllib.request.Request(
+        f"{base}/audio/transcriptions",
+        data=body,
+        headers={
+            "Authorization": f"Bearer {key}",
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+            "User-Agent": "amy-workshop/1.0",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=90) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as exc:
+        err = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"OpenAI STT HTTP {exc.code}: {err[:220]}") from exc
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return raw.strip()
+    return str(payload.get("text") or "").strip()
+
+
 def synthesize_elevenlabs(text: str) -> bytes:
     """ElevenLabs TTS — Laura by default."""
     cfg = RUNTIME["config"]
@@ -1418,6 +1464,32 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 audio = synthesize_speech(text)
                 self._audio(200, audio)
+                return
+
+            if path == "/stt":
+                raw_b64 = str(body.get("audio") or body.get("data") or "").strip()
+                if not raw_b64:
+                    self._json(400, {"detail": "audio required"})
+                    return
+                if "," in raw_b64 and raw_b64.startswith("data:"):
+                    header, raw_b64 = raw_b64.split(",", 1)
+                    mime = header.split(";")[0].split(":")[-1] if ":" in header else "audio/webm"
+                else:
+                    mime = str(body.get("mime") or body.get("media_type") or "audio/webm")
+                try:
+                    audio = base64.b64decode(raw_b64, validate=False)
+                except Exception as exc:
+                    self._json(400, {"detail": f"bad audio base64: {exc}"})
+                    return
+                ext = "webm"
+                if "mp4" in mime or "m4a" in mime:
+                    ext = "mp4"
+                elif "wav" in mime:
+                    ext = "wav"
+                elif "mpeg" in mime or "mp3" in mime:
+                    ext = "mp3"
+                text = transcribe_openai(audio, filename=f"speech.{ext}", mime=mime)
+                self._json(200, {"ok": True, "text": text})
                 return
 
             self._json(404, {"detail": "not found"})

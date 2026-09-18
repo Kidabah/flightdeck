@@ -386,10 +386,8 @@ const FINISH_MS = 1400;
 const IDLE_NUDGE_MS = 3 * 60 * 1000;   // whistle / cheeky line
 const IDLE_SLEEP_MS = 6 * 60 * 1000;   // go dark
 const MUTE = new URLSearchParams(location.search).has('mute');
+const DESKTOP_APP = new URLSearchParams(location.search).has('desktop');
 const IS_SECURE = window.isSecureContext;
-// WebView2 / embedded shells often break SpeechRecognition even after "Allow".
-const IN_WEBVIEW = /\bwv\b/i.test(navigator.userAgent)
-  || (/Edg\//.test(navigator.userAgent) && !window.chrome?.runtime && navigator.userAgentData?.brands?.some(b => /WebView/i.test(b.brand)));
 
 
 const statusEl = document.getElementById('status-line');
@@ -440,6 +438,19 @@ let recognition = null;
 let pending = '';
 let finishTimer = null;
 let chatAbort = null;
+let desktopMic = {
+  stream: null,
+  recorder: null,
+  chunks: [],
+  analysing: false,
+  audioCtx: null,
+  analyser: null,
+  raf: 0,
+  speaking: false,
+  silentMs: 0,
+  lastVoiceAt: 0,
+  busy: false,
+};
 
 function micIsDeaf() {
   // Echo cooldown after she finishes — interrupts are handled separately while speaking.
@@ -1163,6 +1174,7 @@ function muteMic() {
   clearTimeout(finishTimer);
   finishTimer = null;
   pending = '';
+  stopDesktopMic();
   if (recognition) {
     try { recognition.stop(); } catch (_) {}
   }
@@ -1171,6 +1183,161 @@ function muteMic() {
   if (!isSpeaking && statusEl.dataset.mode !== 'thinking') {
     setStatus('idle', 'Mic muted');
   }
+}
+
+function stopDesktopMic() {
+  if (desktopMic.raf) {
+    clearTimeout(desktopMic.raf);
+    desktopMic.raf = 0;
+  }
+  try { desktopMic.recorder?.stop(); } catch (_) {}
+  desktopMic.recorder = null;
+  desktopMic.chunks = [];
+  desktopMic.analysing = false;
+  desktopMic.speaking = false;
+  desktopMic.silentMs = 0;
+  try { desktopMic.audioCtx?.close(); } catch (_) {}
+  desktopMic.audioCtx = null;
+  desktopMic.analyser = null;
+  if (desktopMic.stream) {
+    desktopMic.stream.getTracks().forEach((t) => t.stop());
+    desktopMic.stream = null;
+  }
+}
+
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const s = String(reader.result || '');
+      resolve(s.includes(',') ? s.split(',')[1] : s);
+    };
+    reader.onerror = () => reject(reader.error || new Error('read failed'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function transcribeDesktopBlob(blob) {
+  if (!blob || blob.size < 1200) return '';
+  const b64 = await blobToBase64(blob);
+  const r = await fetch('/stt', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ audio: b64, mime: blob.type || 'audio/webm' }),
+  });
+  const payload = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(payload.detail || `STT HTTP ${r.status}`);
+  return String(payload.text || '').trim();
+}
+
+function armDesktopRecorder() {
+  if (!desktopMic.stream || !wantListen) return;
+  const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+    ? 'audio/webm;codecs=opus'
+    : (MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '');
+  desktopMic.chunks = [];
+  desktopMic.recorder = mime
+    ? new MediaRecorder(desktopMic.stream, { mimeType: mime })
+    : new MediaRecorder(desktopMic.stream);
+  desktopMic.recorder.ondataavailable = (ev) => {
+    if (ev.data && ev.data.size) desktopMic.chunks.push(ev.data);
+  };
+  desktopMic.recorder.onstop = async () => {
+    if (!wantListen || asleep || isSpeaking || micIsDeaf() || desktopMic.busy) {
+      desktopMic.chunks = [];
+      return;
+    }
+    const blob = new Blob(desktopMic.chunks, { type: desktopMic.recorder?.mimeType || 'audio/webm' });
+    desktopMic.chunks = [];
+    if (blob.size < 1200) {
+      if (wantListen) armDesktopRecorder();
+      return;
+    }
+    desktopMic.busy = true;
+    setStatus('thinking', 'Hearing you…');
+    try {
+      const text = await transcribeDesktopBlob(blob);
+      if (text && wantListen && !asleep) {
+        inputEl.value = '';
+        bumpIdle();
+        await ask(text);
+      }
+    } catch (err) {
+      answerEl.textContent = `Desktop mic STT failed (${err.message || err}). Typing still works.`;
+      setStatus('idle', 'Mic error');
+    } finally {
+      desktopMic.busy = false;
+      if (wantListen && !asleep) {
+        setStatus('listening', 'Listening');
+        armDesktopRecorder();
+      }
+    }
+  };
+  try { desktopMic.recorder.start(); } catch (_) {}
+}
+
+function watchDesktopLevels() {
+  if (!desktopMic.analyser || !wantListen) return;
+  const data = new Uint8Array(desktopMic.analyser.fftSize);
+  const tick = () => {
+    if (!wantListen || !desktopMic.analyser) {
+      desktopMic.raf = 0;
+      return;
+    }
+    desktopMic.analyser.getByteTimeDomainData(data);
+    let sum = 0;
+    for (let i = 0; i < data.length; i++) {
+      const v = (data[i] - 128) / 128;
+      sum += v * v;
+    }
+    const rms = Math.sqrt(sum / data.length);
+    if (rms > 0.045) {
+      desktopMic.speaking = true;
+      desktopMic.silentMs = 0;
+      desktopMic.lastVoiceAt = performance.now();
+    } else if (desktopMic.speaking) {
+      desktopMic.silentMs += 50;
+      if (
+        desktopMic.silentMs >= Math.max(700, FINISH_MS - 400)
+        && desktopMic.recorder
+        && desktopMic.recorder.state === 'recording'
+        && !desktopMic.busy
+        && !isSpeaking
+      ) {
+        desktopMic.speaking = false;
+        desktopMic.silentMs = 0;
+        try { desktopMic.recorder.stop(); } catch (_) {}
+      }
+    }
+    desktopMic.raf = window.setTimeout(tick, 50);
+  };
+  tick();
+}
+
+async function startDesktopMic() {
+  stopDesktopMic();
+  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+    answerEl.textContent = 'Desktop mic needs getUserMedia + MediaRecorder.';
+    setStatus('idle', 'Mic error');
+    return false;
+  }
+  try {
+    desktopMic.stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true },
+    });
+  } catch (err) {
+    answerEl.textContent = `Mic permission denied (${err && err.name ? err.name : err}). Allow microphone for Amy.`;
+    setStatus('idle', 'Mic error');
+    return false;
+  }
+  desktopMic.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const src = desktopMic.audioCtx.createMediaStreamSource(desktopMic.stream);
+  desktopMic.analyser = desktopMic.audioCtx.createAnalyser();
+  desktopMic.analyser.fftSize = 2048;
+  src.connect(desktopMic.analyser);
+  armDesktopRecorder();
+  watchDesktopLevels();
+  return true;
 }
 
 async function startMic() {
@@ -1183,29 +1350,40 @@ async function startMic() {
     secureHint.style.display = 'block';
     return;
   }
-  // Framed WebView shell: SpeechRecognition usually fails even after Allow.
-  if (/Edg\//.test(navigator.userAgent) && location.hostname === '127.0.0.1') {
-    // Edge app mode is OK; pywebview WebView2 often still breaks. Prefer Chrome.
+  // Real desktop app (WebView2): Google SpeechRecognition fails with "network".
+  // Use OpenAI Whisper via /stt instead — keeps the framed Amy window.
+  if (DESKTOP_APP) {
+    wantListen = true;
+    syncMicUi();
+    const ok = await startDesktopMic();
+    if (!ok) {
+      wantListen = false;
+      syncMicUi();
+      return;
+    }
+    if (!asleep) setStatus('listening', 'Listening · Whisper');
+    bumpIdle();
+    return;
   }
   if (navigator.mediaDevices?.getUserMedia) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       stream.getTracks().forEach((t) => t.stop());
     } catch (err) {
-      answerEl.textContent = `Mic permission denied (${err && err.name ? err.name : err}). In Chrome: padlock → Site settings → Microphone → Allow. Or open http://127.0.0.1:4700 in Chrome.`;
+      answerEl.textContent = `Mic permission denied (${err && err.name ? err.name : err}). In Chrome: padlock → Site settings → Microphone → Allow.`;
       setStatus('idle', 'Mic error');
       return;
     }
   }
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) {
-    answerEl.textContent = 'This window has no SpeechRecognition. Close the Amy frame and use Chrome at http://127.0.0.1:4700 — typing still works here.';
+    answerEl.textContent = 'SpeechRecognition missing — open with ?desktop=1 for Whisper mic, or use Chrome.';
     setStatus('idle', 'Mic error');
     return;
   }
   if (!recognition) armRecognition();
   if (!recognition) {
-    answerEl.textContent = 'Couldn’t arm the mic. Use Chrome at http://127.0.0.1:4700.';
+    answerEl.textContent = 'Couldn’t arm the mic.';
     return;
   }
   wantListen = true;
@@ -1215,7 +1393,7 @@ async function startMic() {
   try {
     recognition.start();
   } catch (err) {
-    answerEl.textContent = `Mic start failed (${err && err.message ? err.message : err}). Try Chrome at http://127.0.0.1:4700.`;
+    answerEl.textContent = `Mic start failed (${err && err.message ? err.message : err}).`;
     setStatus('idle', 'Mic error');
     wantListen = false;
     syncMicUi();

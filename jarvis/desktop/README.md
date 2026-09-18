@@ -18,9 +18,11 @@ cd C:\Users\Kidabah\flightdeck\jarvis\desktop
 .\start-amy-desktop.ps1
 ```
 
-Opens an **Amy app window** (Chrome/Edge `--app` mode — looks like a desktop app, mic works) + a **visible Amy Hands console**. Leave the PowerShell window open.
+Opens the **Amy desktop app** (pywebview / WebView2) with **Whisper mic** (`?desktop=1`) + a visible Hands console. Leave the PowerShell window open.
 
-WebView2 (`--webview`) looks similar but mic fails with a `network` speech error — don’t use it for voice.
+Google SpeechRecognition does not work in WebView2 — the app records audio and sends it to OpenAI Whisper instead.
+
+Fallback: `.\start-amy-desktop.ps1 --chrome` for Chrome app mode.
 
 - `hands_base_url`: `http://127.0.0.1:4701`
 - `bind_host`: `127.0.0.1`

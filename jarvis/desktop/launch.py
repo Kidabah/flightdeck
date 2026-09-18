@@ -35,7 +35,8 @@ from paths import (  # noqa: E402
 
 AMY_PORT = 4700
 HANDS_PORT = 4701
-AMY_URL = f"http://127.0.0.1:{AMY_PORT}"
+# ?desktop=1 enables Whisper STT (WebView2 can't use Google SpeechRecognition).
+AMY_URL = f"http://127.0.0.1:{AMY_PORT}/?desktop=1"
 HANDS_HEALTH = f"http://127.0.0.1:{HANDS_PORT}/health"
 AMY_HEALTH = f"http://127.0.0.1:{AMY_PORT}/api/health"
 
@@ -180,10 +181,10 @@ def main() -> int:
     print("[amy-desktop]", _config_hint())
 
     smoke = "--smoke" in sys.argv or os.environ.get("AMY_DESKTOP_SMOKE") == "1"
-    # Chrome/Edge --app= is the real desktop window with working mic.
-    # WebView2 looks similar but SpeechRecognition dies with error "network".
-    prefer_webview = "--webview" in sys.argv
-    prefer_chrome = "--chrome" in sys.argv or not prefer_webview
+    # Default: real pywebview Amy app + Whisper mic (?desktop=1).
+    # Pass --chrome for Chrome app mode instead.
+    prefer_chrome = "--chrome" in sys.argv
+    prefer_webview = not prefer_chrome
 
     try:
         start_hands(env)
@@ -241,7 +242,8 @@ def main() -> int:
         confirm_close=False,
     )
     print(f"[amy-desktop] opening webview {AMY_URL}")
-    print("[amy-desktop] tip: if MIC fails here, rerun with --chrome")
+    print("[amy-desktop] mic uses OpenAI Whisper (Google speech is broken in WebView2)")
+    print("[amy-desktop] tip: --chrome for Chrome app mode instead")
     try:
         webview.start(gui="edgechromium")
     except Exception as exc:
