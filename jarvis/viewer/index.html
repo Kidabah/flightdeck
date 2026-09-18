@@ -674,7 +674,7 @@ function setStatus(mode, text) {
 let cachedVoice = null;
 let cachedVoiceName = '';
 let amyAudio = null;
-let ttsMode = 'browser'; // 'laura' | 'browser'
+let ttsMode = 'browser'; // 'laura' | 'openai' | 'browser'
 let ttsVoiceLabel = 'Laura';
 
 function scoreVoice(v) {
@@ -770,13 +770,13 @@ async function speak(text) {
   }
   duckMic();
   stopSpeaking();
-  if (ttsMode === 'laura') {
+  if (ttsMode === 'laura' || ttsMode === 'openai') {
     try {
       await speakLaura(text);
       return;
     } catch (err) {
-      console.warn('Laura TTS failed, falling back', err);
-      if (/ElevenLabs|API key|quota|rate/i.test(String(err.message || err))) {
+      console.warn('Server TTS failed, falling back', err);
+      if (/ElevenLabs|OpenAI|API key|quota|rate|credits/i.test(String(err.message || err))) {
         answerEl.textContent = `${text}\n\n(${err.message})`;
       }
     }
@@ -1058,7 +1058,8 @@ function armRecognition() {
   };
   recognition.onerror = (ev) => {
     listening = false;
-    if (ev.error === 'aborted' || ev.error === 'no-speech') {
+    const err = String(ev.error || 'unknown');
+    if (err === 'aborted' || err === 'no-speech') {
       if (wantListen && (isSpeaking || !micIsDeaf())) {
         setTimeout(() => {
           if (!wantListen || !recognition) return;
@@ -1079,9 +1080,13 @@ function armRecognition() {
     wantListen = false;
     syncMicUi();
     setStatus('idle', 'Mic error');
-    if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') {
-      answerEl.textContent = 'Mic blocked — open Amy over HTTPS and allow the microphone.';
+    if err === 'not-allowed' || err === 'service-not-allowed') {
+      answerEl.textContent = 'Mic blocked in this window. Allow mic, or open Chrome at http://127.0.0.1:4700 for voice.';
       secureHint.style.display = 'block';
+    } else if (err === 'network' || err === 'audio-capture') {
+      answerEl.textContent = `Mic hiccup (${err}). WebView2 speech is flaky — use Chrome at http://127.0.0.1:4700, or type.`;
+    } else {
+      answerEl.textContent = `Mic error (${err}). Chrome at http://127.0.0.1:4700 is more reliable for voice.`;
     }
   };
   recognition.onresult = (event) => {
@@ -1163,7 +1168,7 @@ function muteMic() {
   }
 }
 
-function startMic() {
+async function startMic() {
   unlockedAudio = true;
   if (asleep) {
     wakeAmy('click');
@@ -1173,9 +1178,20 @@ function startMic() {
     secureHint.style.display = 'block';
     return;
   }
+  // Warm mic permission first (helps WebView2 / Edge).
+  if (navigator.mediaDevices?.getUserMedia) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((t) => t.stop());
+    } catch (err) {
+      answerEl.textContent = `Mic permission denied (${err && err.name ? err.name : err}). Allow mic for this app, or use Chrome at http://127.0.0.1:4700`;
+      setStatus('idle', 'Mic error');
+      return;
+    }
+  }
   if (!recognition) armRecognition();
   if (!recognition) {
-    answerEl.textContent = 'Speech recognition isn’t available in this browser, Chris. Chrome works best.';
+    answerEl.textContent = 'Speech recognition isn’t available here. Open Chrome at http://127.0.0.1:4700 for voice — typing still works.';
     return;
   }
   wantListen = true;
@@ -1359,10 +1375,12 @@ async function bootGreeting() {
     const data = await r.json();
     brandSub.textContent = `${data.note_count || 0} notes · workshop`;
     modelChip.textContent = prettyModel(data.model || 'MODEL');
-    ttsMode = data.tts === 'laura' ? 'laura' : 'browser';
-    ttsVoiceLabel = data.tts_voice || 'Laura';
+    ttsMode = (data.tts === 'laura' || data.tts === 'openai') ? data.tts : 'browser';
+    ttsVoiceLabel = data.tts_voice || (ttsMode === 'openai' ? 'Nova' : 'Laura');
     if (ttsMode === 'laura') {
       modelChip.title = `Brain + ElevenLabs ${ttsVoiceLabel}`;
+    } else if (ttsMode === 'openai') {
+      modelChip.title = `Brain + OpenAI ${ttsVoiceLabel}`;
     }
     // Unlock audio on first tap — no spoken/written intro.
     const once = () => {

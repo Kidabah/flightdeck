@@ -747,20 +747,75 @@ def elevenlabs_configured() -> bool:
     return bool(key) and not key.startswith("PUT-YOUR")
 
 
-def synthesize_speech(text: str) -> bytes:
-    """ElevenLabs TTS — Laura by default. Raises RuntimeError on failure."""
+def openai_tts_configured() -> bool:
+    cfg = RUNTIME["config"]
+    key = str(cfg.get("openai_api_key") or "").strip()
+    return bool(key) and not key.startswith("PUT-YOUR")
+
+
+def tts_provider() -> str:
+    """Preferred voice engine: openai | elevenlabs | auto | browser."""
+    cfg = RUNTIME["config"]
+    pref = str(cfg.get("tts_provider") or "auto").strip().lower()
+    if pref in ("openai", "nova", "gpt"):
+        return "openai" if openai_tts_configured() else ("elevenlabs" if elevenlabs_configured() else "browser")
+    if pref in ("elevenlabs", "laura", "11labs"):
+        return "elevenlabs" if elevenlabs_configured() else ("openai" if openai_tts_configured() else "browser")
+    # auto: prefer OpenAI when set as tonight's understudy? keep Laura first if keyed, else OpenAI
+    if elevenlabs_configured():
+        return "elevenlabs"
+    if openai_tts_configured():
+        return "openai"
+    return "browser"
+
+
+def _spoken_text(text: str, limit: int = 2200) -> str:
+    spoken = " ".join(str(text or "").split())
+    if not spoken:
+        raise RuntimeError("Nothing to say.")
+    if len(spoken) > limit:
+        spoken = spoken[: limit - 10].rstrip() + "…"
+    return spoken
+
+
+def synthesize_openai_tts(text: str) -> bytes:
+    """OpenAI TTS — nova by default."""
+    cfg = RUNTIME["config"]
+    key = str(cfg.get("openai_api_key") or "").strip()
+    if not key or key.startswith("PUT-YOUR"):
+        raise RuntimeError("OpenAI key not set for TTS.")
+    base = str(cfg.get("openai_base_url") or "https://api.openai.com/v1").rstrip("/")
+    voice = str(cfg.get("openai_tts_voice") or "nova").strip() or "nova"
+    model = str(cfg.get("openai_tts_model") or "tts-1").strip() or "tts-1"
+    spoken = _spoken_text(text, limit=4000)
+    body = {"model": model, "input": spoken, "voice": voice, "response_format": "mp3"}
+    req = urllib.request.Request(
+        f"{base}/audio/speech",
+        data=json.dumps(body).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json",
+            "User-Agent": "amy-workshop/1.0",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            return resp.read()
+    except urllib.error.HTTPError as exc:
+        raw = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"OpenAI TTS HTTP {exc.code}: {raw[:220]}") from exc
+
+
+def synthesize_elevenlabs(text: str) -> bytes:
+    """ElevenLabs TTS — Laura by default."""
     cfg = RUNTIME["config"]
     key = str(cfg.get("elevenlabs_api_key") or "").strip()
     if not key or key.startswith("PUT-YOUR"):
         raise RuntimeError("ElevenLabs key not set — paste it into config.json (elevenlabs_api_key).")
     voice_id = str(cfg.get("elevenlabs_voice_id") or "FGY2WhTYpPnrIDTdsKH5").strip()
     model = str(cfg.get("elevenlabs_model") or "eleven_turbo_v2_5").strip()
-    spoken = " ".join(str(text or "").split())
-    if not spoken:
-        raise RuntimeError("Nothing to say.")
-    # Keep workshop replies snappy / under typical character caps.
-    if len(spoken) > 2200:
-        spoken = spoken[:2190].rstrip() + "…"
+    spoken = _spoken_text(text)
     body = {
         "text": spoken,
         "model_id": model,
@@ -792,15 +847,59 @@ def synthesize_speech(text: str) -> bytes:
             detail = err.get("detail") or err
             if isinstance(detail, dict):
                 msg = str(detail.get("message") or detail.get("status") or detail)[:220]
+                status = str(detail.get("status") or detail.get("code") or "").lower()
             else:
                 msg = str(detail)[:220]
+                status = ""
         except json.JSONDecodeError:
             msg = raw[:220] or str(exc)
+            status = ""
+        blob = f"{raw} {msg} {status}".lower()
+        if "quota" in blob or "credits remaining" in blob:
+            raise RuntimeError(
+                "ElevenLabs is out of credits — top up at elevenlabs.io/app/billing."
+            ) from exc
         if exc.code in (401, 403):
             raise RuntimeError("ElevenLabs rejected the API key — check elevenlabs_api_key.") from exc
         if exc.code == 429:
             raise RuntimeError("ElevenLabs rate/quota limit — top up or wait a moment.") from exc
         raise RuntimeError(f"ElevenLabs HTTP {exc.code}: {msg}") from exc
+
+
+def synthesize_speech(text: str) -> bytes:
+    """Server TTS: respect tts_provider, with sensible fallbacks."""
+    pref = tts_provider()
+    errors: list[str] = []
+    order: list[str] = []
+    if pref == "openai":
+        order = ["openai", "elevenlabs"]
+    elif pref == "elevenlabs":
+        order = ["elevenlabs", "openai"]
+    else:
+        order = []
+    for name in order:
+        try:
+            if name == "openai" and openai_tts_configured():
+                return synthesize_openai_tts(text)
+            if name == "elevenlabs" and elevenlabs_configured():
+                return synthesize_elevenlabs(text)
+        except Exception as exc:
+            errors.append(f"{name}: {exc}")
+            continue
+    if errors:
+        raise RuntimeError(" / ".join(errors))
+    raise RuntimeError("No TTS provider configured.")
+
+
+def tts_hello_payload() -> tuple[str, str]:
+    pref = tts_provider()
+    cfg = RUNTIME["config"]
+    if pref == "openai":
+        voice = str(cfg.get("openai_tts_voice") or "nova")
+        return "openai", voice.title() if voice.lower() == "nova" else voice
+    if pref == "elevenlabs":
+        return "laura", str(cfg.get("elevenlabs_voice_name") or "Laura")
+    return "browser", "Browser"
 
 
 def resolve_printer(text: str) -> tuple[str | None, str | None]:
@@ -1171,8 +1270,8 @@ class Handler(BaseHTTPRequestHandler):
                     "note_count": len(notes),
                     "model": RUNTIME["config"].get("model") or "gpt-5.6-luna",
                     "provider": _brain_provider(RUNTIME["config"]),
-                    "tts": "laura" if elevenlabs_configured() else "browser",
-                    "tts_voice": str(RUNTIME["config"].get("elevenlabs_voice_name") or "Laura"),
+                    "tts": tts_hello_payload()[0],
+                    "tts_voice": tts_hello_payload()[1],
                     "name": "Amy",
                     "tod": tod,
                 },

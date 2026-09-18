@@ -1,3 +1,9 @@
+## 2026-09-19 Session update (Amy OpenAI Nova TTS)
+
+Latest commit: _(pending)_ — `tts_provider: openai` + voice **nova** for tonight (ElevenLabs free quota exhausted). Falls back to Laura when provider is elevenlabs again. Desktop AppData config updated; restart local Amy / hard refresh.
+
+---
+
 ## 2026-09-19 Session update (Amy desktop wrap)
 
 Latest commit: `9ccd8c1` — Windows desktop wrap under `jarvis/desktop/`: WebView2 window + local `server.py` on `127.0.0.1:4700` + Hands on `:4701`. AppData config (`%APPDATA%\Amy\config.json`). Dev: `jarvis/desktop/start-amy-desktop.ps1`. Build: `build-windows.ps1` → `dist/Amy/Amy.exe`. Pi browser Amy unchanged (`AMY_BIND` / `AMY_CONFIG` / `AMY_ROOT` hooks).
