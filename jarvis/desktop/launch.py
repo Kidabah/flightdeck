@@ -180,8 +180,9 @@ def main() -> int:
     print("[amy-desktop]", _config_hint())
 
     smoke = "--smoke" in sys.argv or os.environ.get("AMY_DESKTOP_SMOKE") == "1"
-    prefer_webview = "--webview" in sys.argv
-    prefer_chrome = "--chrome" in sys.argv or not prefer_webview
+    # Default: framed WebView app. Pass --chrome if mic misbehaves in the shell.
+    prefer_chrome = "--chrome" in sys.argv
+    prefer_webview = "--webview" in sys.argv or not prefer_chrome
 
     try:
         start_hands(env)
@@ -204,7 +205,6 @@ def main() -> int:
         try:
             while True:
                 time.sleep(2)
-                # If Hands died, warn once
                 if not _http_ok(HANDS_HEALTH):
                     print("[amy-desktop] WARNING: Hands stopped responding on :4701")
                     break
@@ -217,7 +217,9 @@ def main() -> int:
     try:
         import webview
     except ImportError:
-        webbrowser.open(AMY_URL)
+        print("[amy-desktop] pywebview missing - opening Chrome instead", file=sys.stderr)
+        if not _open_chrome_app(AMY_URL):
+            webbrowser.open(AMY_URL)
         print("[amy-desktop] servers running - Ctrl+C to stop")
         try:
             while True:
@@ -237,6 +239,7 @@ def main() -> int:
         confirm_close=False,
     )
     print(f"[amy-desktop] opening webview {AMY_URL}")
+    print("[amy-desktop] tip: if MIC fails here, rerun with --chrome")
     try:
         webview.start(gui="edgechromium")
     except Exception as exc:
