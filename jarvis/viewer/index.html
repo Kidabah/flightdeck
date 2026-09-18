@@ -1085,7 +1085,7 @@ function armRecognition() {
     wantListen = false;
     syncMicUi();
     setStatus('idle', 'Mic error');
-    if err === 'not-allowed' || err === 'service-not-allowed') {
+    if (err === 'not-allowed' || err === 'service-not-allowed') {
       answerEl.textContent = 'Mic blocked in this window. Allow mic, or open Chrome at http://127.0.0.1:4700 for voice.';
       secureHint.style.display = 'block';
     } else if (err === 'network' || err === 'audio-capture') {
