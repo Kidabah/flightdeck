@@ -18,7 +18,9 @@ cd C:\Users\Kidabah\flightdeck\jarvis\desktop
 .\start-amy-desktop.ps1
 ```
 
-First run creates `%APPDATA%\Amy\config.json` from `config.example.json` with:
+Opens **Chrome app mode** (mic works) + a **visible Amy Hands console**. Leave the PowerShell window open.
+
+If mic fails in the framed WebView window, close that and use Chrome at `http://127.0.0.1:4700` instead (`--webview` is optional / flaky for speech).
 
 - `hands_base_url`: `http://127.0.0.1:4701`
 - `bind_host`: `127.0.0.1`

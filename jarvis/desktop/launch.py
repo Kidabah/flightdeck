@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Amy desktop launcher - wrap existing server + Hands in a WebView2 window.
+"""Amy desktop launcher - wrap existing server + Hands.
 
-Does not rewrite the UI. Pi browser Amy stays untouched.
+Hands and Amy run as separate console processes (visible Hands window).
+Default UI: Chrome/Edge app window (mic works). Pass --webview for pywebview.
 """
 from __future__ import annotations
 
 import json
 import os
-import runpy
+import subprocess
 import sys
-import threading
 import time
 import urllib.request
 import webbrowser
@@ -39,7 +39,7 @@ AMY_URL = f"http://127.0.0.1:{AMY_PORT}"
 HANDS_HEALTH = f"http://127.0.0.1:{HANDS_PORT}/health"
 AMY_HEALTH = f"http://127.0.0.1:{AMY_PORT}/api/health"
 
-_started_local = {"hands": False, "amy": False}
+_children: list[subprocess.Popen] = []
 
 
 def _http_ok(url: str, timeout: float = 1.5) -> bool:
@@ -60,55 +60,82 @@ def _wait_url(url: str, label: str, timeout_s: float = 30.0) -> None:
     raise RuntimeError(f"{label} did not become ready at {url}")
 
 
-def _apply_env() -> None:
+def _apply_env() -> dict[str, str]:
     root = jarvis_root()
     cfg = ensure_desktop_config()
-    os.environ["AMY_ROOT"] = str(root)
-    os.environ["AMY_CONFIG"] = str(cfg)
-    os.environ["AMY_UPLOADS"] = str(uploads_dir())
-    os.environ["AMY_BIND"] = "127.0.0.1"
-    os.environ.setdefault("PYTHONUTF8", "1")
+    env = os.environ.copy()
+    env["AMY_ROOT"] = str(root)
+    env["AMY_CONFIG"] = str(cfg)
+    env["AMY_UPLOADS"] = str(uploads_dir())
+    env["AMY_BIND"] = "127.0.0.1"
+    env.setdefault("PYTHONUTF8", "1")
+    prev = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = str(root) if not prev else f"{root}{os.pathsep}{prev}"
     if str(root) not in sys.path:
         sys.path.insert(0, str(root))
+    return env
 
 
-def _run_script(script: Path, label: str) -> None:
-    try:
-        print(f"[amy-desktop] {label} thread -> {script}")
-        runpy.run_path(str(script), run_name="__main__")
-    except SystemExit:
-        pass
-    except Exception as exc:
-        print(f"[amy-desktop] {label} crashed: {exc}", file=sys.stderr)
+def _python() -> str:
+    # Prefer the interpreter running this launcher (Python 3.12 desktop).
+    return sys.executable
 
 
-def start_hands() -> None:
-    if _http_ok(HANDS_HEALTH):
-        print("[amy-desktop] Amy Hands already running - reusing")
-        return
-    script = hands_script()
+def _spawn(script: Path, title: str, *, visible: bool, env: dict[str, str]) -> subprocess.Popen:
     if not script.exists():
-        raise FileNotFoundError(f"Amy Hands missing: {script}")
-    threading.Thread(target=_run_script, args=(script, "Hands"), daemon=True).start()
-    _started_local["hands"] = True
+        raise FileNotFoundError(f"missing {script}")
+    creationflags = 0
+    if sys.platform == "win32":
+        if visible:
+            creationflags = subprocess.CREATE_NEW_CONSOLE  # type: ignore[attr-defined]
+        else:
+            creationflags = subprocess.CREATE_NO_WINDOW  # type: ignore[attr-defined]
+    print(f"[amy-desktop] starting {title} -> {script} ({'console' if visible else 'background'})")
+    proc = subprocess.Popen(
+        [_python(), str(script)],
+        cwd=str(script.parent),
+        env=env,
+        creationflags=creationflags,
+    )
+    _children.append(proc)
+    return proc
 
 
-def start_amy() -> None:
+def start_hands(env: dict[str, str]) -> None:
+    if _http_ok(HANDS_HEALTH):
+        print("[amy-desktop] Amy Hands already running on :4701 - reusing")
+        return
+    _spawn(hands_script(), "Amy Hands", visible=True, env=env)
+
+
+def start_amy(env: dict[str, str]) -> None:
     if _http_ok(AMY_HEALTH):
         print("[amy-desktop] Amy already listening on :4700 - reusing")
         return
-    script = server_script()
-    if not script.exists():
-        raise FileNotFoundError(f"Amy server missing: {script}")
     root = jarvis_root()
     graph = root / "viewer" / "graph-data.js"
     if not graph.exists():
         print("[amy-desktop] building notes index...")
         build = root / "build.py"
         if build.exists():
-            runpy.run_path(str(build), run_name="__main__")
-    threading.Thread(target=_run_script, args=(script, "Amy"), daemon=True).start()
-    _started_local["amy"] = True
+            subprocess.check_call([_python(), str(build)], cwd=str(root), env=env)
+    # Amy brain can stay in background; Hands gets the visible window.
+    _spawn(server_script(), "Amy brain", visible=False, env=env)
+
+
+def stop_children() -> None:
+    for proc in list(_children):
+        if proc.poll() is not None:
+            continue
+        try:
+            proc.terminate()
+            try:
+                proc.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+        except Exception:
+            pass
+    _children.clear()
 
 
 def _config_hint() -> str:
@@ -129,48 +156,67 @@ def _config_hint() -> str:
     return f"Add {', '.join(missing)} in {cfg}"
 
 
+def _open_chrome_app(url: str) -> bool:
+    candidates = [
+        Path(os.environ.get("PROGRAMFILES", r"C:\Program Files")) / "Google/Chrome/Application/chrome.exe",
+        Path(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)")) / "Google/Chrome/Application/chrome.exe",
+        Path(os.environ.get("LOCALAPPDATA", "")) / "Google/Chrome/Application/chrome.exe",
+        Path(os.environ.get("PROGRAMFILES", r"C:\Program Files")) / "Microsoft/Edge/Application/msedge.exe",
+        Path(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)")) / "Microsoft/Edge/Application/msedge.exe",
+    ]
+    for exe in candidates:
+        if exe and exe.exists():
+            subprocess.Popen([str(exe), f"--app={url}", "--new-window"])
+            print(f"[amy-desktop] opened {exe.name} app window -> {url}")
+            return True
+    return False
+
+
 def main() -> int:
     app_data_dir()
-    _apply_env()
+    env = _apply_env()
     print("[amy-desktop] root", jarvis_root())
     print("[amy-desktop] frozen" if is_frozen() else "[amy-desktop] dev")
     print("[amy-desktop]", _config_hint())
 
     smoke = "--smoke" in sys.argv or os.environ.get("AMY_DESKTOP_SMOKE") == "1"
+    prefer_webview = "--webview" in sys.argv
+    prefer_chrome = "--chrome" in sys.argv or not prefer_webview
 
     try:
-        start_hands()
-        start_amy()
+        start_hands(env)
+        start_amy(env)
         _wait_url(HANDS_HEALTH, "Hands")
         _wait_url(AMY_HEALTH, "Amy")
     except Exception as exc:
         print(f"[amy-desktop] startup failed: {exc}", file=sys.stderr)
+        stop_children()
         return 1
 
     if smoke:
         print("[amy-desktop] smoke OK - Hands + Amy healthy")
+        stop_children()
+        return 0
+
+    if prefer_chrome and _open_chrome_app(AMY_URL):
+        print("[amy-desktop] Hands console should be open (title shows amy_hands.py)")
+        print("[amy-desktop] leave THIS terminal open - Ctrl+C stops Amy + Hands")
         try:
-            req = urllib.request.Request(
-                f"http://127.0.0.1:{HANDS_PORT}/search",
-                data=b'{"query":"SESSION","limit":2}',
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=20) as resp:
-                body = resp.read().decode("utf-8", errors="replace")
-            print("[amy-desktop] search sample:", body[:240])
-        except Exception as exc:
-            print(f"[amy-desktop] search probe: {exc}")
+            while True:
+                time.sleep(2)
+                # If Hands died, warn once
+                if not _http_ok(HANDS_HEALTH):
+                    print("[amy-desktop] WARNING: Hands stopped responding on :4701")
+                    break
+        except KeyboardInterrupt:
+            print("\n[amy-desktop] bye")
+        finally:
+            stop_children()
         return 0
 
     try:
         import webview
     except ImportError:
-        print(
-            "[amy-desktop] pywebview missing - pip install -r jarvis/desktop/requirements.txt\n"
-            f"Opening browser fallback: {AMY_URL}",
-            file=sys.stderr,
-        )
         webbrowser.open(AMY_URL)
         print("[amy-desktop] servers running - Ctrl+C to stop")
         try:
@@ -178,6 +224,8 @@ def main() -> int:
                 time.sleep(3600)
         except KeyboardInterrupt:
             print("\n[amy-desktop] bye")
+        finally:
+            stop_children()
         return 0
 
     webview.create_window(
@@ -188,12 +236,14 @@ def main() -> int:
         min_size=(900, 600),
         confirm_close=False,
     )
-    print(f"[amy-desktop] opening {AMY_URL}")
+    print(f"[amy-desktop] opening webview {AMY_URL}")
     try:
         webview.start(gui="edgechromium")
     except Exception as exc:
         print(f"[amy-desktop] edgechromium failed ({exc}); default gui")
         webview.start()
+    finally:
+        stop_children()
     print("[amy-desktop] window closed")
     return 0
 

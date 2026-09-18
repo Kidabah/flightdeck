@@ -387,6 +387,10 @@ const IDLE_NUDGE_MS = 3 * 60 * 1000;   // whistle / cheeky line
 const IDLE_SLEEP_MS = 6 * 60 * 1000;   // go dark
 const MUTE = new URLSearchParams(location.search).has('mute');
 const IS_SECURE = window.isSecureContext;
+// WebView2 / embedded shells often break SpeechRecognition even after "Allow".
+const IN_WEBVIEW = /\bwv\b/i.test(navigator.userAgent)
+  || (/Edg\//.test(navigator.userAgent) && !window.chrome?.runtime && navigator.userAgentData?.brands?.some(b => /WebView/i.test(b.brand)));
+
 
 const statusEl = document.getElementById('status-line');
 const answerEl = document.getElementById('answer');
@@ -1178,27 +1182,43 @@ async function startMic() {
     secureHint.style.display = 'block';
     return;
   }
-  // Warm mic permission first (helps WebView2 / Edge).
+  // Framed WebView shell: SpeechRecognition usually fails even after Allow.
+  if (/Edg\//.test(navigator.userAgent) && location.hostname === '127.0.0.1') {
+    // Edge app mode is OK; pywebview WebView2 often still breaks. Prefer Chrome.
+  }
   if (navigator.mediaDevices?.getUserMedia) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       stream.getTracks().forEach((t) => t.stop());
     } catch (err) {
-      answerEl.textContent = `Mic permission denied (${err && err.name ? err.name : err}). Allow mic for this app, or use Chrome at http://127.0.0.1:4700`;
+      answerEl.textContent = `Mic permission denied (${err && err.name ? err.name : err}). In Chrome: padlock → Site settings → Microphone → Allow. Or open http://127.0.0.1:4700 in Chrome.`;
       setStatus('idle', 'Mic error');
       return;
     }
   }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    answerEl.textContent = 'This window has no SpeechRecognition. Close the Amy frame and use Chrome at http://127.0.0.1:4700 — typing still works here.';
+    setStatus('idle', 'Mic error');
+    return;
+  }
   if (!recognition) armRecognition();
   if (!recognition) {
-    answerEl.textContent = 'Speech recognition isn’t available here. Open Chrome at http://127.0.0.1:4700 for voice — typing still works.';
+    answerEl.textContent = 'Couldn’t arm the mic. Use Chrome at http://127.0.0.1:4700.';
     return;
   }
   wantListen = true;
   syncMicUi();
   if (!asleep) setStatus('listening', 'Listening');
   bumpIdle();
-  try { recognition.start(); } catch (_) {}
+  try {
+    recognition.start();
+  } catch (err) {
+    answerEl.textContent = `Mic start failed (${err && err.message ? err.message : err}). Try Chrome at http://127.0.0.1:4700.`;
+    setStatus('idle', 'Mic error');
+    wantListen = false;
+    syncMicUi();
+  }
 }
 
 function toggleMic() {
