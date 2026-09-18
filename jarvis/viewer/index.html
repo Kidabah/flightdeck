@@ -77,8 +77,13 @@
       padding: 14px 12px 12px; backdrop-filter: blur(12px); box-shadow: var(--glow);
       display: grid; justify-items: center; gap: 8px;
     }
+    .face-wrap {
+      position: relative;
+      width: 168px; height: 168px;
+      display: grid; place-items: center;
+    }
     .face {
-      width: 168px; height: 168px; position: relative;
+      width: 168px; height: 168px; position: relative; z-index: 2;
       border-radius: 50%;
       overflow: hidden;
       border: 2px solid rgba(103, 232, 248, 0.75);
@@ -90,10 +95,72 @@
       width: 100%; height: 100%; object-fit: cover; display: block;
       transform: scale(1.02);
     }
-    .face-ring {
-      pointer-events: none; position: absolute; inset: -4px; border-radius: 50%;
-      border: 2px solid transparent;
+    .hud-rings {
+      pointer-events: none; position: absolute; inset: -28px; z-index: 1;
+      opacity: 0; transition: opacity 0.2s ease;
     }
+    .face-wrap[data-mode="speaking"] .hud-rings,
+    .face-wrap[data-mode="listening"] .hud-rings { opacity: 1; }
+    .hud-ring, .hud-arc {
+      position: absolute; inset: 0; border-radius: 50%;
+      border: 1.5px solid transparent;
+    }
+    .hud-ring.r1 {
+      inset: 10px;
+      border-color: rgba(34, 211, 238, 0.55);
+      box-shadow: 0 0 12px rgba(34, 211, 238, 0.25);
+    }
+    .hud-ring.r2 {
+      inset: 0;
+      border-color: rgba(103, 232, 248, 0.35);
+      border-style: dashed;
+    }
+    .hud-ring.r3 {
+      inset: -12px;
+      border-color: rgba(34, 211, 238, 0.22);
+    }
+    .hud-arc.a1 {
+      inset: 4px;
+      border-top-color: #67e8f8;
+      border-right-color: transparent;
+      border-bottom-color: transparent;
+      border-left-color: rgba(34, 211, 238, 0.15);
+      border-width: 2px;
+    }
+    .hud-arc.a2 {
+      inset: -6px;
+      border-bottom-color: #22d3ee;
+      border-left-color: transparent;
+      border-top-color: transparent;
+      border-right-color: rgba(103, 232, 248, 0.2);
+      border-width: 2px;
+    }
+    .hud-ticks {
+      position: absolute; inset: -4px; border-radius: 50%;
+    }
+    .hud-ticks::before, .hud-ticks::after {
+      content: ""; position: absolute; left: 50%; width: 2px; height: 8px;
+      margin-left: -1px; background: #67e8f8;
+      box-shadow: 0 0 8px rgba(34, 211, 238, 0.8);
+    }
+    .hud-ticks::before { top: 0; }
+    .hud-ticks::after { bottom: 0; }
+    .face-wrap[data-mode="speaking"] .hud-ring.r1 { animation: jarvis-pulse 0.55s ease-in-out infinite; }
+    .face-wrap[data-mode="speaking"] .hud-ring.r2 { animation: jarvis-spin 4.5s linear infinite; }
+    .face-wrap[data-mode="speaking"] .hud-ring.r3 { animation: jarvis-pulse 0.85s ease-in-out infinite reverse; }
+    .face-wrap[data-mode="speaking"] .hud-arc.a1 { animation: jarvis-spin 2.2s linear infinite; }
+    .face-wrap[data-mode="speaking"] .hud-arc.a2 { animation: jarvis-spin 3.4s linear infinite reverse; }
+    .face-wrap[data-mode="speaking"] .hud-ticks { animation: jarvis-vibrate 0.12s linear infinite; }
+    .face-wrap[data-mode="listening"] .hud-ring.r1 {
+      border-color: rgba(74, 222, 128, 0.55);
+      animation: jarvis-pulse 1.4s ease-in-out infinite;
+    }
+    .face-wrap[data-mode="listening"] .hud-ring.r2 {
+      border-color: rgba(74, 222, 128, 0.3);
+      animation: jarvis-spin 8s linear infinite;
+    }
+    .face-wrap[data-mode="listening"] .hud-arc.a1,
+    .face-wrap[data-mode="listening"] .hud-arc.a2 { border-top-color: #4ade80; border-bottom-color: #4ade80; }
     .face[data-mode="listening"] {
       border-color: #4ade80;
       box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.25), 0 0 28px rgba(74, 222, 128, 0.45);
@@ -101,14 +168,26 @@
     .face[data-mode="speaking"] {
       border-color: #22d3ee;
       box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.35), 0 0 32px rgba(34, 211, 238, 0.55);
-      animation: bob 0.55s ease-in-out infinite;
     }
+    .face-wrap[data-mode="speaking"] { animation: bob 0.55s ease-in-out infinite; }
     .face[data-mode="thinking"] {
       border-color: #fbbf24;
       box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.25), 0 0 28px rgba(251, 191, 36, 0.35);
     }
     .face[data-mode="thinking"] video { filter: saturate(0.85) brightness(0.92); }
     @keyframes bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-2px)} }
+    @keyframes jarvis-spin { to { transform: rotate(360deg); } }
+    @keyframes jarvis-pulse {
+      0%,100% { transform: scale(1); opacity: 0.85; }
+      50% { transform: scale(1.045); opacity: 1; }
+    }
+    @keyframes jarvis-vibrate {
+      0% { transform: rotate(0deg) scale(1); }
+      25% { transform: rotate(0.8deg) scale(1.01); }
+      50% { transform: rotate(-0.8deg) scale(0.995); }
+      75% { transform: rotate(0.5deg) scale(1.008); }
+      100% { transform: rotate(0deg) scale(1); }
+    }
     .face-name {
       font-family: Orbitron, sans-serif; letter-spacing: 0.22em; font-size: 0.95rem;
       color: var(--accent); text-shadow: 0 0 10px rgba(34, 211, 238, 0.7);
@@ -228,11 +307,21 @@
 
   <aside id="hud">
     <div class="face-card">
-      <div class="face" id="amy-face" data-mode="idle" aria-label="Amy">
-        <video id="amy-face-video" autoplay muted loop playsinline preload="auto" poster="">
-          <source src="/amy-face.webm" type="video/webm" />
-          <source src="/amy-face.mp4" type="video/mp4" />
-        </video>
+      <div class="face-wrap" id="amy-face-wrap" data-mode="idle">
+        <div class="hud-rings" aria-hidden="true">
+          <span class="hud-ring r3"></span>
+          <span class="hud-ring r2"></span>
+          <span class="hud-ring r1"></span>
+          <span class="hud-arc a1"></span>
+          <span class="hud-arc a2"></span>
+          <span class="hud-ticks"></span>
+        </div>
+        <div class="face" id="amy-face" data-mode="idle" aria-label="Amy">
+          <video id="amy-face-video" autoplay muted loop playsinline preload="auto" poster="">
+            <source src="/amy-face.webm" type="video/webm" />
+            <source src="/amy-face.mp4" type="video/mp4" />
+          </video>
+        </div>
       </div>
       <div class="face-name">AMY</div>
       <div class="face-state" id="face-state">STANDBY</div>
@@ -297,6 +386,7 @@ const side = document.getElementById('side');
 const shareDot = document.getElementById('share-dot');
 const brandSub = document.getElementById('brand-sub');
 const amyFace = document.getElementById('amy-face');
+const amyFaceWrap = document.getElementById('amy-face-wrap');
 const faceState = document.getElementById('face-state');
 const speakChip = document.getElementById('speak-chip');
 const modelChip = document.getElementById('model-chip');
@@ -364,6 +454,7 @@ function setStatus(mode, text) {
   statusEl.dataset.mode = mode;
   statusEl.textContent = text;
   amyFace.dataset.mode = mode;
+  if (amyFaceWrap) amyFaceWrap.dataset.mode = mode;
   const labels = { idle: 'STANDBY', listening: 'LISTENING', thinking: 'THINKING', speaking: 'TALKING' };
   faceState.textContent = labels[mode] || 'STANDBY';
   const vid = document.getElementById('amy-face-video');
