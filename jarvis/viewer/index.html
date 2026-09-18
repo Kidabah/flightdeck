@@ -313,7 +313,7 @@
           <span class="hud-ticks"></span>
         </div>
         <div class="face" id="amy-face" data-mode="idle" aria-label="Amy">
-          <video id="amy-face-video" autoplay muted loop playsinline preload="auto" poster="">
+          <video id="amy-face-video" muted playsinline preload="auto" poster="">
             <source src="/amy-face.webm" type="video/webm" />
             <source src="/amy-face.mp4" type="video/mp4" />
           </video>
@@ -455,8 +455,21 @@ function setStatus(mode, text) {
   faceState.textContent = labels[mode] || 'STANDBY';
   const vid = document.getElementById('amy-face-video');
   if (vid) {
-    vid.playbackRate = mode === 'speaking' ? 1.15 : mode === 'thinking' ? 0.7 : 1.0;
-    if (vid.paused) vid.play().catch(() => {});
+    // Tripo clip is a turntable — keep a still frame so Amy doesn't spin.
+    const freeze = () => {
+      try {
+        if (!Number.isFinite(vid.duration) || vid.duration === 0) return;
+        // Pick a flattering mid frame once, then stay put.
+        if (vid.dataset.frozen !== '1') {
+          vid.currentTime = Math.min(0.35, Math.max(0.05, vid.duration * 0.12));
+          vid.dataset.frozen = '1';
+        }
+        vid.pause();
+      } catch (_) {}
+    };
+    if (vid.readyState >= 1) freeze();
+    else vid.addEventListener('loadedmetadata', freeze, { once: true });
+    vid.playbackRate = 1;
   }
   if (mode === 'speaking') {
     speakChip.textContent = '● TALKING';
@@ -920,16 +933,12 @@ function applyViewMode(mode) {
   });
   if (!graph) return;
   const controls = graph.controls();
+  controls.autoRotate = false;
   if (mode === 'ring') {
-    controls.autoRotate = true;
-    controls.autoRotateSpeed = 0.55;
     graph.cameraPosition({ x: 0, y: 0, z: 280 }, { x: 0, y: 0, z: 0 }, 900);
   } else if (mode === 'cube') {
-    controls.autoRotate = false;
     graph.cameraPosition({ x: 180, y: 140, z: 180 }, { x: 0, y: 0, z: 0 }, 900);
   } else {
-    controls.autoRotate = true;
-    controls.autoRotateSpeed = 0.25;
     graph.cameraPosition({ x: 40, y: 20, z: 120 }, { x: 0, y: 0, z: 0 }, 900);
   }
   graph.nodeVal(viewMode === 'face' ? 5 : 3.6);
@@ -1070,6 +1079,20 @@ paintStars();
 bootGraph();
 armRecognition();
 bootGreeting();
+(function freezeAmyFace() {
+  const vid = document.getElementById('amy-face-video');
+  if (!vid) return;
+  const freeze = () => {
+    try {
+      if (!Number.isFinite(vid.duration) || vid.duration === 0) return;
+      vid.currentTime = Math.min(0.35, Math.max(0.05, vid.duration * 0.12));
+      vid.dataset.frozen = '1';
+      vid.pause();
+    } catch (_) {}
+  };
+  if (vid.readyState >= 1) freeze();
+  else vid.addEventListener('loadedmetadata', freeze, { once: true });
+})();
 window.speechSynthesis?.addEventListener?.('voiceschanged', () => {
   cachedVoice = null;
   pickVoice();
