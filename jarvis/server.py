@@ -258,7 +258,8 @@ def openai_chat(
     if tools:
         body["tools"] = tools
         body["tool_choice"] = tool_choice or "auto"
-    effort = str(cfg.get("reasoning_effort") or "low").strip().lower()
+    # Luna rejects function tools + reasoning_effort together on chat/completions.
+    effort = "none" if tools else str(cfg.get("reasoning_effort") or "low").strip().lower()
     if effort and effort != "default":
         body["reasoning_effort"] = effort
     temp = cfg.get("temperature")
