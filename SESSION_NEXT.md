@@ -1,3 +1,11 @@
+## 2026-09-18 Session update (Amy files + internet)
+
+Latest commit: _(pending)_ — Amy accepts drag/drop or FILE attach (text + images), and can `web_search` / `fetch_url` via Luna tool calls. Uploads land in `jarvis/uploads/` (gitignored).
+
+Hard refresh `https://flightdeck.tail7de73e.ts.net:4700`. `systemctl --user restart jarvis`.
+
+---
+
 ## 2026-09-18 Session update (Amy mic duck / no self-replies)
 
 Latest commit: _(pending)_ — Mic ducks while Amy thinks/talks + 900ms echo cooldown so Laura isn’t heard as Chris. Stops the self-answer loop.

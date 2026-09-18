@@ -192,6 +192,27 @@
       width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--line);
       background: rgba(2, 12, 28, 0.88); color: var(--accent); cursor: pointer; box-shadow: var(--glow); font-size: 0.95rem;
     }
+    #drops {
+      display: none; flex-wrap: wrap; gap: 6px;
+    }
+    #drops.show { display: flex; }
+    .drop-chip {
+      display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+      border: 1px solid var(--line); background: rgba(8, 47, 73, 0.65);
+      color: var(--ink); border-radius: 999px; padding: 4px 10px; font-size: 0.72rem;
+    }
+    .drop-chip button {
+      border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 0.85rem; padding: 0;
+    }
+    #drop-overlay {
+      display: none; position: absolute; inset: 0; z-index: 6;
+      border: 2px dashed var(--accent); border-radius: 18px;
+      background: rgba(2, 12, 28, 0.88); color: var(--accent);
+      align-items: center; justify-content: center; text-align: center;
+      font-family: Orbitron, sans-serif; letter-spacing: 0.12em; font-size: 0.78rem;
+      pointer-events: none;
+    }
+    #dock.dragover #drop-overlay { display: flex; }
   </style>
   <script src="//unpkg.com/3d-force-graph"></script>
   <script src="/graph-data.js"></script>
@@ -241,17 +262,22 @@
   </aside>
 
   <div id="dock">
+    <div id="drop-overlay">DROP FILES FOR AMY</div>
     <div id="secure-hint">Mic needs HTTPS. Open <a id="https-link" href="#">the secure Amy URL</a> — Chrome treats plain HTTP like speakers-only.</div>
     <div id="status-line" data-mode="idle">Ready</div>
     <div id="answer"></div>
+    <div id="drops" aria-live="polite"></div>
     <div class="row">
-      <input id="chat-input" type="text" placeholder="Talk to Amy…" autocomplete="off" />
+      <input id="chat-input" type="text" placeholder="Talk to Amy… (or drop files)" autocomplete="off" />
+      <input id="file-input" type="file" multiple hidden accept="image/*,.txt,.md,.json,.csv,.py,.js,.ts,.html,.css,.log,.gcode,.xml,.yml,.yaml,.svg" />
+      <button class="tool" id="file-btn" type="button" title="Attach files">FILE</button>
       <button class="tool" id="mic-btn" type="button" title="Microphone">MIC</button>
       <button class="tool" id="send-btn" type="button">ASK</button>
     </div>
     <div id="tray">
       <button type="button" id="tray-mic" title="Mic">🎙</button>
       <button type="button" id="tray-eyes" title="Eyes / screen">👁</button>
+      <button type="button" id="tray-file" title="Drop files">📎</button>
       <button type="button" id="tray-refresh" title="Refresh graph">↻</button>
     </div>
   </div>
@@ -276,6 +302,12 @@ const speakChip = document.getElementById('speak-chip');
 const modelChip = document.getElementById('model-chip');
 const searchEl = document.getElementById('search');
 const secureHint = document.getElementById('secure-hint');
+const dockEl = document.getElementById('dock');
+const dropsEl = document.getElementById('drops');
+const fileInput = document.getElementById('file-input');
+const fileBtn = document.getElementById('file-btn');
+
+let pendingFiles = []; // {name, media_type, data}
 
 let graph = null;
 let shareStream = null;
@@ -470,9 +502,72 @@ async function speak(text) {
 function submitChat() {
   unlockedAudio = true;
   const q = inputEl.value.trim();
-  if (!q) return;
+  if (!q && !pendingFiles.length) return;
   inputEl.value = '';
-  ask(q);
+  ask(q || 'Have a look at what I dropped.');
+}
+
+function renderDrops() {
+  dropsEl.innerHTML = '';
+  if (!pendingFiles.length) {
+    dropsEl.classList.remove('show');
+    return;
+  }
+  dropsEl.classList.add('show');
+  pendingFiles.forEach((f, idx) => {
+    const chip = document.createElement('span');
+    chip.className = 'drop-chip';
+    const label = document.createElement('span');
+    label.textContent = f.name;
+    const rm = document.createElement('button');
+    rm.type = 'button';
+    rm.textContent = '×';
+    rm.title = 'Remove';
+    rm.addEventListener('click', () => {
+      pendingFiles.splice(idx, 1);
+      renderDrops();
+    });
+    chip.appendChild(label);
+    chip.appendChild(rm);
+    dropsEl.appendChild(chip);
+  });
+}
+
+function fileToAttachment(file) {
+  return new Promise((resolve, reject) => {
+    if (file.size > 8 * 1024 * 1024) {
+      reject(new Error(`${file.name} is over 8MB`));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result || '');
+      const data = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+      resolve({
+        name: file.name,
+        media_type: file.type || 'application/octet-stream',
+        data,
+      });
+    };
+    reader.onerror = () => reject(new Error(`Couldn't read ${file.name}`));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function addDroppedFiles(fileList) {
+  const files = [...(fileList || [])].slice(0, 4);
+  if (!files.length) return;
+  try {
+    for (const file of files) {
+      if (pendingFiles.length >= 4) break;
+      const att = await fileToAttachment(file);
+      pendingFiles.push(att);
+    }
+    renderDrops();
+    setStatus('idle', `${pendingFiles.length} file${pendingFiles.length === 1 ? '' : 's'} ready`);
+  } catch (err) {
+    answerEl.textContent = String(err.message || err);
+  }
 }
 
 function openNode(node) {
@@ -559,11 +654,20 @@ async function ask(question) {
       const r = await fetch('/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: q }),
+        body: JSON.stringify({
+          question: q,
+          attachments: pendingFiles.map(f => ({
+            name: f.name,
+            media_type: f.media_type,
+            data: f.data,
+          })),
+        }),
       });
       payload = await r.json();
       if (!r.ok) throw new Error(payload.detail || 'chat failed');
       if (payload.move_camera == null) payload.move_camera = true;
+      pendingFiles = [];
+      renderDrops();
     }
     answerEl.textContent = payload.answer || '';
     applySources(payload);
@@ -748,6 +852,29 @@ function applyViewMode(mode) {
 micBtn.addEventListener('click', startMic);
 document.getElementById('tray-mic').addEventListener('click', startMic);
 sendBtn.addEventListener('click', submitChat);
+fileBtn.addEventListener('click', () => fileInput.click());
+document.getElementById('tray-file').addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => {
+  addDroppedFiles(fileInput.files);
+  fileInput.value = '';
+});
+;['dragenter', 'dragover'].forEach(evt => {
+  dockEl.addEventListener(evt, (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dockEl.classList.add('dragover');
+  });
+});
+;['dragleave', 'drop'].forEach(evt => {
+  dockEl.addEventListener(evt, (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (evt === 'drop') addDroppedFiles(e.dataTransfer?.files);
+    dockEl.classList.remove('dragover');
+  });
+});
+window.addEventListener('dragover', (e) => e.preventDefault());
+window.addEventListener('drop', (e) => e.preventDefault());
 inputEl.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();

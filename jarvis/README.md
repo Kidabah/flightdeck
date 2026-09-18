@@ -37,7 +37,10 @@ API keys: https://platform.openai.com/api-keys
 4. `systemctl --user restart jarvis`
 5. Open the HTTPS URL — click once to unlock speech, then talk or type
 
-## Flightdeck voice tools
+## Files + internet
+
+- Drag files onto the dock (or **FILE** / 📎) — text, code, logs, gcode, images
+- Ask her to look something up online — she can search the web and open URLs
 
 - "Run a calibration on BigBoy"
 - "What's BigBoy doing?"
