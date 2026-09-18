@@ -7,6 +7,7 @@ import html as html_lib
 import json
 import re
 import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -37,6 +38,7 @@ on screen. Prefer workshop notes for Flightdeck/printer facts.
 Chris can drop files on you — read them and use what's in them.
 You have internet tools (web_search, fetch_url). Use them for live/current info,
 or when notes don't cover the ask. Never invent sources; if a search fails, say so.
+If Amy Hands is available, you can search his PC folders and switch/open Chrome tabs.
 Flightdeck tool results: short, accurate, a touch of Amy cheek allowed.
 Small talk is fine and human. Keep answers tight.
 """.strip()
@@ -70,6 +72,59 @@ WEB_TOOLS = [
                 },
                 "required": ["url"],
             },
+        },
+    },
+]
+
+HANDS_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "search_pc_files",
+            "description": "Search Chris's allowed PC folders by filename/path keywords via Amy Hands.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Filename or folder keywords"},
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "focus_browser_tab",
+            "description": "Focus a Chrome tab on Chris's PC matching title or URL text.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Part of tab title or URL"},
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "open_browser_tab",
+            "description": "Open a URL in Chrome on Chris's PC.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "http(s) URL to open"},
+                },
+                "required": ["url"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_browser_tabs",
+            "description": "List open Chrome tabs on Chris's PC.",
+            "parameters": {"type": "object", "properties": {}},
         },
     },
 ]
@@ -411,7 +466,89 @@ def fetch_url(url: str) -> str:
     return text[:MAX_TEXT_CHARS]
 
 
-def run_web_tool(name: str, arguments: str | dict[str, Any]) -> str:
+def hands_base() -> str:
+    return str(RUNTIME["config"].get("hands_base_url") or "").rstrip("/")
+
+
+def hands_configured() -> bool:
+    return bool(hands_base())
+
+
+def hands_request(path: str, *, method: str = "GET", body: dict[str, Any] | None = None, timeout: int = 20) -> tuple[int, Any]:
+    base = hands_base()
+    if not base:
+        return 0, {"detail": "Amy Hands not configured (hands_base_url)."}
+    return http_json(f"{base}{path}", method=method, body=body, timeout=timeout)
+
+
+def hands_wait_result(cmd_id: str, timeout_s: float = 6.0) -> dict[str, Any]:
+    deadline = datetime.now().timestamp() + timeout_s
+    while datetime.now().timestamp() < deadline:
+        code, payload = hands_request("/commands/last")
+        if code == 200 and isinstance(payload, dict):
+            result = payload.get("result") or {}
+            if isinstance(result, dict) and result.get("id") == cmd_id:
+                return result
+        time.sleep(0.35)
+    return {"ok": False, "detail": "Chrome extension did not respond in time — is Amy Hands + extension running?"}
+
+
+def search_pc_files(query: str) -> str:
+    code, payload = hands_request("/search", method="POST", body={"query": query})
+    if code != 200 or not isinstance(payload, dict):
+        return f"Hands search failed: {payload}"
+    hits = payload.get("hits") or []
+    if not hits:
+        return f"No PC files matched “{query}” in allowed folders."
+    lines = [f"{h.get('name')} — {h.get('path')}" for h in hits[:15]]
+    return f"Found {payload.get('count', len(hits))} file(s) for “{query}”:\n- " + "\n- ".join(lines)
+
+
+def focus_browser_tab(query: str) -> str:
+    code, payload = hands_request("/tabs/focus", method="POST", body={"query": query})
+    if code != 200 or not isinstance(payload, dict):
+        return f"Couldn’t queue tab focus: {payload}"
+    result = hands_wait_result(str(payload.get("id") or ""))
+    if result.get("ok"):
+        return f"Focused Chrome tab: {result.get('title') or result.get('url')}"
+    return f"Tab focus failed: {result.get('detail') or result}"
+
+
+def open_browser_tab(url: str) -> str:
+    code, payload = hands_request("/tabs/open", method="POST", body={"url": url})
+    if code != 200 or not isinstance(payload, dict):
+        return f"Couldn’t open tab: {payload}"
+    result = hands_wait_result(str(payload.get("id") or ""))
+    if result.get("ok"):
+        return f"Opened {result.get('url') or url}"
+    return f"Open tab failed: {result.get('detail') or result}"
+
+
+def list_browser_tabs() -> str:
+    code, payload = hands_request("/tabs/list", method="POST", body={})
+    if code != 200 or not isinstance(payload, dict):
+        return f"Couldn’t list tabs: {payload}"
+    result = hands_wait_result(str(payload.get("id") or ""), timeout_s=7.0)
+    if not result.get("ok"):
+        return f"List tabs failed: {result.get('detail') or result}"
+    tabs = result.get("tabs") or []
+    if not tabs:
+        return "No Chrome tabs reported."
+    lines = []
+    for t in tabs[:20]:
+        mark = "*" if t.get("active") else "-"
+        lines.append(f"{mark} {t.get('title') or '(no title)'} | {t.get('url')}")
+    return "Chrome tabs:\n" + "\n".join(lines)
+
+
+def active_tools() -> list[dict[str, Any]]:
+    tools = list(WEB_TOOLS)
+    if hands_configured():
+        tools.extend(HANDS_TOOLS)
+    return tools
+
+
+def run_tool(name: str, arguments: str | dict[str, Any]) -> str:
     try:
         args = arguments if isinstance(arguments, dict) else json.loads(arguments or "{}")
     except json.JSONDecodeError:
@@ -420,14 +557,23 @@ def run_web_tool(name: str, arguments: str | dict[str, Any]) -> str:
         return web_search(str(args.get("query") or ""))
     if name == "fetch_url":
         return fetch_url(str(args.get("url") or ""))
+    if name == "search_pc_files":
+        return search_pc_files(str(args.get("query") or ""))
+    if name == "focus_browser_tab":
+        return focus_browser_tab(str(args.get("query") or ""))
+    if name == "open_browser_tab":
+        return open_browser_tab(str(args.get("url") or ""))
+    if name == "list_browser_tabs":
+        return list_browser_tabs()
     return f"Unknown tool: {name}"
 
 
 def openai_chat_with_web(messages: list[dict[str, Any]], *, image_b64: str | None = None, media_type: str = "image/jpeg") -> str:
-    """Tool loop: Luna may call web_search / fetch_url up to a few rounds."""
+    """Tool loop: web + optional Amy Hands (folders/tabs)."""
+    tools = active_tools()
     msgs: list[dict[str, Any]] = list(messages)
     for _ in range(4):
-        msg = openai_chat(msgs, image_b64=image_b64, media_type=media_type, tools=WEB_TOOLS)
+        msg = openai_chat(msgs, image_b64=image_b64, media_type=media_type, tools=tools)
         image_b64 = None  # only attach once
         tool_calls = msg.get("tool_calls") or []
         if not tool_calls:
@@ -442,7 +588,7 @@ def openai_chat_with_web(messages: list[dict[str, Any]], *, image_b64: str | Non
         for call in tool_calls:
             fn = (call.get("function") or {}) if isinstance(call, dict) else {}
             name = str(fn.get("name") or "")
-            result = run_web_tool(name, fn.get("arguments") or "{}")
+            result = run_tool(name, fn.get("arguments") or "{}")
             msgs.append(
                 {
                     "role": "tool",
@@ -450,7 +596,6 @@ def openai_chat_with_web(messages: list[dict[str, Any]], *, image_b64: str | Non
                     "content": result,
                 }
             )
-    # Last resort after max rounds.
     final = openai_chat(msgs)
     return str(final.get("content") or "").strip()
 

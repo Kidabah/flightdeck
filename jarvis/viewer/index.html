@@ -175,6 +175,19 @@
       box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.25), 0 0 28px rgba(251, 191, 36, 0.35);
     }
     .face[data-mode="thinking"] video { filter: saturate(0.85) brightness(0.92); }
+    .face-wrap[data-mode="asleep"] .hud-rings { opacity: 0 !important; }
+    .face[data-mode="asleep"] {
+      border-color: rgba(51, 65, 85, 0.7);
+      box-shadow: none;
+      filter: grayscale(0.85) brightness(0.28);
+      transition: filter 0.6s ease, border-color 0.6s ease, box-shadow 0.6s ease;
+    }
+    .face[data-mode="asleep"] video { opacity: 0.35; }
+    .face-wrap[data-mode="asleep"] + .face-name,
+    .face-card:has(.face-wrap[data-mode="asleep"]) .face-name {
+      color: #475569; text-shadow: none;
+    }
+    .face-card:has(.face-wrap[data-mode="asleep"]) .face-state { color: #334155; }
     @keyframes jarvis-pulse {
       0%,100% { transform: scale(1); opacity: 0.85; }
       50% { transform: scale(1.03); opacity: 1; }
@@ -369,6 +382,8 @@
 
 <script>
 const FINISH_MS = 1400;
+const IDLE_NUDGE_MS = 3 * 60 * 1000;   // whistle / cheeky line
+const IDLE_SLEEP_MS = 6 * 60 * 1000;   // go dark
 const MUTE = new URLSearchParams(location.search).has('mute');
 const IS_SECURE = window.isSecureContext;
 
@@ -394,6 +409,17 @@ const fileInput = document.getElementById('file-input');
 const fileBtn = document.getElementById('file-btn');
 
 let pendingFiles = []; // {name, media_type, data}
+let asleep = false;
+let idleTimer = null;
+let nudgedIdle = false;
+let audioCtx = null;
+
+const NUDGE_LINES = [
+  "Still with me, Chris? I can wait… or I can whistle.",
+  "Taking your time, Kidabah. I'll just hum to myself.",
+  "Hellooo? Amy to Chris — I'm getting lonely over here.",
+  "If you're stuck, say wake up later. I'll nap pretty.",
+];
 
 let graph = null;
 let shareStream = null;
@@ -456,6 +482,7 @@ function handleInterrupt() {
   stopSpeaking();
   isSpeaking = false;
   micMutedUntil = Date.now() + 350;
+  bumpIdle();
   if (wantListen) {
     setStatus('listening', 'Listening — interrupted');
     syncMicUi();
@@ -465,6 +492,90 @@ function handleInterrupt() {
     }, 200);
   } else {
     setStatus('idle', 'Interrupted');
+  }
+}
+
+function isWakePhrase(t) {
+  const s = String(t || '').trim().toLowerCase().replace(/[.,!?]+$/g, '');
+  if (!s) return false;
+  return /^(wake up( amy)?|amy wake up|hey amy|good morning amy|rise and shine)$/i.test(s)
+    || /\bwake up\b.*\bamy\b/i.test(s)
+    || /\bamy\b.*\bwake up\b/i.test(s);
+}
+
+function bumpIdle() {
+  nudgedIdle = false;
+  if (idleTimer) clearTimeout(idleTimer);
+  if (asleep) return;
+  idleTimer = setTimeout(onIdleNudge, IDLE_NUDGE_MS);
+}
+
+async function onIdleNudge() {
+  if (asleep || isSpeaking || statusEl.dataset.mode === 'thinking') {
+    bumpIdle();
+    return;
+  }
+  if (!nudgedIdle) {
+    nudgedIdle = true;
+    try {
+      whistle();
+      if (!MUTE) await speak(NUDGE_LINES[Math.floor(Math.random() * NUDGE_LINES.length)]);
+    } catch (_) {}
+    idleTimer = setTimeout(enterSleep, IDLE_SLEEP_MS - IDLE_NUDGE_MS);
+    return;
+  }
+  enterSleep();
+}
+
+function whistle() {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = audioCtx;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, now);
+    osc.frequency.exponentialRampToValueAtTime(1760, now + 0.35);
+    osc.frequency.exponentialRampToValueAtTime(1320, now + 0.7);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.08, now + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.75);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.8);
+  } catch (_) {}
+}
+
+function enterSleep() {
+  if (asleep) return;
+  asleep = true;
+  if (idleTimer) clearTimeout(idleTimer);
+  idleTimer = null;
+  stopSpeaking();
+  isSpeaking = false;
+  clearTimeout(finishTimer);
+  pending = '';
+  // Stay mic-armed so "wake up amy" works, but ignore normal chat.
+  setStatus('asleep', 'Sleeping — say wake up Amy');
+  syncMicUi();
+}
+
+function wakeAmy(reason) {
+  if (!asleep && reason !== 'force') {
+    bumpIdle();
+    return;
+  }
+  asleep = false;
+  nudgedIdle = false;
+  setStatus(wantListen ? 'listening' : 'idle', wantListen ? 'Listening' : 'Ready');
+  bumpIdle();
+  if (wantListen && recognition && !listening) {
+    try { recognition.start(); } catch (_) {}
+  }
+  if (reason === 'voice' || reason === 'click') {
+    speak("I'm up, Chris. What do you need?");
   }
 }
 
@@ -480,7 +591,7 @@ function setStatus(mode, text) {
   statusEl.textContent = text;
   amyFace.dataset.mode = mode;
   if (amyFaceWrap) amyFaceWrap.dataset.mode = mode;
-  const labels = { idle: 'STANDBY', listening: 'LISTENING', thinking: 'THINKING', speaking: 'TALKING' };
+  const labels = { idle: 'STANDBY', listening: 'LISTENING', thinking: 'THINKING', speaking: 'TALKING', asleep: 'SLEEPING' };
   faceState.textContent = labels[mode] || 'STANDBY';
   const vid = document.getElementById('amy-face-video');
   if (vid) {
@@ -509,6 +620,9 @@ function setStatus(mode, text) {
   } else if (mode === 'thinking') {
     speakChip.textContent = '● THINKING';
     speakChip.classList.add('live');
+  } else if (mode === 'asleep') {
+    speakChip.textContent = '● SLEEP';
+    speakChip.classList.remove('live');
   } else {
     speakChip.textContent = '● IDLE';
     speakChip.classList.remove('live');
@@ -630,6 +744,7 @@ async function speak(text) {
 
 function submitChat() {
   unlockedAudio = true;
+  if (asleep) wakeAmy('force');
   const q = inputEl.value.trim();
   if (!q && !pendingFiles.length) return;
   inputEl.value = '';
@@ -742,8 +857,12 @@ function applySources(payload) {
 }
 
 async function ask(question) {
+  if (asleep) {
+    wakeAmy('force');
+  }
   const q = String(question || '').trim();
   if (!q) return;
+  bumpIdle();
   duckMic();
   answerEl.textContent = '…';
   setStatus('thinking', 'Thinking');
@@ -896,17 +1015,26 @@ function armRecognition() {
     }
     chunk = chunk.trim();
     if (!chunk) return;
+    if (asleep) {
+      if (isWakePhrase(chunk)) wakeAmy('voice');
+      return;
+    }
+    if (isWakePhrase(chunk)) {
+      bumpIdle();
+      return;
+    }
     if (isInterrupt(chunk)) {
       handleInterrupt();
       return;
     }
     // While Amy talks (or echo cooldown), ignore normal speech so she doesn't self-answer.
     if (isSpeaking || micIsDeaf()) return;
+    bumpIdle();
     pending = (pending ? pending + ' ' : '') + chunk;
     inputEl.value = pending;
     clearTimeout(finishTimer);
     finishTimer = setTimeout(() => {
-      if (isSpeaking || micIsDeaf()) {
+      if (asleep || isSpeaking || micIsDeaf()) {
         pending = '';
         return;
       }
@@ -950,6 +1078,9 @@ function muteMic() {
 
 function startMic() {
   unlockedAudio = true;
+  if (asleep) {
+    wakeAmy('click');
+  }
   if (!IS_SECURE) {
     answerEl.textContent = 'Chrome won’t give Amy the mic on plain HTTP — use the HTTPS link above.';
     secureHint.style.display = 'block';
@@ -962,7 +1093,8 @@ function startMic() {
   }
   wantListen = true;
   syncMicUi();
-  setStatus('listening', 'Listening');
+  if (!asleep) setStatus('listening', 'Listening');
+  bumpIdle();
   try { recognition.start(); } catch (_) {}
 }
 
@@ -1154,6 +1286,12 @@ paintStars();
 bootGraph();
 armRecognition();
 bootGreeting();
+bumpIdle();
+document.getElementById('amy-face-wrap')?.addEventListener('click', () => {
+  unlockedAudio = true;
+  if (asleep) wakeAmy('click');
+  else bumpIdle();
+});
 (function freezeAmyFace() {
   const vid = document.getElementById('amy-face-video');
   if (!vid) return;
