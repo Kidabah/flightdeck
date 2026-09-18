@@ -78,7 +78,7 @@ def main() -> int:
     try:
         with urllib.request.urlopen(f"{base}/", timeout=10) as resp:
             html = resp.read().decode("utf-8", errors="replace")
-            results.append(tick(resp.status == 200 and "Jarvis" in html, "viewer index", f"HTTP {resp.status}"))
+            results.append(tick(resp.status == 200 and "Amy" in html, "viewer index", f"HTTP {resp.status}"))
             disk = (VIEWER / "index.html").read_text(encoding="utf-8")
             # Stale check: served should match disk for a distinctive token
             token = "FINISH_MS"

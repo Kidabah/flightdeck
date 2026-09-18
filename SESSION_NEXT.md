@@ -1,3 +1,11 @@
+## 2026-09-18 Session update (Amy rebrand + HUD fix)
+
+Latest commit: pending — Workshop assistant is **Amy** (not Jarvis): face HUD, Chris/Kidabah address, funny personality, note panel moved left to fix HUD clash. Mic needs HTTPS — Tailscale Serve on `:4700`.
+
+Hard refresh `https://flightdeck.tail7de73e.ts.net:4700` (prefer HTTPS for mic). `systemctl --user restart jarvis`.
+
+---
+
 ## 2026-09-18 Session update (Jarvis HUD polish)
 
 Latest commit: `8674a65` — Jarvis viewer now has Flightdeck-flavoured command chrome: cyan HUD ring, speaking/model chips, RING/CUBE/FACE views, EYES organ (WATCH/HOLO/FOCUS stubs), denser starfield, search bar, and more workshop notes for a fuller galaxy.

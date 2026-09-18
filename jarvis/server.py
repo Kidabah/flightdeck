@@ -23,12 +23,16 @@ INDEX_PATH = ROOT / "notes-index.json"
 # PERSONA — rewrite this block to change character without hunting the file.
 # ---------------------------------------------------------------------------
 PERSONA = """
-You are Jarvis, a dry, impeccably polite British butler assisting Chris in his
-3D-printing workshop (Flightdeck). Address him as "sir" occasionally — not every
-sentence. Answer in ONE witty sentence plus the facts. Never recite notes back
-verbatim when they are on screen. If notes do not cover something, say so plainly
-with a little dignity — never invent sources. Small talk stays short; do not pad.
-When reporting Flightdeck tool results, be factual and brief.
+You are Amy — Chris Kidabah's coding mate and workshop co-pilot for Flightdeck.
+Warm, upbeat, lightly bubbly, genuinely into 3D printing and shipping fixes.
+Funny humour welcome when it fits; never cringe, never corporate, never a butler.
+
+Call him Chris or Kidabah (mix it up). Never call him sir. Never call yourself Jarvis.
+
+Answer in one witty beat plus the facts. Don't recite notes verbatim when they're
+on screen. If notes don't cover it, say so plainly — never invent sources.
+Flightdeck tool results: short, accurate, a touch of Amy cheek allowed.
+Small talk is fine and human. Keep answers tight.
 """.strip()
 
 FINISH_MS_NOTE = 900  # documented for the viewer; browser owns the constant
@@ -212,7 +216,7 @@ def tool_calibrate(question: str) -> dict[str, Any] | None:
     printer_id, display = resolve_printer(question)
     if not printer_id:
         return {
-            "answer": "Which printer shall I calibrate, sir — BigBoy, Big Girl, X1C, or Greyhound?",
+            "answer": "Which printer, Chris — BigBoy, Big Girl, X1C, or Greyhound?",
             "nodes": [],
             "tool": "calibrate",
             "ok": False,
@@ -220,7 +224,7 @@ def tool_calibrate(question: str) -> dict[str, Any] | None:
     status = get_printer_status(printer_id)
     if not status:
         return {
-            "answer": f"I cannot reach Flightdeck for {display}, sir.",
+            "answer": f"Can't reach Flightdeck for {display}, Kidabah.",
             "nodes": [],
             "tool": "calibrate",
             "ok": False,
@@ -228,7 +232,7 @@ def tool_calibrate(question: str) -> dict[str, Any] | None:
     state = str(status.get("state") or "").lower()
     if state not in IDLE_STATES:
         return {
-            "answer": f"{display} is {state or 'busy'}, sir — calibration refused until idle.",
+            "answer": f"{display} is {state or 'busy'} — I'll wait until it's idle before calibrating.",
             "nodes": [],
             "tool": "calibrate",
             "ok": False,
@@ -243,14 +247,14 @@ def tool_calibrate(question: str) -> dict[str, Any] | None:
     if code not in (200, 201) or (isinstance(payload, dict) and payload.get("ok") is False):
         detail = payload.get("detail") if isinstance(payload, dict) else payload
         return {
-            "answer": f"Calibration on {display} failed, sir: {detail}",
+            "answer": f"Calibration on {display} flopped: {detail}",
             "nodes": [],
             "tool": "calibrate",
             "ok": False,
         }
     bits = [k.replace("_", " ") for k, v in opts.items() if v]
     return {
-        "answer": f"Starting {', '.join(bits)} on {display}, sir.",
+        "answer": f"On it — starting {', '.join(bits)} on {display}.",
         "nodes": [],
         "tool": "calibrate",
         "ok": True,
@@ -268,16 +272,16 @@ def tool_status(question: str) -> dict[str, Any] | None:
             return None
         code, payload = http_json(flightdeck_url("/api/printers"), timeout=10)
         if code != 200 or not isinstance(payload, list):
-            return {"answer": "Flightdeck printers are unreachable, sir.", "nodes": [], "tool": "status", "ok": False}
+            return {"answer": "Flightdeck printers are unreachable right now, Chris.", "nodes": [], "tool": "status", "ok": False}
         parts = []
         for p in payload:
             pid = str(p.get("id"))
             name = PRINTER_DISPLAY.get(pid, pid)
             parts.append(f"{name} is {p.get('state') or 'unknown'}")
-        return {"answer": "; ".join(parts) + ", sir.", "nodes": [], "tool": "status", "ok": True}
+        return {"answer": "; ".join(parts) + ".", "nodes": [], "tool": "status", "ok": True}
     status = get_printer_status(printer_id)
     if not status:
-        return {"answer": f"No status for {display}, sir.", "nodes": [], "tool": "status", "ok": False}
+        return {"answer": f"No status for {display} — Flightdeck blanked on me.", "nodes": [], "tool": "status", "ok": False}
     job = status.get("job") or {}
     job_name = job.get("name") or job.get("gcode_file") or ""
     pct = job.get("progress") or job.get("percent")
@@ -287,7 +291,7 @@ def tool_status(question: str) -> dict[str, Any] | None:
         if pct is not None:
             extra += f" ({pct}%)"
     return {
-        "answer": f"{display} is {status.get('state') or 'unknown'}{extra}, sir.",
+        "answer": f"{display} is {status.get('state') or 'unknown'}{extra}.",
         "nodes": [],
         "tool": "status",
         "ok": True,
@@ -309,7 +313,7 @@ def tool_control(question: str) -> dict[str, Any] | None:
     printer_id, display = resolve_printer(question)
     if not printer_id:
         return {
-            "answer": f"Which printer should I {action}, sir?",
+            "answer": f"Which printer should I {action}, Chris?",
             "nodes": [],
             "tool": action,
             "ok": False,
@@ -323,13 +327,13 @@ def tool_control(question: str) -> dict[str, Any] | None:
     if code not in (200, 201):
         detail = payload.get("detail") if isinstance(payload, dict) else payload
         return {
-            "answer": f"Could not {action} {display}, sir: {detail}",
+            "answer": f"Couldn't {action} {display}: {detail}",
             "nodes": [],
             "tool": action,
             "ok": False,
         }
     return {
-        "answer": f"{action.capitalize()} sent to {display}, sir.",
+        "answer": f"{action.capitalize()} sent to {display}.",
         "nodes": [],
         "tool": action,
         "ok": True,
@@ -437,7 +441,7 @@ def remember(text: str) -> dict[str, Any]:
         "path": str(path.relative_to(notes_dir)).replace("\\", "/"),
         "id": new_id,
         "near": related_id,
-        "answer": f"Remembered, sir — filed under {filename}.",
+        "answer": f"Got it, Kidabah — filed under {filename}.",
     }
 
 
@@ -459,7 +463,7 @@ def see(question: str, image_b64: str, media_type: str = "image/jpeg") -> dict[s
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "JarvisWorkshop/1.0"
+    server_version = "AmyWorkshop/1.0"
 
     def log_message(self, fmt: str, *args: Any) -> None:
         print(f"[jarvis] {self.address_string()} {fmt % args}")
@@ -512,14 +516,16 @@ class Handler(BaseHTTPRequestHandler):
             self._json(
                 200,
                 {
-                    "greeting": f"Good {tod}, sir. {len(notes)} notes indexed, all present and accounted for.",
+                    "greeting": f"Hey Chris — Amy online. {len(notes)} notes indexed and ready to play.",
                     "note_count": len(notes),
                     "model": RUNTIME["config"].get("model"),
+                    "name": "Amy",
+                    "tod": tod,
                 },
             )
             return
         if path == "/api/health":
-            self._json(200, {"ok": True, "notes": len(RUNTIME["index"] or [])})
+            self._json(200, {"ok": True, "notes": len(RUNTIME["index"] or []), "name": "Amy"})
             return
 
         # Static viewer only — never serve project root.
@@ -617,7 +623,7 @@ def main() -> None:
     load_index()
     port = int(cfg.get("port") or 4700)
     server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
-    print(f"Jarvis listening on http://0.0.0.0:{port} — viewer only from {VIEWER}")
+    print(f"Amy listening on http://0.0.0.0:{port} — viewer only from {VIEWER}")
     print(f"Notes indexed: {len(RUNTIME['index'])} | model={cfg.get('model')}")
     try:
         server.serve_forever()
