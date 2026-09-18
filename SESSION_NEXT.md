@@ -1,3 +1,11 @@
+## 2026-09-18 Session update (Amy voice + clear-on-enter)
+
+Latest commit: _(pending)_ — Amy TTS picks a warmer Aussie-leaning voice (Karen/Catherine/Aria…), slight pitch/rate bump. Chat input clears on Enter/ASK and after mic finish.
+
+Hard refresh `https://flightdeck.tail7de73e.ts.net:4700`. Restart optional.
+
+---
+
 ## 2026-09-18 Session update (Amy on GPT-5.6 Luna)
 
 Latest commit: `94e9a3f` — Amy brain defaults to **`gpt-5.6-luna`** (OpenAI API prepaid credits). Jarvis→Amy dialogue purge in notes/persona. OpenRouter still optional via `provider`/`openai_base_url`. Drop coin: https://platform.openai.com/settings/organization/billing/

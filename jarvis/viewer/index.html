@@ -317,14 +317,34 @@ function setStatus(mode, text) {
   }
 }
 
+let cachedVoice = null;
+let cachedVoiceName = '';
+
+function scoreVoice(v) {
+  const name = String(v.name || '');
+  const lang = String(v.lang || '');
+  let score = 0;
+  // Amy character pick: warm Aussie mate energy first, then bright UK/US naturals.
+  if (/en-AU/i.test(lang)) score += 40;
+  else if (/en-GB/i.test(lang)) score += 25;
+  else if (/en-US/i.test(lang)) score += 15;
+  else if (/^en/i.test(lang)) score += 8;
+  if (/karen|catherine|natasha|sonia/i.test(name)) score += 30; // Aussie favourites
+  if (/aria|jenny|sara|zira|samantha|moira|hazel|susan/i.test(name)) score += 22;
+  if (/google.*female|microsoft.*natural|neural|online \(natural\)/i.test(name)) score += 18;
+  if (/female/i.test(name)) score += 10;
+  if (/male|david|mark|ravi|george|thomas/i.test(name)) score -= 40;
+  return score;
+}
+
 function pickVoice() {
   const voices = window.speechSynthesis?.getVoices?.() || [];
-  return voices.find(v => /en-AU/i.test(v.lang) && /female|zira|samantha|karen|catherine|moira|google/i.test(v.name))
-    || voices.find(v => /en-AU/i.test(v.lang))
-    || voices.find(v => /en-GB/i.test(v.lang) && /female|samantha|moira|google/i.test(v.name))
-    || voices.find(v => /en-US/i.test(v.lang) && /female|zira|samantha|google/i.test(v.name))
-    || voices.find(v => /en/i.test(v.lang))
-    || null;
+  if (!voices.length) return null;
+  if (cachedVoice && voices.includes(cachedVoice)) return cachedVoice;
+  const ranked = [...voices].sort((a, b) => scoreVoice(b) - scoreVoice(a));
+  cachedVoice = ranked[0] || null;
+  cachedVoiceName = cachedVoice ? cachedVoice.name : '';
+  return cachedVoice;
 }
 
 function speak(text) {
@@ -333,12 +353,27 @@ function speak(text) {
   window.speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
   const voice = pickVoice();
-  if (voice) u.voice = voice;
-  u.rate = 1.05;
-  setStatus('speaking', 'Talking');
+  if (voice) {
+    u.voice = voice;
+    u.lang = voice.lang || 'en-AU';
+  } else {
+    u.lang = 'en-AU';
+  }
+  // Slightly bright + quick — mate energy, not butler.
+  u.rate = 1.08;
+  u.pitch = 1.12;
+  setStatus('speaking', cachedVoiceName ? `Talking · ${cachedVoiceName.split(' - ')[0]}` : 'Talking');
   u.onend = () => setStatus(listening ? 'listening' : 'idle', listening ? 'Listening' : 'Ready');
   u.onerror = () => setStatus('idle', 'Ready');
   window.speechSynthesis.speak(u);
+}
+
+function submitChat() {
+  unlockedAudio = true;
+  const q = inputEl.value.trim();
+  if (!q) return;
+  inputEl.value = '';
+  ask(q);
 }
 
 function openNode(node) {
@@ -517,7 +552,7 @@ function armRecognition() {
       const q = pending.trim();
       pending = '';
       if (q) {
-        inputEl.value = q;
+        inputEl.value = '';
         ask(q);
       }
     }, FINISH_MS);
@@ -595,9 +630,12 @@ function applyViewMode(mode) {
 
 micBtn.addEventListener('click', startMic);
 document.getElementById('tray-mic').addEventListener('click', startMic);
-sendBtn.addEventListener('click', () => { unlockedAudio = true; ask(inputEl.value); });
+sendBtn.addEventListener('click', submitChat);
 inputEl.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') { unlockedAudio = true; ask(inputEl.value); }
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    submitChat();
+  }
 });
 eyesBtn.addEventListener('click', toggleEyes);
 document.getElementById('tray-eyes').addEventListener('click', toggleEyes);
@@ -697,7 +735,10 @@ paintStars();
 bootGraph();
 armRecognition();
 bootGreeting();
-window.speechSynthesis?.addEventListener?.('voiceschanged', () => {});
+window.speechSynthesis?.addEventListener?.('voiceschanged', () => {
+  cachedVoice = null;
+  pickVoice();
+});
 </script>
 </body>
 </html>
