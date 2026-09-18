@@ -386,7 +386,13 @@ const FINISH_MS = 1400;
 const IDLE_NUDGE_MS = 3 * 60 * 1000;   // whistle / cheeky line
 const IDLE_SLEEP_MS = 6 * 60 * 1000;   // go dark
 const MUTE = new URLSearchParams(location.search).has('mute');
-const DESKTOP_APP = new URLSearchParams(location.search).has('desktop');
+// Whisper path for the real Amy desktop shell (WebView2 can't use Google SpeechRecognition).
+const DESKTOP_APP = new URLSearchParams(location.search).has('desktop')
+  || !!(window.pywebview)
+  || /WebView/i.test(navigator.userAgent)
+  || (navigator.userAgentData && Array.isArray(navigator.userAgentData.brands)
+      && navigator.userAgentData.brands.some((b) => /WebView/i.test(b.brand || '')));
+let useWhisperMic = DESKTOP_APP;
 const IS_SECURE = window.isSecureContext;
 
 
@@ -1093,16 +1099,31 @@ function armRecognition() {
       syncMicUi();
       return;
     }
+    if (err === 'network' || err === 'audio-capture') {
+      // WebView2 hits this constantly — flip to Whisper and keep going.
+      useWhisperMic = true;
+      wantListen = true;
+      syncMicUi();
+      answerEl.textContent = 'Switching mic to Whisper for this app window…';
+      setStatus('listening', 'Listening · Whisper');
+      startDesktopMic().then((ok) => {
+        if (!ok) {
+          wantListen = false;
+          syncMicUi();
+          setStatus('idle', 'Mic error');
+          answerEl.textContent = `Mic hiccup (${err}). Whisper fallback failed — type, or use Chrome.`;
+        }
+      });
+      return;
+    }
     wantListen = false;
     syncMicUi();
     setStatus('idle', 'Mic error');
     if (err === 'not-allowed' || err === 'service-not-allowed') {
-      answerEl.textContent = 'Mic blocked in this window. Allow mic, or open Chrome at http://127.0.0.1:4700 for voice.';
+      answerEl.textContent = 'Mic blocked in this window. Allow mic for Amy.';
       secureHint.style.display = 'block';
-    } else if (err === 'network' || err === 'audio-capture') {
-      answerEl.textContent = `Mic hiccup (${err}). WebView2 speech is flaky — use Chrome at http://127.0.0.1:4700, or type.`;
     } else {
-      answerEl.textContent = `Mic error (${err}). Chrome at http://127.0.0.1:4700 is more reliable for voice.`;
+      answerEl.textContent = `Mic error (${err}).`;
     }
   };
   recognition.onresult = (event) => {
@@ -1352,8 +1373,9 @@ async function startMic() {
   }
   // Real desktop app (WebView2): Google SpeechRecognition fails with "network".
   // Use OpenAI Whisper via /stt instead — keeps the framed Amy window.
-  if (DESKTOP_APP) {
+  if (DESKTOP_APP || useWhisperMic) {
     wantListen = true;
+    useWhisperMic = true;
     syncMicUi();
     const ok = await startDesktopMic();
     if (!ok) {
