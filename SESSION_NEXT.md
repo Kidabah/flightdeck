@@ -1,6 +1,14 @@
+## 2026-09-18 Session update (Amy Hands search fix)
+
+Latest commit: `39d0f46` — Fixed `NameError: re is not defined` in Amy Hands `/search`. PC agent restarted; folder search works again.
+
+No Pi restart needed (Hands runs on PC). Chrome tabs still need the unpacked extension loaded.
+
+---
+
 ## 2026-09-18 Session update (Amy sleep + Hands)
 
-Latest commit: _(pending)_ — Sleep mode (dark circle, “wake up Amy”), idle whistle/nudge ~3m then sleep ~6m. New **Amy Hands** PC companion (`jarvis/amy-hands`) for folder search + Chrome tab focus/open via extension. Set `hands_base_url` on Pi to the PC Tailscale IP `:4701`.
+Latest commit: `0cbc1b4` — Sleep mode (dark circle, “wake up Amy”), idle whistle/nudge ~3m then sleep ~6m. New **Amy Hands** PC companion (`jarvis/amy-hands`) for folder search + Chrome tab focus/open via extension. Set `hands_base_url` on Pi to the PC Tailscale IP `:4701`.
 
 Hard refresh Amy. On PC: `python jarvis/amy-hands/amy_hands.py` + load unpacked Chrome extension.
 
