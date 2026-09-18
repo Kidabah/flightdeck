@@ -180,9 +180,10 @@ def main() -> int:
     print("[amy-desktop]", _config_hint())
 
     smoke = "--smoke" in sys.argv or os.environ.get("AMY_DESKTOP_SMOKE") == "1"
-    # Default: framed WebView app. Pass --chrome if mic misbehaves in the shell.
-    prefer_chrome = "--chrome" in sys.argv
-    prefer_webview = "--webview" in sys.argv or not prefer_chrome
+    # Chrome/Edge --app= is the real desktop window with working mic.
+    # WebView2 looks similar but SpeechRecognition dies with error "network".
+    prefer_webview = "--webview" in sys.argv
+    prefer_chrome = "--chrome" in sys.argv or not prefer_webview
 
     try:
         start_hands(env)
@@ -200,7 +201,8 @@ def main() -> int:
         return 0
 
     if prefer_chrome and _open_chrome_app(AMY_URL):
-        print("[amy-desktop] Hands console should be open (title shows amy_hands.py)")
+        print("[amy-desktop] Amy app window opened (Chrome app mode - mic works)")
+        print("[amy-desktop] Hands console should be open too")
         print("[amy-desktop] leave THIS terminal open - Ctrl+C stops Amy + Hands")
         try:
             while True:

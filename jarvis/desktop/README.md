@@ -18,9 +18,9 @@ cd C:\Users\Kidabah\flightdeck\jarvis\desktop
 .\start-amy-desktop.ps1
 ```
 
-Opens the **Amy desktop app** (WebView2 frame) + a **visible Amy Hands console**. Leave the PowerShell window open.
+Opens an **Amy app window** (Chrome/Edge `--app` mode — looks like a desktop app, mic works) + a **visible Amy Hands console**. Leave the PowerShell window open.
 
-If MIC misbehaves in the frame: `.\start-amy-desktop.ps1 --chrome`
+WebView2 (`--webview`) looks similar but mic fails with a `network` speech error — don’t use it for voice.
 
 - `hands_base_url`: `http://127.0.0.1:4701`
 - `bind_host`: `127.0.0.1`
