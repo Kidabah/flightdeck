@@ -1,6 +1,6 @@
 ## 2026-09-19 Session update (Amy OpenAI Nova TTS)
 
-Latest commit: _(pending)_ — `tts_provider: openai` + voice **nova** for tonight (ElevenLabs free quota exhausted). Falls back to Laura when provider is elevenlabs again. Desktop AppData config updated; restart local Amy / hard refresh.
+Latest commit: `0f2db71` — `tts_provider: openai` + voice **nova** for tonight (ElevenLabs free quota exhausted). Falls back to Laura when provider is elevenlabs again. Desktop AppData config updated; restart local Amy / hard refresh.
 
 ---
 
