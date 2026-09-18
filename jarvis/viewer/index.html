@@ -409,7 +409,8 @@ let pending = '';
 let finishTimer = null;
 
 function micIsDeaf() {
-  return isSpeaking || Date.now() < micMutedUntil;
+  // Echo cooldown after she finishes — interrupts are handled separately while speaking.
+  return !isSpeaking && Date.now() < micMutedUntil;
 }
 
 function duckMic() {
@@ -417,14 +418,15 @@ function duckMic() {
   finishTimer = null;
   pending = '';
   isSpeaking = true;
-  if (recognition && listening) {
-    try { recognition.stop(); } catch (_) {}
+  // Keep recognition hot for barge-in ("stop" / "hang on").
+  if (wantListen && recognition && !listening) {
+    try { recognition.start(); } catch (_) {}
   }
 }
 
 function unduckMic() {
   isSpeaking = false;
-  // Let speaker echo die before the mic hears again.
+  // Let speaker echo die before normal listening resumes.
   micMutedUntil = Date.now() + 900;
   if (wantListen) {
     setStatus('listening', 'Listening');
@@ -432,10 +434,37 @@ function unduckMic() {
       if (!wantListen || isSpeaking || !recognition) return;
       try { recognition.start(); } catch (_) {}
     }, 950);
+  } else if (statusEl.dataset.mode === 'speaking' || statusEl.dataset.mode === 'thinking') {
+    setStatus('idle', 'Ready');
+  }
+}
+
+function isInterrupt(t) {
+  const s = String(t || '').trim().toLowerCase().replace(/[.,!?]+$/g, '');
+  if (!s) return false;
+  if (/^(stop|wait|quiet|enough|shh+|hush)$/i.test(s)) return true;
+  if (/^(hang on|hold on)( a (sec|second|minute|moment))?$/i.test(s)) return true;
+  if (/^(hang on|hold on|stop|wait)\b/i.test(s) && s.length <= 36) return true;
+  return false;
+}
+
+function handleInterrupt() {
+  clearTimeout(finishTimer);
+  finishTimer = null;
+  pending = '';
+  inputEl.value = '';
+  stopSpeaking();
+  isSpeaking = false;
+  micMutedUntil = Date.now() + 350;
+  if (wantListen) {
+    setStatus('listening', 'Listening — interrupted');
+    syncMicUi();
+    setTimeout(() => {
+      if (!wantListen || isSpeaking || !recognition) return;
+      try { recognition.start(); } catch (_) {}
+    }, 200);
   } else {
-    if (statusEl.dataset.mode === 'speaking' || statusEl.dataset.mode === 'thinking') {
-      setStatus('idle', 'Ready');
-    }
+    setStatus('idle', 'Interrupted');
   }
 }
 
@@ -801,7 +830,7 @@ async function captureShareFrame() {
 }
 
 function bypassWord(t) {
-  return /^(stop|wait)$/i.test(String(t || '').trim());
+  return isInterrupt(t);
 }
 
 function armRecognition() {
@@ -818,13 +847,20 @@ function armRecognition() {
   };
   recognition.onend = () => {
     listening = false;
-    // Temporary duck while Amy talks — don't clear wantListen.
-    if (isSpeaking || micIsDeaf()) {
+    // While talking, keep recognition alive for barge-in.
+    if (isSpeaking && wantListen) {
+      setTimeout(() => {
+        if (!wantListen || !isSpeaking || !recognition) return;
+        try { recognition.start(); } catch (_) {}
+      }, 120);
+      syncMicUi();
+      return;
+    }
+    if (micIsDeaf()) {
       syncMicUi();
       return;
     }
     if (wantListen) {
-      // Chrome often ends continuous sessions; nudge it back.
       setTimeout(() => {
         if (!wantListen || isSpeaking || !recognition) return;
         try { recognition.start(); } catch (_) {}
@@ -854,27 +890,23 @@ function armRecognition() {
     }
   };
   recognition.onresult = (event) => {
-    if (micIsDeaf()) return;
     let chunk = '';
     for (let i = event.resultIndex; i < event.results.length; i++) {
       if (event.results[i].isFinal) chunk += event.results[i][0].transcript;
     }
     chunk = chunk.trim();
     if (!chunk) return;
-    if (bypassWord(chunk)) {
-      clearTimeout(finishTimer);
-      pending = '';
-      stopSpeaking();
-      isSpeaking = false;
-      muteMic();
-      setStatus('idle', 'Stopped');
+    if (isInterrupt(chunk)) {
+      handleInterrupt();
       return;
     }
+    // While Amy talks (or echo cooldown), ignore normal speech so she doesn't self-answer.
+    if (isSpeaking || micIsDeaf()) return;
     pending = (pending ? pending + ' ' : '') + chunk;
     inputEl.value = pending;
     clearTimeout(finishTimer);
     finishTimer = setTimeout(() => {
-      if (micIsDeaf()) {
+      if (isSpeaking || micIsDeaf()) {
         pending = '';
         return;
       }
