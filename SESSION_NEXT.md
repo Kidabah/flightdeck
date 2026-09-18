@@ -1,6 +1,6 @@
 ## 2026-09-19 Session update (Amy on-demand whistle)
 
-Latest commit: _(pending)_ — Say or type **whistle** / **sing** (or “whistle for me”) and Amy plays the idle whistle tone immediately — no 3‑minute wait.
+Latest commit: `dced8f8` — Say or type **whistle** / **sing** (or “whistle for me”) and Amy plays the idle whistle tone immediately — no 3‑minute wait.
 
 Hard refresh Amy (`Cache-Control: no-store` on viewer). No backend restart required.
 
