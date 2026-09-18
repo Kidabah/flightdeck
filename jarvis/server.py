@@ -164,12 +164,35 @@ def openai_chat(messages: list[dict[str, Any]], *, image_b64: str | None = None,
         headers={
             "Authorization": f"Bearer {key}",
             "Content-Type": "application/json",
-            "User-Agent": "jarvis-workshop/1.0",
+            "User-Agent": "amy-workshop/1.0",
         },
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        payload = json.loads(resp.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        raw = exc.read().decode("utf-8", errors="replace")
+        try:
+            err = json.loads(raw).get("error") or {}
+        except json.JSONDecodeError:
+            err = {}
+        code = str(err.get("code") or "")
+        msg = str(err.get("message") or raw or exc)
+        if exc.code == 429 and (
+            code in {"insufficient_quota", "credit_balance_exhausted"}
+            or "credit" in msg.lower()
+            or "quota" in msg.lower()
+        ):
+            raise RuntimeError(
+                "OpenAI is out of credits on this account — top up at "
+                "https://platform.openai.com/settings/organization/billing/ then try again."
+            ) from exc
+        if exc.code == 429:
+            raise RuntimeError("OpenAI rate-limited us for a moment — wait a few seconds and ask again.") from exc
+        if exc.code == 401:
+            raise RuntimeError("OpenAI rejected the API key — check config.json.") from exc
+        raise RuntimeError(f"OpenAI HTTP {exc.code}: {msg[:220]}") from exc
     return str(payload["choices"][0]["message"]["content"]).strip()
 
 
