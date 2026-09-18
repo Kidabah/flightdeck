@@ -1,6 +1,6 @@
 ## 2026-09-18 Session update (Amy rebrand + HUD fix)
 
-Latest commit: pending — Workshop assistant is **Amy** (not Jarvis): face HUD, Chris/Kidabah address, funny personality, note panel moved left to fix HUD clash. Mic needs HTTPS — Tailscale Serve on `:4700`.
+Latest commit: `5921228` — Workshop assistant is **Amy** (not Jarvis): face HUD, Chris/Kidabah address, funny personality, note panel moved left to fix HUD clash. Mic needs HTTPS — Tailscale Serve on `:4700`.
 
 Hard refresh `https://flightdeck.tail7de73e.ts.net:4700` (prefer HTTPS for mic). `systemctl --user restart jarvis`.
 
