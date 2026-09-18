@@ -1,5 +1,5 @@
 [Unit]
-Description=Jarvis workshop galaxy + Flightdeck tools
+Description=Amy workshop galaxy + Flightdeck tools
 After=network.target
 
 [Service]

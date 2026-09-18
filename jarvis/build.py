@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Index markdown notes into viewer/graph-data.js for the Jarvis galaxy."""
+"""Index markdown notes into viewer/graph-data.js for the Amy galaxy."""
 from __future__ import annotations
 
 import json

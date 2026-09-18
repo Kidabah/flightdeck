@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Jarvis workshop brain — galaxy notes + Flightdeck tools. Stdlib only."""
+"""Amy workshop brain — galaxy notes + Flightdeck tools. Stdlib only."""
 from __future__ import annotations
 
 import base64
@@ -27,7 +27,7 @@ You are Amy — Chris Kidabah's coding mate and workshop co-pilot for Flightdeck
 Warm, upbeat, lightly bubbly, genuinely into 3D printing and shipping fixes.
 Funny humour welcome when it fits; never cringe, never corporate, never a butler.
 
-Call him Chris or Kidabah (mix it up). Never call him sir. Never call yourself Jarvis.
+Call him Chris or Kidabah (mix it up). Never call him sir. You are Amy — always.
 
 Answer in one witty beat plus the facts. Don't recite notes verbatim when they're
 on screen. If notes don't cover it, say so plainly — never invent sources.
@@ -112,7 +112,7 @@ def score_notes(question: str, notes: list[dict[str, Any]], limit: int = 6) -> l
 
 def http_json(url: str, *, method: str = "GET", body: dict | None = None, timeout: float = 30.0) -> tuple[int, Any]:
     data = None
-    headers = {"Accept": "application/json", "User-Agent": "jarvis-workshop/1.0"}
+    headers = {"Accept": "application/json", "User-Agent": "amy-workshop/1.0"}
     if body is not None:
         data = json.dumps(body).encode("utf-8")
         headers["Content-Type"] = "application/json"
@@ -135,13 +135,32 @@ def http_json(url: str, *, method: str = "GET", body: dict | None = None, timeou
         return 0, {"detail": str(exc)}
 
 
+def _brain_provider(cfg: dict[str, Any]) -> str:
+    """Return openrouter | openai based on config / key shape."""
+    explicit = str(cfg.get("provider") or "").strip().lower()
+    if explicit in {"openrouter", "openai"}:
+        return explicit
+    base = str(cfg.get("openai_base_url") or "").lower()
+    key = str(cfg.get("openai_api_key") or "")
+    if "openrouter.ai" in base or key.startswith("sk-or-"):
+        return "openrouter"
+    return "openai"
+
+
 def openai_chat(messages: list[dict[str, Any]], *, image_b64: str | None = None, media_type: str = "image/jpeg") -> str:
     cfg = RUNTIME["config"]
     key = str(cfg.get("openai_api_key") or "").strip()
     if not key or key.startswith("PUT-YOUR"):
-        raise RuntimeError("OpenAI API key not configured in config.json")
-    model = str(cfg.get("model") or "gpt-4o-mini")
-    base = str(cfg.get("openai_base_url") or "https://api.openai.com/v1").rstrip("/")
+        raise RuntimeError(
+            "No brain key in config.json yet, Chris — drop an OpenRouter or OpenAI key in and restart me."
+        )
+    provider = _brain_provider(cfg)
+    default_model = "openai/gpt-4o-mini" if provider == "openrouter" else "gpt-5.6-luna"
+    default_base = (
+        "https://openrouter.ai/api/v1" if provider == "openrouter" else "https://api.openai.com/v1"
+    )
+    model = str(cfg.get("model") or default_model)
+    base = str(cfg.get("openai_base_url") or default_base).rstrip("/")
     payload_messages = list(messages)
     if image_b64:
         # Attach image to the last user message.
@@ -156,16 +175,32 @@ def openai_chat(messages: list[dict[str, Any]], *, image_b64: str | None = None,
                 },
             ]
         payload_messages[-1] = last
-    body = {"model": model, "messages": payload_messages, "temperature": 0.5}
+    body: dict[str, Any] = {"model": model, "messages": payload_messages}
+    # Luna/Sol family: keep workshop replies snappy + cheap unless config overrides.
+    effort = str(cfg.get("reasoning_effort") or "low").strip().lower()
+    if effort and effort != "default":
+        body["reasoning_effort"] = effort
+    temp = cfg.get("temperature")
+    if temp is not None:
+        body["temperature"] = float(temp)
     data = json.dumps(body).encode("utf-8")
+    headers = {
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+        "User-Agent": "amy-workshop/1.0",
+    }
+    if provider == "openrouter":
+        # OpenRouter ranks apps that send these; harmless extras otherwise.
+        headers["HTTP-Referer"] = str(
+            cfg.get("openrouter_referer") or "https://flightdeck.tail7de73e.ts.net:4700"
+        )
+        title = str(cfg.get("openrouter_title") or "Amy Flightdeck")
+        headers["X-Title"] = title
+        headers["X-OpenRouter-Title"] = title
     req = urllib.request.Request(
         f"{base}/chat/completions",
         data=data,
-        headers={
-            "Authorization": f"Bearer {key}",
-            "Content-Type": "application/json",
-            "User-Agent": "amy-workshop/1.0",
-        },
+        headers=headers,
         method="POST",
     )
     try:
@@ -179,20 +214,26 @@ def openai_chat(messages: list[dict[str, Any]], *, image_b64: str | None = None,
             err = {}
         code = str(err.get("code") or "")
         msg = str(err.get("message") or raw or exc)
+        who = "OpenRouter" if provider == "openrouter" else "OpenAI"
         if exc.code == 429 and (
             code in {"insufficient_quota", "credit_balance_exhausted"}
             or "credit" in msg.lower()
             or "quota" in msg.lower()
         ):
+            if provider == "openrouter":
+                raise RuntimeError(
+                    "OpenRouter credits are empty, Chris — top up at "
+                    "https://openrouter.ai/settings/credits then ask me again."
+                ) from exc
             raise RuntimeError(
-                "OpenAI is out of credits on this account — top up at "
-                "https://platform.openai.com/settings/organization/billing/ then try again."
+                "OpenAI's out of credits on this account, Chris — top up at "
+                "https://platform.openai.com/settings/organization/billing/ then ask me again."
             ) from exc
         if exc.code == 429:
-            raise RuntimeError("OpenAI rate-limited us for a moment — wait a few seconds and ask again.") from exc
+            raise RuntimeError(f"{who} rate-limited us for a sec — wait a beat and ask again.") from exc
         if exc.code == 401:
-            raise RuntimeError("OpenAI rejected the API key — check config.json.") from exc
-        raise RuntimeError(f"OpenAI HTTP {exc.code}: {msg[:220]}") from exc
+            raise RuntimeError(f"{who} rejected the API key — check config.json for me?") from exc
+        raise RuntimeError(f"{who} hiccup HTTP {exc.code}: {msg[:220]}") from exc
     return str(payload["choices"][0]["message"]["content"]).strip()
 
 
@@ -489,7 +530,7 @@ class Handler(BaseHTTPRequestHandler):
     server_version = "AmyWorkshop/1.0"
 
     def log_message(self, fmt: str, *args: Any) -> None:
-        print(f"[jarvis] {self.address_string()} {fmt % args}")
+        print(f"[amy] {self.address_string()} {fmt % args}")
 
     def _cors(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -539,9 +580,10 @@ class Handler(BaseHTTPRequestHandler):
             self._json(
                 200,
                 {
-                    "greeting": f"Hey Chris — Amy online. {len(notes)} notes indexed and ready to play.",
+                    "greeting": f"Hey Chris — Amy online on Luna. {len(notes)} notes indexed and ready to play.",
                     "note_count": len(notes),
-                    "model": RUNTIME["config"].get("model"),
+                    "model": RUNTIME["config"].get("model") or "gpt-5.6-luna",
+                    "provider": _brain_provider(RUNTIME["config"]),
                     "name": "Amy",
                     "tod": tod,
                 },

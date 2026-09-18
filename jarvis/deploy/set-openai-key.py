@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Set Amy's OpenAI key without printing it back.
+"""Set Amy's brain key without printing it back.
 
 Usage on the Pi:
   python3 deploy/set-openai-key.py
@@ -7,6 +7,8 @@ Usage on the Pi:
 
 Or non-interactive:
   OPENAI_API_KEY='sk-...' python3 deploy/set-openai-key.py
+
+Defaults brain to OpenAI GPT-5.6 Luna (cheap everyday Amy).
 """
 from __future__ import annotations
 
@@ -33,6 +35,7 @@ def main() -> int:
     if not key:
         print("Paste your OpenAI API key (input hidden), then Enter.")
         print("Get one at: https://platform.openai.com/api-keys")
+        print("Add prepaid credits at: https://platform.openai.com/settings/organization/billing/")
         key = getpass.getpass("OPENAI_API_KEY: ").strip()
     if not key or key.startswith("PUT-YOUR"):
         print("No key provided.", file=sys.stderr)
@@ -40,13 +43,13 @@ def main() -> int:
 
     data = json.loads(CONFIG.read_text(encoding="utf-8"))
     data["openai_api_key"] = key
-    if not data.get("model"):
-        data["model"] = "gpt-4o-mini"
-    if not data.get("openai_base_url"):
-        data["openai_base_url"] = "https://api.openai.com/v1"
+    data["provider"] = "openai"
+    data["openai_base_url"] = "https://api.openai.com/v1"
+    data["model"] = "gpt-5.6-luna"
+    data.setdefault("reasoning_effort", "low")
     CONFIG.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     os.chmod(CONFIG, 0o600)
-    print(f"Wrote key to {CONFIG} (mode 600). Restarting is required:")
+    print(f"Wrote Luna brain key to {CONFIG} (mode 600). Restart:")
     print("  systemctl --user restart jarvis")
     return 0
 

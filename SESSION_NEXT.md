@@ -1,3 +1,11 @@
+## 2026-09-18 Session update (Amy on GPT-5.6 Luna)
+
+Latest commit: _(pending)_ — Amy brain defaults to **`gpt-5.6-luna`** (OpenAI API prepaid credits). Jarvis→Amy dialogue purge in notes/persona. OpenRouter still optional via `provider`/`openai_base_url`. Drop coin: https://platform.openai.com/settings/organization/billing/
+
+Hard refresh `https://flightdeck.tail7de73e.ts.net:4700`. `systemctl --user restart jarvis`.
+
+---
+
 ## 2026-09-18 Session update (Amy Tripo face)
 
 Latest commit: `453ea63` — Amy HUD now uses Chris's Tripo showcase loop (`viewer/amy-face.webm` / `.mp4`) instead of the SVG circle face. Mode glows still map listening/talking/thinking.

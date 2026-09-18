@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Live preflight for Jarvis — real calls, not mocks."""
+"""Live preflight for Amy — real calls, not mocks."""
 from __future__ import annotations
 
 import json
@@ -16,7 +16,7 @@ VIEWER = ROOT / "viewer"
 
 def req(url: str, *, method: str = "GET", body: dict | None = None, timeout: float = 20.0):
     data = None
-    headers = {"Accept": "application/json", "User-Agent": "jarvis-preflight/1.0"}
+    headers = {"Accept": "application/json", "User-Agent": "amy-preflight/1.0"}
     if body is not None:
         data = json.dumps(body).encode("utf-8")
         headers["Content-Type"] = "application/json"

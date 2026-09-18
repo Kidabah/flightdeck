@@ -2,7 +2,7 @@
 
 Flightdeck is Chris's workshop control plane on a Raspberry Pi: live Bambu / Voron status, AMS loadout, queue, spool inventory, cameras, Brother QL-700 labels, Dymo scale weigh-ins, MakerDeck / PrintShelf links, and Tailscale remote access.
 
-Jarvis talks to Flightdeck over HTTP (`flightdeck_base_url` in config). Jarvis never speaks MQTT to printers directly — Flightdeck owns printer control.
+Amy talks to Flightdeck over HTTP (`flightdeck_base_url` in config). Amy never speaks MQTT to printers directly — Flightdeck owns printer control.
 
 Useful spoken asks:
 
