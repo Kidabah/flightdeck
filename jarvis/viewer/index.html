@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Jarvis — Workshop Galaxy</title>
+  <style>
+    :root {
+      --bg: #030712;
+      --panel: rgba(15, 23, 42, 0.92);
+      --ink: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --warn: #fbbf24;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; }
+    #graph { position: absolute; inset: 0; }
+    #stars { position: absolute; inset: 0; pointer-events: none; opacity: 0.55; }
+    #side {
+      position: absolute; top: 16px; right: 16px; width: min(360px, calc(100vw - 32px));
+      background: var(--panel); border: 1px solid #1e293b; border-radius: 14px;
+      padding: 14px 16px; backdrop-filter: blur(10px); display: none; max-height: 55vh; overflow: auto;
+      z-index: 5;
+    }
+    #side h2 { margin: 0 0 6px; font-size: 1.05rem; }
+    #side .group { color: var(--accent); font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; }
+    #side p { margin: 10px 0 0; color: var(--muted); font-size: 0.9rem; line-height: 1.45; white-space: pre-wrap; }
+    #dock {
+      position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%);
+      width: min(720px, calc(100vw - 24px)); z-index: 6;
+      display: grid; gap: 8px;
+    }
+    #status {
+      text-align: center; font-size: 0.78rem; color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase;
+      min-height: 1.2em;
+    }
+    #status[data-mode="listening"] { color: #4ade80; }
+    #status[data-mode="thinking"] { color: var(--warn); }
+    #status[data-mode="speaking"] { color: var(--accent); }
+    .row { display: flex; gap: 8px; align-items: stretch; }
+    #chat-input {
+      flex: 1; border-radius: 12px; border: 1px solid #334155; background: #0b1220; color: var(--ink);
+      padding: 12px 14px; font: inherit; outline: none;
+    }
+    #chat-input:focus { border-color: var(--accent); }
+    button.tool {
+      border: 1px solid #334155; background: #111827; color: var(--ink); border-radius: 12px;
+      padding: 0 14px; font: inherit; font-weight: 700; cursor: pointer; white-space: nowrap;
+    }
+    button.tool:hover { border-color: var(--accent); }
+    button.tool.active { background: #14532d; border-color: #22c55e; }
+    #answer {
+      background: var(--panel); border: 1px solid #1e293b; border-radius: 12px; padding: 10px 12px;
+      min-height: 2.6em; color: var(--ink); font-size: 0.95rem; line-height: 1.4;
+    }
+    #brand {
+      position: absolute; top: 16px; left: 16px; z-index: 5;
+      background: var(--panel); border: 1px solid #1e293b; border-radius: 12px; padding: 10px 14px;
+    }
+    #brand strong { display: block; letter-spacing: 0.08em; font-size: 0.72rem; color: var(--accent); }
+    #brand span { font-size: 0.85rem; color: var(--muted); }
+    #share-dot {
+      display: none; position: absolute; top: 16px; left: 50%; transform: translateX(-50%); z-index: 7;
+      background: #7f1d1d; color: #fecaca; border: 1px solid #ef4444; border-radius: 999px;
+      padding: 6px 12px; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.05em;
+    }
+  </style>
+  <script src="//unpkg.com/3d-force-graph"></script>
+  <script src="/graph-data.js"></script>
+</head>
+<body>
+  <canvas id="stars"></canvas>
+  <div id="graph"></div>
+  <div id="brand"><strong>JARVIS</strong><span id="brand-sub">booting…</span></div>
+  <div id="share-dot">SCREEN SHARE LIVE</div>
+  <aside id="side"><div class="group" id="side-group"></div><h2 id="side-title"></h2><p id="side-body"></p></aside>
+  <div id="dock">
+    <div id="status" data-mode="idle">Ready</div>
+    <div id="answer">Ask about your notes, or say “run a calibration on BigBoy”.</div>
+    <div class="row">
+      <input id="chat-input" type="text" placeholder="Speak or type…" autocomplete="off" />
+      <button class="tool" id="mic-btn" type="button" title="Microphone">MIC</button>
+      <button class="tool" id="share-btn" type="button" title="Share screen for sight">EYES</button>
+      <button class="tool" id="send-btn" type="button">ASK</button>
+    </div>
+  </div>
+<script>
+const FINISH_MS = 900;
+const MUTE = new URLSearchParams(location.search).has('mute');
+
+const statusEl = document.getElementById('status');
+const answerEl = document.getElementById('answer');
+const inputEl = document.getElementById('chat-input');
+const micBtn = document.getElementById('mic-btn');
+const shareBtn = document.getElementById('share-btn');
+const sendBtn = document.getElementById('send-btn');
+const side = document.getElementById('side');
+const shareDot = document.getElementById('share-dot');
+const brandSub = document.getElementById('brand-sub');
+
+let graph = null;
+let speaking = false;
+let shareStream = null;
+let shareVideo = null;
+let unlockedAudio = false;
+
+function setStatus(mode, text) {
+  statusEl.dataset.mode = mode;
+  statusEl.textContent = text;
+}
+
+function speak(text) {
+  if (MUTE || !text) return;
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  const voices = window.speechSynthesis.getVoices();
+  const british = voices.find(v => /en-GB/i.test(v.lang) && /male|daniel|rishi|george|thomas/i.test(v.name))
+    || voices.find(v => /en-GB/i.test(v.lang))
+    || voices.find(v => /en-AU/i.test(v.lang));
+  if (british) u.voice = british;
+  u.rate = 1.02;
+  speaking = true;
+  setStatus('speaking', 'Speaking');
+  u.onend = () => { speaking = false; setStatus('idle', 'Ready'); };
+  u.onerror = () => { speaking = false; setStatus('idle', 'Ready'); };
+  window.speechSynthesis.speak(u);
+}
+
+function openNode(node) {
+  if (!node) return;
+  document.getElementById('side-group').textContent = node.group || 'note';
+  document.getElementById('side-title').textContent = node.label || '';
+  document.getElementById('side-body').textContent = node.excerpt || '';
+  side.style.display = 'block';
+}
+
+function highlightNodes(ids) {
+  const set = new Set(ids || []);
+  graph.nodeColor(n => set.has(n.id) ? '#fbbf24' : colorForGroup(n.group));
+  graph.nodeVal(n => set.has(n.id) ? 8 : 3);
+}
+
+function colorForGroup(group) {
+  const key = String(group || 'notes');
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) % 360;
+  return `hsl(${h} 70% 60%)`;
+}
+
+function flyToNode(id) {
+  const node = (GRAPH.nodes || []).find(n => n.id === id);
+  if (!node || node.x == null) return;
+  openNode(node);
+  const dist = 90;
+  graph.cameraPosition(
+    { x: node.x, y: node.y, z: node.z + dist },
+    node,
+    1200
+  );
+}
+
+function applySources(payload) {
+  const ids = Array.isArray(payload.nodes) ? payload.nodes : [];
+  if (!payload.move_camera || !ids.length) {
+    if (ids.length >= 4) highlightNodes(ids);
+    return;
+  }
+  if (ids.length >= 4) {
+    highlightNodes(ids);
+    return;
+  }
+  highlightNodes(ids);
+  flyToNode(ids[0]);
+}
+
+async function ask(question) {
+  const q = String(question || '').trim();
+  if (!q) return;
+  answerEl.textContent = '…';
+  setStatus('thinking', 'Thinking');
+  try {
+    let payload;
+    if (/^(remember that|note to self|don't let me forget|dont let me forget|log this)\b/i.test(q)) {
+      const r = await fetch('/remember', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: q }),
+      });
+      payload = await r.json();
+      if (!r.ok) throw new Error(payload.detail || 'remember failed');
+      if (payload.id != null) {
+        // Soft reload graph data
+        const script = document.createElement('script');
+        script.src = '/graph-data.js?t=' + Date.now();
+        script.onload = () => {
+          graph.graphData(GRAPH);
+          highlightNodes([payload.id]);
+          flyToNode(payload.id);
+        };
+        document.body.appendChild(script);
+      }
+    } else if (shareStream && shareStream.active && /\b(this|screen|looking|see|think of)\b/i.test(q)) {
+      const frame = await captureShareFrame();
+      if (!frame) throw new Error('Screen share ended');
+      const r = await fetch('/see', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: q, image: frame, media_type: 'image/jpeg' }),
+      });
+      payload = await r.json();
+      if (!r.ok) throw new Error(payload.detail || 'see failed');
+      payload.move_camera = false;
+    } else {
+      const r = await fetch('/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: q }),
+      });
+      payload = await r.json();
+      if (!r.ok) throw new Error(payload.detail || 'chat failed');
+      if (payload.move_camera == null) payload.move_camera = true;
+    }
+    answerEl.textContent = payload.answer || '';
+    applySources(payload);
+    speak(payload.answer || '');
+  } catch (err) {
+    answerEl.textContent = String(err.message || err);
+    setStatus('idle', 'Error');
+    speak(answerEl.textContent);
+  }
+}
+
+async function captureShareFrame() {
+  if (!shareStream || !shareStream.active) return null;
+  if (!shareVideo) {
+    shareVideo = document.createElement('video');
+    shareVideo.muted = true;
+    shareVideo.playsInline = true;
+    shareVideo.srcObject = shareStream;
+    await shareVideo.play();
+  }
+  const w = shareVideo.videoWidth || 1280;
+  const h = shareVideo.videoHeight || 720;
+  if (!w || !h) return null;
+  const canvas = document.createElement('canvas');
+  const maxW = 1280;
+  const scale = Math.min(1, maxW / w);
+  canvas.width = Math.round(w * scale);
+  canvas.height = Math.round(h * scale);
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(shareVideo, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
+}
+
+// --- Speech recognition with finish window ---
+let recognition = null;
+let pending = '';
+let finishTimer = null;
+
+function bypassWord(t) {
+  return /^(stop|wait)$/i.test(String(t || '').trim());
+}
+
+function armRecognition() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    micBtn.disabled = true;
+    micBtn.title = 'Speech recognition unavailable';
+    return;
+  }
+  recognition = new SR();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = 'en-AU';
+  recognition.onstart = () => { micBtn.classList.add('active'); setStatus('listening', 'Listening'); };
+  recognition.onend = () => { micBtn.classList.remove('active'); if (statusEl.dataset.mode === 'listening') setStatus('idle', 'Ready'); };
+  recognition.onerror = () => { micBtn.classList.remove('active'); };
+  recognition.onresult = (event) => {
+    let chunk = '';
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const res = event.results[i];
+      if (res.isFinal) chunk += res[0].transcript;
+    }
+    chunk = chunk.trim();
+    if (!chunk) return;
+    if (bypassWord(chunk)) {
+      clearTimeout(finishTimer);
+      pending = '';
+      window.speechSynthesis?.cancel();
+      setStatus('idle', 'Stopped');
+      return;
+    }
+    pending = (pending ? pending + ' ' : '') + chunk;
+    inputEl.value = pending;
+    clearTimeout(finishTimer);
+    finishTimer = setTimeout(() => {
+      const q = pending.trim();
+      pending = '';
+      if (q) {
+        inputEl.value = q;
+        ask(q);
+      }
+    }, FINISH_MS);
+  };
+}
+
+micBtn.addEventListener('click', () => {
+  unlockedAudio = true;
+  if (!recognition) armRecognition();
+  if (!recognition) return;
+  try { recognition.start(); } catch (_) {}
+});
+
+sendBtn.addEventListener('click', () => {
+  unlockedAudio = true;
+  ask(inputEl.value);
+});
+inputEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    unlockedAudio = true;
+    ask(inputEl.value);
+  }
+});
+
+shareBtn.addEventListener('click', async () => {
+  unlockedAudio = true;
+  if (shareStream) {
+    shareStream.getTracks().forEach(t => t.stop());
+    shareStream = null;
+    shareVideo = null;
+    shareDot.style.display = 'none';
+    shareBtn.classList.remove('active');
+    return;
+  }
+  try {
+    shareStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    shareDot.style.display = 'block';
+    shareBtn.classList.add('active');
+    shareStream.getVideoTracks()[0].addEventListener('ended', () => {
+      shareStream = null;
+      shareVideo = null;
+      shareDot.style.display = 'none';
+      shareBtn.classList.remove('active');
+    });
+  } catch (err) {
+    answerEl.textContent = 'Screen share cancelled.';
+  }
+});
+
+function paintStars() {
+  const canvas = document.getElementById('stars');
+  const ctx = canvas.getContext('2d');
+  const resize = () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    ctx.fillStyle = '#030712';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    for (let i = 0; i < 180; i++) {
+      const x = Math.random() * canvas.width;
+      const y = Math.random() * canvas.height;
+      const r = Math.random() * 1.4;
+      ctx.fillStyle = `rgba(226,232,240,${0.2 + Math.random() * 0.6})`;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  };
+  resize();
+  window.addEventListener('resize', resize);
+}
+
+function bootGraph() {
+  const data = (typeof GRAPH !== 'undefined') ? GRAPH : { nodes: [], links: [] };
+  graph = ForceGraph3D()(document.getElementById('graph'))
+    .graphData(data)
+    .backgroundColor('#03071200')
+    .nodeLabel('label')
+    .nodeColor(n => colorForGroup(n.group))
+    .nodeVal(3)
+    .linkColor(() => 'rgba(148,163,184,0.35)')
+    .linkWidth(0.4)
+    .onNodeClick(node => {
+      unlockedAudio = true;
+      openNode(node);
+      highlightNodes([node.id]);
+      flyToNode(node.id);
+    });
+  graph.controls().autoRotate = true;
+  graph.controls().autoRotateSpeed = 0.35;
+}
+
+async function bootGreeting() {
+  try {
+    const r = await fetch('/api/hello');
+    const data = await r.json();
+    brandSub.textContent = `${data.note_count || 0} notes · ${data.model || 'model'}`;
+    answerEl.textContent = data.greeting || '';
+    // First spoken line only after interaction — wait for first click.
+    const once = () => {
+      if (!unlockedAudio) unlockedAudio = true;
+      speak(data.greeting || '');
+      window.removeEventListener('pointerdown', once);
+    };
+    window.addEventListener('pointerdown', once, { once: true });
+  } catch (_) {
+    brandSub.textContent = 'offline brain';
+  }
+}
+
+paintStars();
+bootGraph();
+armRecognition();
+bootGreeting();
+window.speechSynthesis?.addEventListener?.('voiceschanged', () => {});
+</script>
+</body>
+</html>

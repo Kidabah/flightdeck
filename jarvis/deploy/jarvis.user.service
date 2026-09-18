@@ -1,0 +1,15 @@
+[Unit]
+Description=Jarvis workshop galaxy + Flightdeck tools
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/flightdeck/flightdeck/jarvis
+ExecStartPre=/usr/bin/python3 /home/flightdeck/flightdeck/jarvis/build.py
+ExecStart=/usr/bin/python3 /home/flightdeck/flightdeck/jarvis/server.py
+Restart=on-failure
+RestartSec=3
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

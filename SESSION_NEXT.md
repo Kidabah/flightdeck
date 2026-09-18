@@ -1,3 +1,17 @@
+## 2026-09-18 Session update (Jarvis workshop on Flightdeck Pi)
+
+Latest commit: pending — **Jarvis** lives at `jarvis/` (synced to `~/jarvis` on the Pi). Dedicated 16GB Pi deferred until a spare PSU exists; current 8GB Flightdeck Pi has ~5.8 Gi available and runs Jarvis fine on **:4700**.
+
+- Notes galaxy + voice (Web Speech), butler persona, `/chat` `/remember` `/see`, preflight harness
+- Flightdeck tools: calibrate / status / pause-resume-stop with nicknames BigBoy→`h2d`, Big Girl→`o1c2`, X1C→`x1c`, Greyhound→`greyhound`
+- User systemd: `systemctl --user status|restart jarvis`
+- Open UI: `http://100.106.112.104:4700` — paste OpenAI key into `~/jarvis/config.json` (from `config.example.json`) for notes Q&A; tools work without a key
+- Verified live: “run a calibration on BigBoy” → Flightdeck calibration start OK
+
+Hard refresh not required (separate port). Backend: user `jarvis.service` already active.
+
+---
+
 ## 2026-09-17 Session update (Painter OBJ drop-in)
 
 Latest commit: `ef0e7cb` — Painter **b629**. Drop/browse now accepts **`.obj`** alongside STL/3MF (batch folder too). Quads/ngons fan-triangulate; same seat-on-bed orientation as STL.
