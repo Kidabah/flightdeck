@@ -650,7 +650,7 @@ class Handler(BaseHTTPRequestHandler):
             self._json(
                 200,
                 {
-                    "greeting": f"Hey Chris — Amy online on Luna. {len(notes)} notes indexed and ready to play.",
+                    "greeting": "",
                     "note_count": len(notes),
                     "model": RUNTIME["config"].get("model") or "gpt-5.6-luna",
                     "provider": _brain_provider(RUNTIME["config"]),

@@ -243,7 +243,7 @@
   <div id="dock">
     <div id="secure-hint">Mic needs HTTPS. Open <a id="https-link" href="#">the secure Amy URL</a> — Chrome treats plain HTTP like speakers-only.</div>
     <div id="status-line" data-mode="idle">Ready</div>
-    <div id="answer">Hey Chris — ask about notes, or say “run a calibration on BigBoy”.</div>
+    <div id="answer"></div>
     <div class="row">
       <input id="chat-input" type="text" placeholder="Talk to Amy…" autocomplete="off" />
       <button class="tool" id="mic-btn" type="button" title="Microphone">MIC</button>
@@ -776,10 +776,9 @@ async function bootGreeting() {
     if (ttsMode === 'laura') {
       modelChip.title = `Brain + ElevenLabs ${ttsVoiceLabel}`;
     }
-    answerEl.textContent = data.greeting || '';
+    // Unlock audio on first tap — no spoken/written intro.
     const once = () => {
       unlockedAudio = true;
-      speak(data.greeting || '');
       window.removeEventListener('pointerdown', once);
     };
     window.addEventListener('pointerdown', once, { once: true });

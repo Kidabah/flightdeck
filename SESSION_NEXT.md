@@ -1,3 +1,11 @@
+## 2026-09-18 Session update (Amy no intro)
+
+Latest commit: _(pending)_ — Removed boot greeting text/speech (“Amy online on Luna…”). First click still unlocks audio only.
+
+Hard refresh `https://flightdeck.tail7de73e.ts.net:4700`.
+
+---
+
 ## 2026-09-18 Session update (Amy Laura voice / ElevenLabs)
 
 Latest commit: _(pending)_ — Amy can speak as ElevenLabs **Laura** (`FGY2WhTYpPnrIDTdsKH5`) via `/tts`. Needs `elevenlabs_api_key` in `jarvis/config.json` (`deploy/set-elevenlabs-key.py`). Falls back to browser TTS until keyed.
