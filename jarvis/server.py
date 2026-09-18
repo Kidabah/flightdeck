@@ -237,6 +237,67 @@ def openai_chat(messages: list[dict[str, Any]], *, image_b64: str | None = None,
     return str(payload["choices"][0]["message"]["content"]).strip()
 
 
+def elevenlabs_configured() -> bool:
+    key = str(RUNTIME["config"].get("elevenlabs_api_key") or "").strip()
+    return bool(key) and not key.startswith("PUT-YOUR")
+
+
+def synthesize_speech(text: str) -> bytes:
+    """ElevenLabs TTS — Laura by default. Raises RuntimeError on failure."""
+    cfg = RUNTIME["config"]
+    key = str(cfg.get("elevenlabs_api_key") or "").strip()
+    if not key or key.startswith("PUT-YOUR"):
+        raise RuntimeError("ElevenLabs key not set — paste it into config.json (elevenlabs_api_key).")
+    voice_id = str(cfg.get("elevenlabs_voice_id") or "FGY2WhTYpPnrIDTdsKH5").strip()
+    model = str(cfg.get("elevenlabs_model") or "eleven_turbo_v2_5").strip()
+    spoken = " ".join(str(text or "").split())
+    if not spoken:
+        raise RuntimeError("Nothing to say.")
+    # Keep workshop replies snappy / under typical character caps.
+    if len(spoken) > 2200:
+        spoken = spoken[:2190].rstrip() + "…"
+    body = {
+        "text": spoken,
+        "model_id": model,
+        "voice_settings": {
+            "stability": float(cfg.get("elevenlabs_stability", 0.38)),
+            "similarity_boost": float(cfg.get("elevenlabs_similarity", 0.82)),
+            "style": float(cfg.get("elevenlabs_style", 0.45)),
+            "use_speaker_boost": True,
+        },
+    }
+    req = urllib.request.Request(
+        f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
+        data=json.dumps(body).encode("utf-8"),
+        headers={
+            "xi-api-key": key,
+            "Accept": "audio/mpeg",
+            "Content-Type": "application/json",
+            "User-Agent": "amy-workshop/1.0",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            return resp.read()
+    except urllib.error.HTTPError as exc:
+        raw = exc.read().decode("utf-8", errors="replace")
+        try:
+            err = json.loads(raw)
+            detail = err.get("detail") or err
+            if isinstance(detail, dict):
+                msg = str(detail.get("message") or detail.get("status") or detail)[:220]
+            else:
+                msg = str(detail)[:220]
+        except json.JSONDecodeError:
+            msg = raw[:220] or str(exc)
+        if exc.code in (401, 403):
+            raise RuntimeError("ElevenLabs rejected the API key — check elevenlabs_api_key.") from exc
+        if exc.code == 429:
+            raise RuntimeError("ElevenLabs rate/quota limit — top up or wait a moment.") from exc
+        raise RuntimeError(f"ElevenLabs HTTP {exc.code}: {msg}") from exc
+
+
 def resolve_printer(text: str) -> tuple[str | None, str | None]:
     lower = text.lower()
     # Prefer longer aliases first.
@@ -546,6 +607,15 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(raw)
 
+    def _audio(self, code: int, data: bytes, ctype: str = "audio/mpeg") -> None:
+        self.send_response(code)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-store")
+        self._cors()
+        self.end_headers()
+        self.wfile.write(data)
+
     def _read_json(self) -> dict[str, Any]:
         length = int(self.headers.get("Content-Length") or 0)
         raw = self.rfile.read(length) if length else b"{}"
@@ -584,6 +654,8 @@ class Handler(BaseHTTPRequestHandler):
                     "note_count": len(notes),
                     "model": RUNTIME["config"].get("model") or "gpt-5.6-luna",
                     "provider": _brain_provider(RUNTIME["config"]),
+                    "tts": "laura" if elevenlabs_configured() else "browser",
+                    "tts_voice": str(RUNTIME["config"].get("elevenlabs_voice_name") or "Laura"),
                     "name": "Amy",
                     "tod": tod,
                 },
@@ -680,6 +752,15 @@ class Handler(BaseHTTPRequestHandler):
                 # Validate base64 early.
                 base64.b64decode(image_b64[:64] + "==", validate=False)
                 self._json(200, see(question, image_b64, media_type))
+                return
+
+            if path == "/tts":
+                text = str(body.get("text") or body.get("answer") or "").strip()
+                if not text:
+                    self._json(400, {"detail": "text required"})
+                    return
+                audio = synthesize_speech(text)
+                self._audio(200, audio)
                 return
 
             self._json(404, {"detail": "not found"})

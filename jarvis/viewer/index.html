@@ -319,19 +319,22 @@ function setStatus(mode, text) {
 
 let cachedVoice = null;
 let cachedVoiceName = '';
+let amyAudio = null;
+let ttsMode = 'browser'; // 'laura' | 'browser'
+let ttsVoiceLabel = 'Laura';
 
 function scoreVoice(v) {
   const name = String(v.name || '');
   const lang = String(v.lang || '');
   let score = 0;
-  // Amy character: low warm sultry — prefer mature naturals over bright chipmunk energy.
+  // Fallback browser voice if ElevenLabs isn't keyed yet.
   if (/en-GB/i.test(lang)) score += 35;
   else if (/en-AU/i.test(lang)) score += 32;
   else if (/en-US/i.test(lang)) score += 20;
   else if (/^en/i.test(lang)) score += 8;
   if (/samantha|moira|hazel|susan|sonia|serena|libby|joanna|ivy/i.test(name)) score += 36;
   if (/catherine|natasha|aria|jenny|sara/i.test(name)) score += 24;
-  if (/karen|zira/i.test(name)) score += 12; // fine but brighter
+  if (/karen|zira/i.test(name)) score += 12;
   if (/microsoft.*natural|neural|online \(natural\)|google.*female/i.test(name)) score += 20;
   if (/female/i.test(name)) score += 10;
   if (/male|david|mark|ravi|george|thomas|guy|ryan/i.test(name)) score -= 40;
@@ -348,8 +351,13 @@ function pickVoice() {
   return cachedVoice;
 }
 
-function speak(text) {
-  if (MUTE || !text) return;
+function stopSpeaking() {
+  try { amyAudio?.pause(); } catch (_) {}
+  amyAudio = null;
+  window.speechSynthesis?.cancel();
+}
+
+function speakBrowser(text) {
   if (!window.speechSynthesis) return;
   window.speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
@@ -360,13 +368,60 @@ function speak(text) {
   } else {
     u.lang = 'en-GB';
   }
-  // Lower + slower = warmer / sexier. Browser TTS only goes so far.
   u.rate = 0.92;
   u.pitch = 0.82;
   setStatus('speaking', cachedVoiceName ? `Talking · ${cachedVoiceName.split(' - ')[0]}` : 'Talking');
   u.onend = () => setStatus(listening ? 'listening' : 'idle', listening ? 'Listening' : 'Ready');
   u.onerror = () => setStatus('idle', 'Ready');
   window.speechSynthesis.speak(u);
+}
+
+async function speakLaura(text) {
+  setStatus('speaking', `Talking · ${ttsVoiceLabel}`);
+  const r = await fetch('/tts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  });
+  if (!r.ok) {
+    let detail = `TTS HTTP ${r.status}`;
+    try {
+      const j = await r.json();
+      detail = j.detail || detail;
+    } catch (_) {}
+    throw new Error(detail);
+  }
+  const blob = await r.blob();
+  const url = URL.createObjectURL(blob);
+  stopSpeaking();
+  amyAudio = new Audio(url);
+  amyAudio.onended = () => {
+    URL.revokeObjectURL(url);
+    setStatus(listening ? 'listening' : 'idle', listening ? 'Listening' : 'Ready');
+  };
+  amyAudio.onerror = () => {
+    URL.revokeObjectURL(url);
+    setStatus('idle', 'Ready');
+  };
+  await amyAudio.play();
+}
+
+async function speak(text) {
+  if (MUTE || !text) return;
+  stopSpeaking();
+  if (ttsMode === 'laura') {
+    try {
+      await speakLaura(text);
+      return;
+    } catch (err) {
+      console.warn('Laura TTS failed, falling back', err);
+      // If key missing, surface once in the answer strip then fall back.
+      if (/ElevenLabs|API key|quota|rate/i.test(String(err.message || err))) {
+        answerEl.textContent = `${text}\n\n(${err.message})`;
+      }
+    }
+  }
+  speakBrowser(text);
 }
 
 function submitChat() {
@@ -541,7 +596,7 @@ function armRecognition() {
     if (bypassWord(chunk)) {
       clearTimeout(finishTimer);
       pending = '';
-      window.speechSynthesis?.cancel();
+      stopSpeaking();
       try { recognition.stop(); } catch (_) {}
       setStatus('idle', 'Stopped');
       return;
@@ -716,6 +771,11 @@ async function bootGreeting() {
     const data = await r.json();
     brandSub.textContent = `${data.note_count || 0} notes · workshop`;
     modelChip.textContent = prettyModel(data.model || 'MODEL');
+    ttsMode = data.tts === 'laura' ? 'laura' : 'browser';
+    ttsVoiceLabel = data.tts_voice || 'Laura';
+    if (ttsMode === 'laura') {
+      modelChip.title = `Brain + ElevenLabs ${ttsVoiceLabel}`;
+    }
     answerEl.textContent = data.greeting || '';
     const once = () => {
       unlockedAudio = true;

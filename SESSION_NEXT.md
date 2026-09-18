@@ -1,3 +1,11 @@
+## 2026-09-18 Session update (Amy Laura voice / ElevenLabs)
+
+Latest commit: _(pending)_ — Amy can speak as ElevenLabs **Laura** (`FGY2WhTYpPnrIDTdsKH5`) via `/tts`. Needs `elevenlabs_api_key` in `jarvis/config.json` (`deploy/set-elevenlabs-key.py`). Falls back to browser TTS until keyed.
+
+Hard refresh `https://flightdeck.tail7de73e.ts.net:4700`. `systemctl --user restart jarvis`.
+
+---
+
 ## 2026-09-18 Session update (Amy sexier TTS)
 
 Latest commit: _(pending)_ — Amy voice: lower pitch (0.82), slower rate (0.92), prefer warm Samantha/Moira/Hazel-style system voices over bright chipmunk energy. Browser TTS ceiling still applies.

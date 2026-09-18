@@ -4,6 +4,13 @@
   "openai_base_url": "https://api.openai.com/v1",
   "model": "gpt-5.6-luna",
   "reasoning_effort": "low",
+  "elevenlabs_api_key": "PUT-YOUR-ELEVENLABS-KEY-HERE",
+  "elevenlabs_voice_id": "FGY2WhTYpPnrIDTdsKH5",
+  "elevenlabs_voice_name": "Laura",
+  "elevenlabs_model": "eleven_turbo_v2_5",
+  "elevenlabs_stability": 0.38,
+  "elevenlabs_similarity": 0.82,
+  "elevenlabs_style": 0.45,
   "flightdeck_base_url": "http://127.0.0.1:8000",
   "notes_dir": "notes",
   "port": 4700

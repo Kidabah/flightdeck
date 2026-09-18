@@ -10,6 +10,16 @@ Runs on the Flightdeck Pi (`jarvis/` folder in repo — systemd unit is still `j
 
 https://flightdeck.tail7de73e.ts.net:4700
 
+## Voice: ElevenLabs Laura
+
+Amy speaks as **Laura** (`FGY2WhTYpPnrIDTdsKH5`) when an ElevenLabs key is set.
+
+1. Create a key: https://elevenlabs.io/app/settings/api-keys
+2. On the Pi: `ELEVENLABS_API_KEY='…' python3 jarvis/deploy/set-elevenlabs-key.py`
+3. `systemctl --user restart jarvis`
+
+Without that key she falls back to browser TTS.
+
 ## Drop coin in the slot (OpenAI prepaid credits)
 
 1. Open **[Billing](https://platform.openai.com/settings/organization/billing/)**
