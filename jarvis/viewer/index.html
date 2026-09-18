@@ -283,6 +283,43 @@ let shareVideo = null;
 let unlockedAudio = false;
 let viewMode = 'ring';
 let listening = false;
+let wantListen = false;
+let isSpeaking = false;
+let micMutedUntil = 0;
+let recognition = null;
+let pending = '';
+let finishTimer = null;
+
+function micIsDeaf() {
+  return isSpeaking || Date.now() < micMutedUntil;
+}
+
+function duckMic() {
+  clearTimeout(finishTimer);
+  finishTimer = null;
+  pending = '';
+  isSpeaking = true;
+  if (recognition && listening) {
+    try { recognition.stop(); } catch (_) {}
+  }
+}
+
+function unduckMic() {
+  isSpeaking = false;
+  // Let speaker echo die before the mic hears again.
+  micMutedUntil = Date.now() + 900;
+  if (wantListen) {
+    setStatus('listening', 'Listening');
+    setTimeout(() => {
+      if (!wantListen || isSpeaking || !recognition) return;
+      try { recognition.start(); } catch (_) {}
+    }, 950);
+  } else {
+    if (statusEl.dataset.mode === 'speaking' || statusEl.dataset.mode === 'thinking') {
+      setStatus('idle', 'Ready');
+    }
+  }
+}
 
 if (!IS_SECURE) {
   secureHint.style.display = 'block';
@@ -358,7 +395,10 @@ function stopSpeaking() {
 }
 
 function speakBrowser(text) {
-  if (!window.speechSynthesis) return;
+  if (!window.speechSynthesis) {
+    unduckMic();
+    return;
+  }
   window.speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
   const voice = pickVoice();
@@ -371,8 +411,8 @@ function speakBrowser(text) {
   u.rate = 0.92;
   u.pitch = 0.82;
   setStatus('speaking', cachedVoiceName ? `Talking · ${cachedVoiceName.split(' - ')[0]}` : 'Talking');
-  u.onend = () => setStatus(listening ? 'listening' : 'idle', listening ? 'Listening' : 'Ready');
-  u.onerror = () => setStatus('idle', 'Ready');
+  u.onend = () => unduckMic();
+  u.onerror = () => unduckMic();
   window.speechSynthesis.speak(u);
 }
 
@@ -397,17 +437,21 @@ async function speakLaura(text) {
   amyAudio = new Audio(url);
   amyAudio.onended = () => {
     URL.revokeObjectURL(url);
-    setStatus(listening ? 'listening' : 'idle', listening ? 'Listening' : 'Ready');
+    unduckMic();
   };
   amyAudio.onerror = () => {
     URL.revokeObjectURL(url);
-    setStatus('idle', 'Ready');
+    unduckMic();
   };
   await amyAudio.play();
 }
 
 async function speak(text) {
-  if (MUTE || !text) return;
+  if (MUTE || !text) {
+    unduckMic();
+    return;
+  }
+  duckMic();
   stopSpeaking();
   if (ttsMode === 'laura') {
     try {
@@ -415,7 +459,6 @@ async function speak(text) {
       return;
     } catch (err) {
       console.warn('Laura TTS failed, falling back', err);
-      // If key missing, surface once in the answer strip then fall back.
       if (/ElevenLabs|API key|quota|rate/i.test(String(err.message || err))) {
         answerEl.textContent = `${text}\n\n(${err.message})`;
       }
@@ -477,6 +520,7 @@ function applySources(payload) {
 async function ask(question) {
   const q = String(question || '').trim();
   if (!q) return;
+  duckMic();
   answerEl.textContent = '…';
   setStatus('thinking', 'Thinking');
   try {
@@ -523,11 +567,11 @@ async function ask(question) {
     }
     answerEl.textContent = payload.answer || '';
     applySources(payload);
-    speak(payload.answer || '');
+    await speak(payload.answer || '');
   } catch (err) {
     answerEl.textContent = String(err.message || err);
     setStatus('idle', 'Error');
-    speak(answerEl.textContent);
+    await speak(answerEl.textContent);
   }
 }
 
@@ -552,10 +596,6 @@ async function captureShareFrame() {
   return canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
 }
 
-let recognition = null;
-let pending = '';
-let finishTimer = null;
-
 function bypassWord(t) {
   return /^(stop|wait)$/i.test(String(t || '').trim());
 }
@@ -570,16 +610,29 @@ function armRecognition() {
   recognition.onstart = () => {
     listening = true;
     micBtn.classList.add('active');
-    setStatus('listening', 'Listening');
+    if (!isSpeaking) setStatus('listening', 'Listening');
   };
   recognition.onend = () => {
     listening = false;
     micBtn.classList.remove('active');
+    // Temporary duck while Amy talks — don't clear wantListen.
+    if (isSpeaking || micIsDeaf()) return;
+    if (wantListen) {
+      // Chrome often ends continuous sessions; nudge it back.
+      setTimeout(() => {
+        if (!wantListen || isSpeaking || !recognition) return;
+        try { recognition.start(); } catch (_) {}
+      }, 200);
+      return;
+    }
     if (statusEl.dataset.mode === 'listening') setStatus('idle', 'Ready');
   };
   recognition.onerror = (ev) => {
     listening = false;
     micBtn.classList.remove('active');
+    if (ev.error === 'aborted' || ev.error === 'no-speech') return;
+    if (isSpeaking) return;
+    wantListen = false;
     setStatus('idle', 'Mic error');
     if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') {
       answerEl.textContent = 'Mic blocked — open Amy over HTTPS and allow the microphone.';
@@ -587,6 +640,7 @@ function armRecognition() {
     }
   };
   recognition.onresult = (event) => {
+    if (micIsDeaf()) return;
     let chunk = '';
     for (let i = event.resultIndex; i < event.results.length; i++) {
       if (event.results[i].isFinal) chunk += event.results[i][0].transcript;
@@ -596,7 +650,9 @@ function armRecognition() {
     if (bypassWord(chunk)) {
       clearTimeout(finishTimer);
       pending = '';
+      wantListen = false;
       stopSpeaking();
+      isSpeaking = false;
       try { recognition.stop(); } catch (_) {}
       setStatus('idle', 'Stopped');
       return;
@@ -605,6 +661,10 @@ function armRecognition() {
     inputEl.value = pending;
     clearTimeout(finishTimer);
     finishTimer = setTimeout(() => {
+      if (micIsDeaf()) {
+        pending = '';
+        return;
+      }
       const q = pending.trim();
       pending = '';
       if (q) {
@@ -628,6 +688,7 @@ function startMic() {
     answerEl.textContent = 'Speech recognition isn’t available in this browser, Chris. Chrome works best.';
     return;
   }
+  wantListen = true;
   try { recognition.start(); } catch (_) {}
 }
 

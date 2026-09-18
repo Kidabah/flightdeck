@@ -1,3 +1,11 @@
+## 2026-09-18 Session update (Amy mic duck / no self-replies)
+
+Latest commit: _(pending)_ — Mic ducks while Amy thinks/talks + 900ms echo cooldown so Laura isn’t heard as Chris. Stops the self-answer loop.
+
+Hard refresh `https://flightdeck.tail7de73e.ts.net:4700`.
+
+---
+
 ## 2026-09-18 Session update (Amy no intro)
 
 Latest commit: _(pending)_ — Removed boot greeting text/speech (“Amy online on Luna…”). First click still unlocks audio only.
