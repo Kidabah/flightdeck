@@ -552,9 +552,20 @@ class Handler(BaseHTTPRequestHandler):
             ctype = "application/json; charset=utf-8"
         elif target.suffix == ".svg":
             ctype = "image/svg+xml"
+        elif target.suffix == ".mp4":
+            ctype = "video/mp4"
+        elif target.suffix == ".webm":
+            ctype = "video/webm"
+        elif target.suffix == ".png":
+            ctype = "image/png"
+        elif target.suffix in (".jpg", ".jpeg"):
+            ctype = "image/jpeg"
         self.send_response(200)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
+        if target.suffix in (".mp4", ".webm"):
+            self.send_header("Accept-Ranges", "bytes")
+            self.send_header("Cache-Control", "public, max-age=3600")
         self._cors()
         self.end_headers()
         self.wfile.write(data)

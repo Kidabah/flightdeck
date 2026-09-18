@@ -1,3 +1,11 @@
+## 2026-09-18 Session update (Amy Tripo face)
+
+Latest commit: pending — Amy HUD now uses Chris's Tripo showcase loop (`viewer/amy-face.webm` / `.mp4`) instead of the SVG circle face. Mode glows still map listening/talking/thinking.
+
+Hard refresh `https://flightdeck.tail7de73e.ts.net:4700`. `systemctl --user restart jarvis`.
+
+---
+
 ## 2026-09-18 Session update (Amy rebrand + HUD fix)
 
 Latest commit: `5921228` — Workshop assistant is **Amy** (not Jarvis): face HUD, Chris/Kidabah address, funny personality, note panel moved left to fix HUD clash. Mic needs HTTPS — Tailscale Serve on `:4700`.
