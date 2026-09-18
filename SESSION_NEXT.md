@@ -1,3 +1,11 @@
+## 2026-09-18 Session update (Amy FINISH_MS 1400)
+
+Latest commit: _(pending)_ — Mic end-of-thought pause raised **900 → 1400 ms** so Amy stops cutting Chris mid-sentence. Synced viewer + `amy-voice.md` + server note.
+
+Hard refresh `https://flightdeck.tail7de73e.ts.net:4700`.
+
+---
+
 ## 2026-09-18 Session update (Amy voice + clear-on-enter)
 
 Latest commit: _(pending)_ — Amy TTS picks a warmer Aussie-leaning voice (Karen/Catherine/Aria…), slight pitch/rate bump. Chat input clears on Enter/ASK and after mic finish.

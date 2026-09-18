@@ -35,7 +35,7 @@ Flightdeck tool results: short, accurate, a touch of Amy cheek allowed.
 Small talk is fine and human. Keep answers tight.
 """.strip()
 
-FINISH_MS_NOTE = 900  # documented for the viewer; browser owns the constant
+FINISH_MS_NOTE = 1400  # documented for the viewer; browser owns the constant
 
 PRINTER_ALIASES = {
     "bigboy": "h2d",
