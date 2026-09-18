@@ -370,6 +370,7 @@
       <input id="file-input" type="file" multiple hidden accept="image/*,.txt,.md,.json,.csv,.py,.js,.ts,.html,.css,.log,.gcode,.xml,.yml,.yaml,.svg" />
       <button class="tool" id="file-btn" type="button" title="Attach files">FILE</button>
       <button class="tool" id="mic-btn" type="button" title="Microphone">MIC</button>
+      <button class="tool" id="stop-btn" type="button" title="Stop Amy talking">STOP</button>
       <button class="tool" id="send-btn" type="button">ASK</button>
     </div>
     <div id="tray">
@@ -391,6 +392,7 @@ const statusEl = document.getElementById('status-line');
 const answerEl = document.getElementById('answer');
 const inputEl = document.getElementById('chat-input');
 const micBtn = document.getElementById('mic-btn');
+const stopBtn = document.getElementById('stop-btn');
 const sendBtn = document.getElementById('send-btn');
 const eyesBtn = document.getElementById('eyes-btn');
 const side = document.getElementById('side');
@@ -433,6 +435,7 @@ let micMutedUntil = 0;
 let recognition = null;
 let pending = '';
 let finishTimer = null;
+let chatAbort = null;
 
 function micIsDeaf() {
   // Echo cooldown after she finishes — interrupts are handled separately while speaking.
@@ -445,7 +448,7 @@ function duckMic() {
   pending = '';
   isSpeaking = true;
   // Keep recognition hot for barge-in ("stop" / "hang on").
-  if (wantListen && recognition && !listening) {
+  if (wantListen && recognition) {
     try { recognition.start(); } catch (_) {}
   }
 }
@@ -468,10 +471,19 @@ function unduckMic() {
 function isInterrupt(t) {
   const s = String(t || '').trim().toLowerCase().replace(/[.,!?]+$/g, '');
   if (!s) return false;
-  if (/^(stop|wait|quiet|enough|shh+|hush)$/i.test(s)) return true;
+  if (/^(amy[, ]+)?(please[, ]+)?(stop|wait|quiet|enough|shh+|hush)( it| talking| amy)?$/i.test(s)) return true;
+  if (/^(stop|wait|quiet|enough) amy$/i.test(s)) return true;
   if (/^(hang on|hold on)( a (sec|second|minute|moment))?$/i.test(s)) return true;
   if (/^(hang on|hold on|stop|wait)\b/i.test(s) && s.length <= 36) return true;
   return false;
+}
+
+function looksLikeInterrupt(t) {
+  if (isInterrupt(t)) return true;
+  if (!isSpeaking) return false;
+  const s = String(t || '').trim().toLowerCase();
+  if (!s || s.length > 48) return false;
+  return /\b(stop|wait|quiet|enough|shh+|hush|hang on|hold on)\b/i.test(s);
 }
 
 function handleInterrupt() {
@@ -479,10 +491,13 @@ function handleInterrupt() {
   finishTimer = null;
   pending = '';
   inputEl.value = '';
+  try { chatAbort?.abort(); } catch (_) {}
+  chatAbort = null;
   stopSpeaking();
   isSpeaking = false;
   micMutedUntil = Date.now() + 350;
   bumpIdle();
+  answerEl.textContent = answerEl.textContent ? `${answerEl.textContent}\n\n(stopped)` : '(stopped)';
   if (wantListen) {
     setStatus('listening', 'Listening — interrupted');
     syncMicUi();
@@ -545,20 +560,33 @@ function whistle() {
   try {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
     const ctx = audioCtx;
-    const now = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(880, now);
-    osc.frequency.exponentialRampToValueAtTime(1760, now + 0.35);
-    osc.frequency.exponentialRampToValueAtTime(1320, now + 0.7);
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.08, now + 0.05);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.75);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(now);
-    osc.stop(now + 0.8);
+    // Little tune — not a single peep.
+    const notes = [
+      { f: 784, d: 0.14 },  // G5
+      { f: 880, d: 0.14 },  // A5
+      { f: 988, d: 0.18 },  // B5
+      { f: 880, d: 0.12 },  // A5
+      { f: 1175, d: 0.22 }, // D6
+      { f: 988, d: 0.14 },  // B5
+      { f: 1319, d: 0.32 }, // E6
+      { f: 1175, d: 0.18 }, // D6
+      { f: 988, d: 0.28 },  // B5
+    ];
+    let t = ctx.currentTime + 0.02;
+    for (const n of notes) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(n.f, t);
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.07, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + n.d);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + n.d + 0.02);
+      t += n.d + 0.04;
+    }
   } catch (_) {}
 }
 
@@ -876,6 +904,10 @@ async function ask(question) {
   }
   const q = String(question || '').trim();
   if (!q) return;
+  if (looksLikeInterrupt(q) || isInterrupt(q)) {
+    handleInterrupt();
+    return;
+  }
   if (isWhistlePhrase(q) && !pendingFiles.length) {
     doWhistle();
     answerEl.textContent = '♪';
@@ -883,9 +915,13 @@ async function ask(question) {
     return;
   }
   bumpIdle();
+  stopSpeaking();
   duckMic();
   answerEl.textContent = '…';
   setStatus('thinking', 'Thinking');
+  try { chatAbort?.abort(); } catch (_) {}
+  chatAbort = new AbortController();
+  const signal = chatAbort.signal;
   try {
     let payload;
     if (/^(remember that|note to self|don't let me forget|dont let me forget|log this)\b/i.test(q)) {
@@ -893,6 +929,7 @@ async function ask(question) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: q }),
+        signal,
       });
       payload = await r.json();
       if (!r.ok) throw new Error(payload.detail || 'remember failed');
@@ -914,6 +951,7 @@ async function ask(question) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: q, image: frame, media_type: 'image/jpeg' }),
+        signal,
       });
       payload = await r.json();
       if (!r.ok) throw new Error(payload.detail || 'see failed');
@@ -930,6 +968,7 @@ async function ask(question) {
             data: f.data,
           })),
         }),
+        signal,
       });
       payload = await r.json();
       if (!r.ok) throw new Error(payload.detail || 'chat failed');
@@ -937,13 +976,20 @@ async function ask(question) {
       pendingFiles = [];
       renderDrops();
     }
+    if (signal.aborted) return;
     answerEl.textContent = payload.answer || '';
     applySources(payload);
     await speak(payload.answer || '');
   } catch (err) {
+    if (err && (err.name === 'AbortError' || /aborted/i.test(String(err.message || '')))) {
+      unduckMic();
+      return;
+    }
     answerEl.textContent = String(err.message || err);
     setStatus('idle', 'Error');
     await speak(answerEl.textContent);
+  } finally {
+    chatAbort = null;
   }
 }
 
@@ -1013,10 +1059,20 @@ function armRecognition() {
   recognition.onerror = (ev) => {
     listening = false;
     if (ev.error === 'aborted' || ev.error === 'no-speech') {
+      if (wantListen && (isSpeaking || !micIsDeaf())) {
+        setTimeout(() => {
+          if (!wantListen || !recognition) return;
+          try { recognition.start(); } catch (_) {}
+        }, 120);
+      }
       syncMicUi();
       return;
     }
-    if (isSpeaking) {
+    if (isSpeaking && wantListen) {
+      setTimeout(() => {
+        if (!wantListen || !isSpeaking || !recognition) return;
+        try { recognition.start(); } catch (_) {}
+      }, 180);
       syncMicUi();
       return;
     }
@@ -1029,11 +1085,21 @@ function armRecognition() {
     }
   };
   recognition.onresult = (event) => {
-    let chunk = '';
+    let finalChunk = '';
+    let interimChunk = '';
     for (let i = event.resultIndex; i < event.results.length; i++) {
-      if (event.results[i].isFinal) chunk += event.results[i][0].transcript;
+      const piece = event.results[i][0].transcript;
+      if (event.results[i].isFinal) finalChunk += piece;
+      else interimChunk += piece;
     }
-    chunk = chunk.trim();
+    finalChunk = finalChunk.trim();
+    interimChunk = interimChunk.trim();
+    const forInterrupt = finalChunk || interimChunk;
+    if (forInterrupt && looksLikeInterrupt(forInterrupt)) {
+      handleInterrupt();
+      return;
+    }
+    const chunk = finalChunk;
     if (!chunk) return;
     if (asleep) {
       if (isWakePhrase(chunk)) wakeAmy('voice');
@@ -1046,10 +1112,6 @@ function armRecognition() {
     if (isWhistlePhrase(chunk)) {
       doWhistle();
       answerEl.textContent = '♪';
-      return;
-    }
-    if (isInterrupt(chunk)) {
-      handleInterrupt();
       return;
     }
     // While Amy talks (or echo cooldown), ignore normal speech so she doesn't self-answer.
@@ -1179,6 +1241,10 @@ function applyViewMode(mode) {
 
 micBtn.addEventListener('click', toggleMic);
 document.getElementById('tray-mic').addEventListener('click', toggleMic);
+if (stopBtn) stopBtn.addEventListener('click', () => {
+  unlockedAudio = true;
+  handleInterrupt();
+});
 sendBtn.addEventListener('click', submitChat);
 fileBtn.addEventListener('click', () => fileInput.click());
 document.getElementById('tray-file').addEventListener('click', () => fileInput.click());
@@ -1207,6 +1273,12 @@ inputEl.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
     submitChat();
+  }
+});
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    unlockedAudio = true;
+    handleInterrupt();
   }
 });
 eyesBtn.addEventListener('click', toggleEyes);

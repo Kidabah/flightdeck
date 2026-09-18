@@ -96,6 +96,22 @@ def enqueue(cmd: dict[str, Any]) -> str:
     return cid
 
 
+def pop_command(max_age_s: float = 45.0) -> dict[str, Any] | None:
+    """Drop stale tab commands so a late-loaded extension doesn't fire old asks."""
+    now = time.time()
+    with LOCK:
+        while COMMAND_Q and now - float(COMMAND_Q[0].get("ts") or 0) > max_age_s:
+            COMMAND_Q.pop(0)
+        return COMMAND_Q.pop(0) if COMMAND_Q else None
+
+
+def clear_commands() -> int:
+    with LOCK:
+        n = len(COMMAND_Q)
+        COMMAND_Q.clear()
+        return n
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "AmyHands/1.0"
 
@@ -153,13 +169,17 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/commands/next":
             EXTENSION_SEEN = time.time()
-            with LOCK:
-                cmd = COMMAND_Q.pop(0) if COMMAND_Q else None
+            cmd = pop_command()
             self._json(200, {"ok": True, "command": cmd})
             return
 
         if path == "/commands/last":
             self._json(200, {"ok": True, "result": LAST_RESULT})
+            return
+
+        if path == "/commands/clear":
+            n = clear_commands()
+            self._json(200, {"ok": True, "cleared": n})
             return
 
         self._json(404, {"detail": "not found"})

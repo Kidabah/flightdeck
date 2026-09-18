@@ -1,3 +1,11 @@
+## 2026-09-19 Session update (Amy whistle tune + stop + Hands)
+
+Latest commit: _(pending)_ — Amy whistles a **multi-note tune** (ask “whistle”). **STOP** button + Escape + better barge-in (interim “stop”). Hands clears stale tab cmds; tab tools tell you if Chrome extension isn’t loaded. Run `jarvis/amy-hands/start-amy-hands.ps1` then Load unpacked `chrome-extension`.
+
+Hard refresh Amy. Restart Amy on Pi (backend). Hands restarted on PC.
+
+---
+
 ## 2026-09-19 Session update (Amy on-demand whistle)
 
 Latest commit: `dced8f8` — Say or type **whistle** / **sing** (or “whistle for me”) and Amy plays the idle whistle tone immediately — no 3‑minute wait.

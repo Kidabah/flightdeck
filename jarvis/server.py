@@ -493,6 +493,21 @@ def hands_wait_result(cmd_id: str, timeout_s: float = 6.0) -> dict[str, Any]:
     return {"ok": False, "detail": "Chrome extension did not respond in time — is Amy Hands + extension running?"}
 
 
+def hands_extension_alive(max_age_s: float = 8.0) -> tuple[bool, str]:
+    code, payload = hands_request("/health", timeout=5)
+    if code != 200 or not isinstance(payload, dict):
+        return False, f"Amy Hands unreachable ({payload}). Is Hands running on the PC?"
+    ago = payload.get("extension_seen_ago_s")
+    if ago is None:
+        return False, (
+            "Chrome extension isn't connected. On the PC: chrome://extensions → "
+            "Load unpacked → jarvis/amy-hands/chrome-extension (keep Hands running)."
+        )
+    if float(ago) > max_age_s:
+        return False, f"Chrome extension last seen {ago}s ago — reload the Amy Hands extension."
+    return True, "ok"
+
+
 def search_pc_files(query: str) -> str:
     code, payload = hands_request("/search", method="POST", body={"query": query})
     if code != 200 or not isinstance(payload, dict):
@@ -505,6 +520,9 @@ def search_pc_files(query: str) -> str:
 
 
 def focus_browser_tab(query: str) -> str:
+    ok, detail = hands_extension_alive()
+    if not ok:
+        return detail
     code, payload = hands_request("/tabs/focus", method="POST", body={"query": query})
     if code != 200 or not isinstance(payload, dict):
         return f"Couldn’t queue tab focus: {payload}"
@@ -515,6 +533,9 @@ def focus_browser_tab(query: str) -> str:
 
 
 def open_browser_tab(url: str) -> str:
+    ok, detail = hands_extension_alive()
+    if not ok:
+        return detail
     code, payload = hands_request("/tabs/open", method="POST", body={"url": url})
     if code != 200 or not isinstance(payload, dict):
         return f"Couldn’t open tab: {payload}"
@@ -525,6 +546,9 @@ def open_browser_tab(url: str) -> str:
 
 
 def list_browser_tabs() -> str:
+    ok, detail = hands_extension_alive()
+    if not ok:
+        return detail
     code, payload = hands_request("/tabs/list", method="POST", body={})
     if code != 200 or not isinstance(payload, dict):
         return f"Couldn’t list tabs: {payload}"
