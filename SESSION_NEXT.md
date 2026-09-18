@@ -1,6 +1,6 @@
 ## 2026-09-18 Session update (Jarvis HUD polish)
 
-Latest commit: pending — Jarvis viewer now has Flightdeck-flavoured command chrome: cyan HUD ring, speaking/model chips, RING/CUBE/FACE views, EYES organ (WATCH/HOLO/FOCUS stubs), denser starfield, search bar, and more workshop notes for a fuller galaxy.
+Latest commit: `8674a65` — Jarvis viewer now has Flightdeck-flavoured command chrome: cyan HUD ring, speaking/model chips, RING/CUBE/FACE views, EYES organ (WATCH/HOLO/FOCUS stubs), denser starfield, search bar, and more workshop notes for a fuller galaxy.
 
 Hard refresh `http://100.106.112.104:4700` (Ctrl+F5). `systemctl --user restart jarvis` after pull.
 
