@@ -126,6 +126,7 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self) -> None:  # noqa: N802
+        global EXTENSION_SEEN
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
         qs = urllib.parse.parse_qs(parsed.query)
@@ -150,7 +151,6 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if path == "/commands/next":
-            global EXTENSION_SEEN
             EXTENSION_SEEN = time.time()
             with LOCK:
                 cmd = COMMAND_Q.pop(0) if COMMAND_Q else None
