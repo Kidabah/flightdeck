@@ -1278,9 +1278,16 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
-    def _read_json(self) -> dict[str, Any]:
+    def _read_body(self) -> bytes:
         length = int(self.headers.get("Content-Length") or 0)
-        raw = self.rfile.read(length) if length else b"{}"
+        if length <= 0:
+            return b""
+        if length > 12 * 1024 * 1024:
+            raise ValueError("body too large")
+        return self.rfile.read(length)
+
+    def _read_json(self) -> dict[str, Any]:
+        raw = self._read_body() or b"{}"
         try:
             data = json.loads(raw.decode("utf-8"))
         except json.JSONDecodeError as exc:
@@ -1288,6 +1295,40 @@ class Handler(BaseHTTPRequestHandler):
         if not isinstance(data, dict):
             raise ValueError("json object required")
         return data
+
+    def _read_stt_audio(self) -> tuple[bytes, str]:
+        """Accept JSON {audio:b64,mime} or multipart file/audio field."""
+        ctype = (self.headers.get("Content-Type") or "").lower()
+        if "multipart/form-data" in ctype:
+            import email
+            import email.policy
+
+            raw = self._read_body()
+            msg = email.message_from_bytes(
+                f"Content-Type: {self.headers.get('Content-Type')}\r\n\r\n".encode() + raw,
+                policy=email.policy.default,
+            )
+            for part in msg.iter_parts():
+                name = part.get_param("name", header="content-disposition") or ""
+                if name in ("file", "audio", "data"):
+                    payload = part.get_payload(decode=True) or b""
+                    mime = part.get_content_type() or "audio/webm"
+                    return payload, mime
+            raise ValueError("multipart audio field missing")
+        body = self._read_json()
+        raw_b64 = str(body.get("audio") or body.get("data") or "").strip()
+        if not raw_b64:
+            raise ValueError("audio required")
+        if "," in raw_b64 and raw_b64.startswith("data:"):
+            header, raw_b64 = raw_b64.split(",", 1)
+            mime = header.split(";")[0].split(":")[-1] if ":" in header else "audio/webm"
+        else:
+            mime = str(body.get("mime") or body.get("media_type") or "audio/webm")
+        try:
+            audio = base64.b64decode(raw_b64, validate=False)
+        except Exception as exc:
+            raise ValueError(f"bad audio base64: {exc}") from exc
+        return audio, mime
 
     def do_OPTIONS(self) -> None:  # noqa: N802
         self.send_response(204)
@@ -1372,6 +1413,32 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         path = parsed.path
+
+        if path == "/stt":
+            try:
+                audio, mime = self._read_stt_audio()
+                if not audio:
+                    self._json(400, {"detail": "audio required"})
+                    return
+                ext = "webm"
+                if "mp4" in mime or "m4a" in mime:
+                    ext = "mp4"
+                elif "wav" in mime:
+                    ext = "wav"
+                elif "ogg" in mime or "oga" in mime:
+                    ext = "ogg"
+                elif "mpeg" in mime or "mp3" in mime:
+                    ext = "mp3"
+                text = transcribe_openai(audio, filename=f"speech.{ext}", mime=mime)
+                self._json(200, {"ok": True, "text": text})
+            except ValueError as exc:
+                self._json(400, {"detail": str(exc)})
+            except RuntimeError as exc:
+                self._json(503, {"detail": str(exc)})
+            except Exception as exc:
+                self._json(500, {"detail": str(exc)})
+            return
+
         try:
             body = self._read_json()
         except ValueError as exc:
@@ -1464,32 +1531,6 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 audio = synthesize_speech(text)
                 self._audio(200, audio)
-                return
-
-            if path == "/stt":
-                raw_b64 = str(body.get("audio") or body.get("data") or "").strip()
-                if not raw_b64:
-                    self._json(400, {"detail": "audio required"})
-                    return
-                if "," in raw_b64 and raw_b64.startswith("data:"):
-                    header, raw_b64 = raw_b64.split(",", 1)
-                    mime = header.split(";")[0].split(":")[-1] if ":" in header else "audio/webm"
-                else:
-                    mime = str(body.get("mime") or body.get("media_type") or "audio/webm")
-                try:
-                    audio = base64.b64decode(raw_b64, validate=False)
-                except Exception as exc:
-                    self._json(400, {"detail": f"bad audio base64: {exc}"})
-                    return
-                ext = "webm"
-                if "mp4" in mime or "m4a" in mime:
-                    ext = "mp4"
-                elif "wav" in mime:
-                    ext = "wav"
-                elif "mpeg" in mime or "mp3" in mime:
-                    ext = "mp3"
-                text = transcribe_openai(audio, filename=f"speech.{ext}", mime=mime)
-                self._json(200, {"ok": True, "text": text})
                 return
 
             self._json(404, {"detail": "not found"})

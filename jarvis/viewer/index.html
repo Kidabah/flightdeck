@@ -1239,23 +1239,32 @@ function blobToBase64(blob) {
 }
 
 async function transcribeDesktopBlob(blob) {
-  if (!blob || blob.size < 1200) return '';
-  const b64 = await blobToBase64(blob);
-  const r = await fetch('/stt', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ audio: b64, mime: blob.type || 'audio/webm' }),
-  });
-  const payload = await r.json().catch(() => ({}));
+  if (!blob || blob.size < 800) return '';
+  const mime = blob.type || 'audio/webm';
+  const ext = /mp4|m4a/i.test(mime) ? 'mp4' : /ogg/i.test(mime) ? 'ogg' : /wav/i.test(mime) ? 'wav' : 'webm';
+  const form = new FormData();
+  form.append('file', blob, `speech.${ext}`);
+  let r;
+  try {
+    r = await fetch(`${location.origin}/stt`, { method: 'POST', body: form });
+  } catch (err) {
+    throw new Error(`network (${err && err.message ? err.message : err}) — is Amy still running?`);
+  }
+  let payload = {};
+  try { payload = await r.json(); } catch (_) {}
   if (!r.ok) throw new Error(payload.detail || `STT HTTP ${r.status}`);
   return String(payload.text || '').trim();
 }
 
 function armDesktopRecorder() {
   if (!desktopMic.stream || !wantListen) return;
-  const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-    ? 'audio/webm;codecs=opus'
-    : (MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '');
+  const candidates = [
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/mp4',
+    'audio/ogg;codecs=opus',
+  ];
+  const mime = candidates.find((t) => MediaRecorder.isTypeSupported(t)) || '';
   desktopMic.chunks = [];
   desktopMic.recorder = mime
     ? new MediaRecorder(desktopMic.stream, { mimeType: mime })
@@ -1268,9 +1277,9 @@ function armDesktopRecorder() {
       desktopMic.chunks = [];
       return;
     }
-    const blob = new Blob(desktopMic.chunks, { type: desktopMic.recorder?.mimeType || 'audio/webm' });
+    const blob = new Blob(desktopMic.chunks, { type: desktopMic.recorder?.mimeType || mime || 'audio/webm' });
     desktopMic.chunks = [];
-    if (blob.size < 1200) {
+    if (blob.size < 800) {
       if (wantListen) armDesktopRecorder();
       return;
     }
@@ -1282,19 +1291,28 @@ function armDesktopRecorder() {
         inputEl.value = '';
         bumpIdle();
         await ask(text);
+      } else if (wantListen && !asleep) {
+        setStatus('listening', 'Listening · Whisper');
       }
     } catch (err) {
       answerEl.textContent = `Desktop mic STT failed (${err.message || err}). Typing still works.`;
-      setStatus('idle', 'Mic error');
+      setStatus(wantListen ? 'listening' : 'idle', wantListen ? 'Listening · Whisper' : 'Mic error');
     } finally {
       desktopMic.busy = false;
       if (wantListen && !asleep) {
-        setStatus('listening', 'Listening');
+        if (statusEl.dataset.mode !== 'thinking' && statusEl.dataset.mode !== 'speaking') {
+          setStatus('listening', 'Listening · Whisper');
+        }
         armDesktopRecorder();
       }
     }
   };
-  try { desktopMic.recorder.start(); } catch (_) {}
+  try {
+    // timeslice keeps chunks flowing so stop() has audio to send
+    desktopMic.recorder.start(250);
+  } catch (_) {
+    try { desktopMic.recorder.start(); } catch (__) {}
+  }
 }
 
 function watchDesktopLevels() {
@@ -1327,7 +1345,10 @@ function watchDesktopLevels() {
       ) {
         desktopMic.speaking = false;
         desktopMic.silentMs = 0;
-        try { desktopMic.recorder.stop(); } catch (_) {}
+        try {
+          try { desktopMic.recorder.requestData(); } catch (_) {}
+          desktopMic.recorder.stop();
+        } catch (_) {}
       }
     }
     desktopMic.raf = window.setTimeout(tick, 50);
