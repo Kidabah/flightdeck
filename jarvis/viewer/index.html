@@ -813,30 +813,40 @@ function armRecognition() {
   recognition.lang = 'en-AU';
   recognition.onstart = () => {
     listening = true;
-    micBtn.classList.add('active');
+    syncMicUi();
     if (!isSpeaking) setStatus('listening', 'Listening');
   };
   recognition.onend = () => {
     listening = false;
-    micBtn.classList.remove('active');
     // Temporary duck while Amy talks — don't clear wantListen.
-    if (isSpeaking || micIsDeaf()) return;
+    if (isSpeaking || micIsDeaf()) {
+      syncMicUi();
+      return;
+    }
     if (wantListen) {
       // Chrome often ends continuous sessions; nudge it back.
       setTimeout(() => {
         if (!wantListen || isSpeaking || !recognition) return;
         try { recognition.start(); } catch (_) {}
       }, 200);
+      syncMicUi();
       return;
     }
+    syncMicUi();
     if (statusEl.dataset.mode === 'listening') setStatus('idle', 'Ready');
   };
   recognition.onerror = (ev) => {
     listening = false;
-    micBtn.classList.remove('active');
-    if (ev.error === 'aborted' || ev.error === 'no-speech') return;
-    if (isSpeaking) return;
+    if (ev.error === 'aborted' || ev.error === 'no-speech') {
+      syncMicUi();
+      return;
+    }
+    if (isSpeaking) {
+      syncMicUi();
+      return;
+    }
     wantListen = false;
+    syncMicUi();
     setStatus('idle', 'Mic error');
     if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') {
       answerEl.textContent = 'Mic blocked — open Amy over HTTPS and allow the microphone.';
@@ -854,10 +864,9 @@ function armRecognition() {
     if (bypassWord(chunk)) {
       clearTimeout(finishTimer);
       pending = '';
-      wantListen = false;
       stopSpeaking();
       isSpeaking = false;
-      try { recognition.stop(); } catch (_) {}
+      muteMic();
       setStatus('idle', 'Stopped');
       return;
     }
@@ -880,6 +889,33 @@ function armRecognition() {
   return recognition;
 }
 
+function syncMicUi() {
+  const on = !!wantListen;
+  micBtn.classList.toggle('active', on);
+  micBtn.textContent = on ? 'MUTE' : 'MIC';
+  micBtn.title = on ? 'Mute microphone' : 'Microphone';
+  const tray = document.getElementById('tray-mic');
+  if (tray) {
+    tray.classList.toggle('active', on);
+    tray.title = on ? 'Mute mic' : 'Mic';
+  }
+}
+
+function muteMic() {
+  wantListen = false;
+  clearTimeout(finishTimer);
+  finishTimer = null;
+  pending = '';
+  if (recognition) {
+    try { recognition.stop(); } catch (_) {}
+  }
+  listening = false;
+  syncMicUi();
+  if (!isSpeaking && statusEl.dataset.mode !== 'thinking') {
+    setStatus('idle', 'Mic muted');
+  }
+}
+
 function startMic() {
   unlockedAudio = true;
   if (!IS_SECURE) {
@@ -893,7 +929,14 @@ function startMic() {
     return;
   }
   wantListen = true;
+  syncMicUi();
+  setStatus('listening', 'Listening');
   try { recognition.start(); } catch (_) {}
+}
+
+function toggleMic() {
+  if (wantListen || listening) muteMic();
+  else startMic();
 }
 
 async function toggleEyes() {
@@ -945,8 +988,8 @@ function applyViewMode(mode) {
   graph.nodeRelSize(viewMode === 'face' ? 7 : 5);
 }
 
-micBtn.addEventListener('click', startMic);
-document.getElementById('tray-mic').addEventListener('click', startMic);
+micBtn.addEventListener('click', toggleMic);
+document.getElementById('tray-mic').addEventListener('click', toggleMic);
 sendBtn.addEventListener('click', submitChat);
 fileBtn.addEventListener('click', () => fileInput.click());
 document.getElementById('tray-file').addEventListener('click', () => fileInput.click());
