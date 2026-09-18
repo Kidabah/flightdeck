@@ -1,6 +1,6 @@
 ## 2026-09-19 Session update (Amy desktop wrap)
 
-Latest commit: _(pending)_ — Windows desktop wrap under `jarvis/desktop/`: WebView2 window + local `server.py` on `127.0.0.1:4700` + Hands on `:4701`. AppData config (`%APPDATA%\Amy\config.json`). Dev: `jarvis/desktop/start-amy-desktop.ps1`. Build: `build-windows.ps1` → `dist/Amy/Amy.exe`. Pi browser Amy unchanged (`AMY_BIND` / `AMY_CONFIG` / `AMY_ROOT` hooks).
+Latest commit: `9ccd8c1` — Windows desktop wrap under `jarvis/desktop/`: WebView2 window + local `server.py` on `127.0.0.1:4700` + Hands on `:4701`. AppData config (`%APPDATA%\Amy\config.json`). Dev: `jarvis/desktop/start-amy-desktop.ps1`. Build: `build-windows.ps1` → `dist/Amy/Amy.exe`. Pi browser Amy unchanged (`AMY_BIND` / `AMY_CONFIG` / `AMY_ROOT` hooks).
 
 Hard refresh not required for Pi unless pulling `server.py` bind/env changes. Restart Amy on Pi after pull. Desktop: paste API keys into AppData config; load Chrome extension for tabs.
 
