@@ -1,11 +1,11 @@
 ## 2026-09-18 Session update (Jarvis workshop on Flightdeck Pi)
 
-Latest commit: pending — **Jarvis** lives at `jarvis/` (synced to `~/jarvis` on the Pi). Dedicated 16GB Pi deferred until a spare PSU exists; current 8GB Flightdeck Pi has ~5.8 Gi available and runs Jarvis fine on **:4700**.
+Latest commit: `4d7953e` — **Jarvis** lives at `jarvis/` (runtime on Pi via user systemd). Dedicated 16GB Pi deferred until a spare PSU exists; current 8GB Flightdeck Pi has ~5.8 Gi available and runs Jarvis fine on **:4700**.
 
 - Notes galaxy + voice (Web Speech), butler persona, `/chat` `/remember` `/see`, preflight harness
 - Flightdeck tools: calibrate / status / pause-resume-stop with nicknames BigBoy→`h2d`, Big Girl→`o1c2`, X1C→`x1c`, Greyhound→`greyhound`
 - User systemd: `systemctl --user status|restart jarvis`
-- Open UI: `http://100.106.112.104:4700` — paste OpenAI key into `~/jarvis/config.json` (from `config.example.json`) for notes Q&A; tools work without a key
+- Open UI: `http://100.106.112.104:4700` — paste OpenAI key into `~/flightdeck/jarvis/config.json` (from `config.example.json`) for notes Q&A; tools work without a key
 - Verified live: “run a calibration on BigBoy” → Flightdeck calibration start OK
 
 Hard refresh not required (separate port). Backend: user `jarvis.service` already active.
