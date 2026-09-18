@@ -324,16 +324,17 @@ function scoreVoice(v) {
   const name = String(v.name || '');
   const lang = String(v.lang || '');
   let score = 0;
-  // Amy character pick: warm Aussie mate energy first, then bright UK/US naturals.
-  if (/en-AU/i.test(lang)) score += 40;
-  else if (/en-GB/i.test(lang)) score += 25;
-  else if (/en-US/i.test(lang)) score += 15;
+  // Amy character: low warm sultry — prefer mature naturals over bright chipmunk energy.
+  if (/en-GB/i.test(lang)) score += 35;
+  else if (/en-AU/i.test(lang)) score += 32;
+  else if (/en-US/i.test(lang)) score += 20;
   else if (/^en/i.test(lang)) score += 8;
-  if (/karen|catherine|natasha|sonia/i.test(name)) score += 30; // Aussie favourites
-  if (/aria|jenny|sara|zira|samantha|moira|hazel|susan/i.test(name)) score += 22;
-  if (/google.*female|microsoft.*natural|neural|online \(natural\)/i.test(name)) score += 18;
+  if (/samantha|moira|hazel|susan|sonia|serena|libby|joanna|ivy/i.test(name)) score += 36;
+  if (/catherine|natasha|aria|jenny|sara/i.test(name)) score += 24;
+  if (/karen|zira/i.test(name)) score += 12; // fine but brighter
+  if (/microsoft.*natural|neural|online \(natural\)|google.*female/i.test(name)) score += 20;
   if (/female/i.test(name)) score += 10;
-  if (/male|david|mark|ravi|george|thomas/i.test(name)) score -= 40;
+  if (/male|david|mark|ravi|george|thomas|guy|ryan/i.test(name)) score -= 40;
   return score;
 }
 
@@ -355,13 +356,13 @@ function speak(text) {
   const voice = pickVoice();
   if (voice) {
     u.voice = voice;
-    u.lang = voice.lang || 'en-AU';
+    u.lang = voice.lang || 'en-GB';
   } else {
-    u.lang = 'en-AU';
+    u.lang = 'en-GB';
   }
-  // Slightly bright + quick — mate energy, not butler.
-  u.rate = 1.08;
-  u.pitch = 1.12;
+  // Lower + slower = warmer / sexier. Browser TTS only goes so far.
+  u.rate = 0.92;
+  u.pitch = 0.82;
   setStatus('speaking', cachedVoiceName ? `Talking · ${cachedVoiceName.split(' - ')[0]}` : 'Talking');
   u.onend = () => setStatus(listening ? 'listening' : 'idle', listening ? 'Listening' : 'Ready');
   u.onerror = () => setStatus('idle', 'Ready');
