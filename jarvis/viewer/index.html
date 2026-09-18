@@ -302,7 +302,7 @@
     }
     #dock.dragover #drop-overlay { display: flex; }
   </style>
-  <script src="//unpkg.com/3d-force-graph"></script>
+  <script src="/vendor/3d-force-graph.min.js"></script>
   <script src="/graph-data.js"></script>
 </head>
 <body>
@@ -1367,6 +1367,11 @@ function paintStars() {
 }
 
 function bootGraph() {
+  if (typeof ForceGraph3D !== 'function') {
+    console.warn('ForceGraph3D missing — galaxy off, voice/chat still work');
+    brandSub.textContent = 'ready (no galaxy)';
+    return;
+  }
   const data = (typeof GRAPH !== 'undefined') ? GRAPH : { nodes: [], links: [] };
   graph = ForceGraph3D()(document.getElementById('graph'))
     .graphData(data)
@@ -1418,7 +1423,12 @@ function prettyModel(raw) {
 }
 
 paintStars();
-bootGraph();
+try {
+  bootGraph();
+} catch (err) {
+  console.warn('Galaxy boot failed', err);
+  brandSub.textContent = 'ready (galaxy error)';
+}
 armRecognition();
 bootGreeting();
 bumpIdle();
