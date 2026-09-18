@@ -871,6 +871,7 @@ function openNode(node) {
 document.getElementById('side-close').addEventListener('click', () => { side.style.display = 'none'; });
 
 function highlightNodes(ids) {
+  if (!graph) return;
   const set = new Set(ids || []);
   graph.nodeColor(n => set.has(n.id) ? '#fbbf24' : colorForGroup(n.group));
   graph.nodeVal(n => set.has(n.id) ? 10 : (viewMode === 'face' ? 5 : 3.6));
@@ -885,7 +886,7 @@ function colorForGroup(group) {
 
 function flyToNode(id) {
   const node = (GRAPH.nodes || []).find(n => n.id === id);
-  if (!node || node.x == null) return;
+  if (!node || node.x == null || !graph) return;
   openNode(node);
   const dist = viewMode === 'face' ? 55 : 95;
   graph.cameraPosition({ x: node.x, y: node.y, z: node.z + dist }, node, 1100);
