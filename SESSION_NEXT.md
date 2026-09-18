@@ -1,3 +1,11 @@
+## 2026-09-19 Session update (Amy desktop wrap)
+
+Latest commit: _(pending)_ — Windows desktop wrap under `jarvis/desktop/`: WebView2 window + local `server.py` on `127.0.0.1:4700` + Hands on `:4701`. AppData config (`%APPDATA%\Amy\config.json`). Dev: `jarvis/desktop/start-amy-desktop.ps1`. Build: `build-windows.ps1` → `dist/Amy/Amy.exe`. Pi browser Amy unchanged (`AMY_BIND` / `AMY_CONFIG` / `AMY_ROOT` hooks).
+
+Hard refresh not required for Pi unless pulling `server.py` bind/env changes. Restart Amy on Pi after pull. Desktop: paste API keys into AppData config; load Chrome extension for tabs.
+
+---
+
 ## 2026-09-19 Session update (Amy whistle tune + stop + Hands)
 
 Latest commit: `0b85e12` — Amy whistles a **multi-note tune** (ask “whistle”). **STOP** button + Escape + better barge-in (interim “stop”). Hands clears stale tab cmds; tab tools tell you if Chrome extension isn’t loaded. Run `jarvis/amy-hands/start-amy-hands.ps1` then Load unpacked `chrome-extension`.

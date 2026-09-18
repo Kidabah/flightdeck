@@ -2,6 +2,19 @@
 
 Voice + notes galaxy for Chris's Flightdeck bench. Brain: **GPT-5.6 Luna**.
 
+## Desktop app (Windows)
+
+Local-brain wrap (same UI + Hands). Pi browser Amy stays available.
+
+```powershell
+cd jarvis\desktop
+.\start-amy-desktop.ps1
+```
+
+Config lands in `%APPDATA%\Amy\config.json`. Build a portable folder with `.\build-windows.ps1` → `dist\Amy\Amy.exe`.
+
+See [desktop/README.md](desktop/README.md).
+
 ## Hosting
 
 Runs on the Flightdeck Pi (`jarvis/` folder in repo — systemd unit is still `jarvis.service`). Port **4700**.

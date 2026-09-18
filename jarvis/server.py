@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import html as html_lib
 import json
+import os
 import re
 import threading
 import time
@@ -17,11 +18,43 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-ROOT = Path(__file__).resolve().parent
+
+def _resolve_root() -> Path:
+    env = (os.environ.get("AMY_ROOT") or "").strip()
+    if env:
+        return Path(env).expanduser().resolve()
+    return Path(__file__).resolve().parent
+
+
+def _resolve_config(root: Path) -> Path:
+    env = (os.environ.get("AMY_CONFIG") or "").strip()
+    if env:
+        return Path(env).expanduser().resolve()
+    return root / "config.json"
+
+
+def _resolve_uploads(root: Path, config_path: Path) -> Path:
+    env = (os.environ.get("AMY_UPLOADS") or "").strip()
+    if env:
+        return Path(env).expanduser().resolve()
+    # Desktop AppData config → keep uploads beside it; Pi → jarvis/uploads.
+    if config_path.parent != root:
+        return config_path.parent / "uploads"
+    return root / "uploads"
+
+
+def _resolve_index(root: Path) -> Path:
+    env = (os.environ.get("AMY_INDEX") or "").strip()
+    if env:
+        return Path(env).expanduser().resolve()
+    return root / "notes-index.json"
+
+
+ROOT = _resolve_root()
 VIEWER = ROOT / "viewer"
-CONFIG_PATH = ROOT / "config.json"
-INDEX_PATH = ROOT / "notes-index.json"
-UPLOADS = ROOT / "uploads"
+CONFIG_PATH = _resolve_config(ROOT)
+INDEX_PATH = _resolve_index(ROOT)
+UPLOADS = _resolve_uploads(ROOT, CONFIG_PATH)
 
 # ---------------------------------------------------------------------------
 # PERSONA — rewrite this block to change character without hunting the file.
@@ -1303,9 +1336,16 @@ def main() -> None:
 
         rebuild()
     load_index()
+    UPLOADS.mkdir(parents=True, exist_ok=True)
     port = int(cfg.get("port") or 4700)
-    server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
-    print(f"Amy listening on http://0.0.0.0:{port} — viewer only from {VIEWER}")
+    bind = (
+        (os.environ.get("AMY_BIND") or "").strip()
+        or str(cfg.get("bind_host") or "").strip()
+        or "0.0.0.0"
+    )
+    server = ThreadingHTTPServer((bind, port), Handler)
+    print(f"Amy listening on http://{bind}:{port} - viewer only from {VIEWER}")
+    print(f"Config: {CONFIG_PATH}")
     print(f"Notes indexed: {len(RUNTIME['index'])} | model={cfg.get('model')}")
     try:
         server.serve_forever()

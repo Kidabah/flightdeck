@@ -141,7 +141,7 @@ def main() -> None:
         ),
         encoding="utf-8",
     )
-    print(f"Indexed {len(nodes)} notes, {len(links)} links → {OUT.relative_to(ROOT)}")
+    print(f"Indexed {len(nodes)} notes, {len(links)} links -> {OUT.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":
