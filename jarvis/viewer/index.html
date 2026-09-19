@@ -851,6 +851,13 @@ async function callAmyDesktop(fn, ...args) {
   return false;
 }
 
+/** Explorer/files open behind always-on-top Amy — drop the pin so Chris can see them. */
+async function maybeDropOnTopForReveal(answer) {
+  const s = String(answer || '');
+  if (!/dropped always-on-top|Opened File Explorer\b/i.test(s)) return;
+  await callAmyDesktop('set_on_top', false);
+}
+
 async function setCompactMode(on) {
   compactMode = !!on;
   document.body.classList.toggle('compact', compactMode);
@@ -1406,6 +1413,7 @@ async function ask(question) {
     inputEl.value = '';
     answerEl.textContent = payload.answer || '';
     applySources(payload);
+    await maybeDropOnTopForReveal(payload.answer || '');
     await speak(payload.answer || '');
   } catch (err) {
     if (err && (err.name === 'AbortError' || /aborted/i.test(String(err.message || '')))) {

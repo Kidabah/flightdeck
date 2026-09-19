@@ -1,4 +1,8 @@
-# 2026-09-19 Session update (Amy TALK glow fix)
+## 2026-09-19 Session update (Explorer behind Amy)
+
+Latest commit: _(pending)_ — Opening a folder/file drops Amy's always-on-top and focuses Explorer so it isn't hidden behind her. Say **come back** to float again. Restart Hands + Amy.
+
+--- 2026-09-19 Session update (Amy TALK glow fix)
 
 Latest commit: ``1d12317`` — Glowing button is **TALK** (ears open), dim **QUIET** (soft quiet). Previous glowing QUIET looked like permanent mute. Bare "quiet" while speaking = barge-in only; **don't talk** for quiet. Reopen framed Amy.
 

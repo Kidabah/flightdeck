@@ -883,7 +883,11 @@ def open_file_explorer(path: str = "") -> str:
         return f"Couldn’t open Explorer: {payload}"
     if code != 200 or not payload.get("ok"):
         return f"Explorer open failed: {payload.get('detail') or payload}"
-    return f"Opened File Explorer at {payload.get('path') or path or 'C:\\\\'}"
+    opened = payload.get("path") or path or "C:\\"
+    return (
+        f"Opened File Explorer at {opened}. "
+        "I dropped always-on-top so you can see it — say come back if you want me floating again."
+    )
 
 
 def _hands_action(path: str, body: dict[str, Any], *, ok_msg: str) -> str:
@@ -898,15 +902,27 @@ def _hands_action(path: str, body: dict[str, Any], *, ok_msg: str) -> str:
 
 
 def open_pc_file(path: str) -> str:
-    return _hands_action("/file/open", {"path": path}, ok_msg="Opened {path}")
+    msg = _hands_action("/file/open", {"path": path}, ok_msg="Opened {path}")
+    if msg.startswith("Opened "):
+        return (
+            msg
+            + " I dropped always-on-top so you can see it — say come back if you want me floating again."
+        )
+    return msg
 
 
 def open_pc_file_with(path: str, app: str) -> str:
-    return _hands_action(
+    msg = _hands_action(
         "/file/open_with",
         {"path": path, "app": app},
         ok_msg="Opened {path} with {app}",
     )
+    if msg.startswith("Opened "):
+        return (
+            msg
+            + " I dropped always-on-top so you can see it — say come back if you want me floating again."
+        )
+    return msg
 
 
 def launch_pc_app(name: str, play: bool = False) -> str:

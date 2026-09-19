@@ -45,8 +45,8 @@ Talk to Amy in normal English — this list is just reminders of what she can do
 - “What’s on your allow list?”
 
 ### Files & folders
-- “Open C:” / “Open my Downloads”
-- “Search my PC for invoice”
+- “Open C:” / “Open my Downloads” / “Open that folder on my desktop”
+- When she opens Explorer she **drops always-on-top** so the folder isn’t hiding behind her — say **come back** to float again
 - “Open that file” (after a search hit — give the path if needed)
 - “Open it in Notepad” / VS Code / Cursor (allowlisted apps)
 

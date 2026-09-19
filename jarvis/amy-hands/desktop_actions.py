@@ -232,7 +232,38 @@ def open_file(path: str) -> dict[str, Any]:
         os.startfile(text)  # noqa: S606 — default file association
     except Exception as exc:
         return {"ok": False, "detail": str(exc)}
-    return {"ok": True, "path": text, "how": "default app"}
+    return {"ok": True, "path": text, "how": "default app", "reveal": True}
+
+
+def _focus_explorer() -> None:
+    """Bring a File Explorer window forward (Amy is often always-on-top)."""
+    time.sleep(0.45)
+    found: list[int] = []
+
+    @ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
+    def enum_proc(hwnd, _lparam):  # noqa: N803
+        if not user32.IsWindowVisible(hwnd):
+            return True
+        cls = ctypes.create_unicode_buffer(256)
+        user32.GetClassNameW(hwnd, cls, 256)
+        if cls.value not in ("CabinetWClass", "ExploreWClass"):
+            return True
+        found.append(int(hwnd))
+        return True
+
+    try:
+        user32.EnumWindows(enum_proc, 0)
+    except Exception:
+        return
+    if not found:
+        return
+    hwnd = found[0]
+    try:
+        if user32.IsIconic(hwnd):
+            user32.ShowWindow(hwnd, SW_RESTORE)
+        user32.SetForegroundWindow(hwnd)
+    except Exception:
+        pass
 
 
 def open_file_explorer(path: str | None = None) -> dict[str, Any]:
@@ -247,10 +278,14 @@ def open_file_explorer(path: str | None = None) -> dict[str, Any]:
     if not is_drive and not Path(text).exists():
         return {"ok": False, "detail": f"path not found: {text}"}
     try:
-        subprocess.Popen(["explorer.exe", text], shell=False, close_fds=True)
+        # ShellExecute tends to raise Explorer above other windows better than Popen.
+        rc = ctypes.windll.shell32.ShellExecuteW(None, "open", text, None, None, 1)  # SW_SHOWNORMAL
+        if int(rc) <= 32:
+            subprocess.Popen(["explorer.exe", text], shell=False, close_fds=True)
+        _focus_explorer()
     except Exception as exc:
         return {"ok": False, "detail": str(exc)}
-    return {"ok": True, "path": text}
+    return {"ok": True, "path": text, "reveal": True}
 
 
 def open_file_with(path: str, app: str, *, cfg: dict[str, Any] | None = None) -> dict[str, Any]:
