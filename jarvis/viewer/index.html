@@ -534,7 +534,7 @@
       <input id="chat-input" type="text" placeholder="Talk to Amy… (or drop files)" autocomplete="off" />
       <input id="file-input" type="file" multiple hidden accept="image/*,.txt,.md,.json,.csv,.py,.js,.ts,.html,.css,.log,.gcode,.xml,.yml,.yaml,.svg" />
       <button class="tool" id="file-btn" type="button" title="Attach files">FILE</button>
-      <button class="tool" id="mic-btn" type="button" title="Microphone">MIC</button>
+      <button class="tool" id="mic-btn" type="button" title="Talk — open Amy's ears">TALK</button>
       <button class="tool" id="stop-btn" type="button" title="Stop Amy talking">STOP</button>
       <button class="tool" id="send-btn" type="button">ASK</button>
     </div>
@@ -605,6 +605,8 @@ let unlockedAudio = false;
 let viewMode = 'ring';
 let listening = false;
 let wantListen = false;
+/** Soft quiet: Whisper stays armed but only "talk" / unmute phrases get through. */
+let wakeListen = false;
 let isSpeaking = false;
 let micMutedUntil = 0;
 let recognition = null;
@@ -798,22 +800,27 @@ function isRestorePhrase(t) {
 function isMuteMicPhrase(t) {
   const s = normalizeAmyCmd(t);
   if (!s) return false;
-  // Bare "mute" alone = Spotify (server). "Mute yourself" / mic wording = Amy's ears off.
-  return /^(amy[, ]+)?(please[, ]+)?(mute( your| the)? (mic|microphone|ears)|mute yourself|mute you|mute amy|stop listening|mic off|microphone off|go deaf|deaf mode)(,?\s*please)?$/i.test(s)
-    || /^(can you|could you) (please )?mute (yourself|your mic|your microphone|amy)\b/i.test(s)
+  // Bare "mute" alone = Spotify (server). "Don't talk" / "quiet" / mic wording = Amy's ears off.
+  return /^(amy[, ]+)?(please[, ]+)?(don'?t talk|do not talk|be quiet|go quiet|quiet( mode)?|hush|mute( your| the)? (mic|microphone|ears)|mute yourself|mute you|mute amy|stop listening|mic off|microphone off|go deaf|deaf mode)(,?\s*please)?$/i.test(s)
+    || /^(can you|could you) (please )?(be quiet|go quiet|mute (yourself|your mic|your microphone|amy)|don'?t talk)\b/i.test(s)
     || /\bmute\s+(your\s+)?(mic|microphone|ears|yourself)\b/i.test(s)
     || /\bmute\s+(you|amy)\b/i.test(s)
-    || /\b(stop listening|mic off|go deaf)\b/i.test(s);
+    || /\b(don'?t talk|do not talk|stop listening|mic off|go deaf|be quiet|go quiet)\b/i.test(s);
 }
 
 function isUnmuteMicPhrase(t) {
   const s = normalizeAmyCmd(t);
   if (!s) return false;
-  return /^(amy[, ]+)?(please[, ]+)?(unmute( your| the)?( mic| microphone| ears)?|unmute yourself|unmute you|unmute amy|start listening|listen again|mic on|microphone on|hear me)(,?\s*please)?$/i.test(s)
-    || /^(can you|could you) (please )?unmute (yourself|your mic|amy)\b/i.test(s)
+  // "Talk" / "unmute" — reopen ears (works even in soft quiet because Whisper stays armed).
+  return /^(amy[, ]+)?(please[, ]+)?(talk( to me)?|you can talk|start talking|unmute( your| the)?( mic| microphone| ears)?|unmute yourself|unmute you|unmute amy|start listening|listen again|listen up|mic on|microphone on|hear me)(,?\s*please)?$/i.test(s)
+    || /^(can you|could you) (please )?(talk|unmute (yourself|your mic|amy)|listen)\b/i.test(s)
     || /\bunmute\s+(your\s+)?(mic|microphone|ears|yourself)\b/i.test(s)
     || /\bunmute\s+(you|amy)\b/i.test(s)
-    || /\b(start listening|mic on|hear me)\b/i.test(s);
+    || /\b(start listening|listen again|mic on|hear me)\b/i.test(s);
+}
+
+function micCaptureWanted() {
+  return !!(wantListen || wakeListen);
 }
 
 function isPlayMusicPhrase(t) {
@@ -1315,19 +1322,19 @@ async function ask(question) {
     return;
   }
   if (looksLikeWhisperGarbage(q) && !pendingFiles.length) {
-    answerEl.textContent = "Didn't catch that — Spotify might've bled into the mic. Try again, or mute me first.";
+    answerEl.textContent = "Didn't catch that — Spotify might've bled into the mic. Try again, or say don't talk.";
     setStatus(wantListen ? 'listening' : 'idle', wantListen ? (useWhisperMic ? 'Listening · Whisper' : 'Listening') : 'Ready');
     return;
   }
   if (isMuteMicPhrase(q) && !pendingFiles.length) {
     stopSpeaking();
     muteMic();
-    answerEl.textContent = 'Mic muted. Say unmute or hit MIC when you want me.';
+    answerEl.textContent = 'Quiet — say talk or hit TALK when you want me.';
     return;
   }
   if (isUnmuteMicPhrase(q) && !pendingFiles.length) {
     await startMic();
-    answerEl.textContent = 'Listening again.';
+    answerEl.textContent = 'Listening — go ahead.';
     return;
   }
   // Play music goes through /chat try_tools (Spotify + play) — fall through.
@@ -1587,12 +1594,12 @@ function armRecognition() {
 function syncMicUi() {
   const on = !!wantListen;
   micBtn.classList.toggle('active', on);
-  micBtn.textContent = on ? 'MUTE' : 'MIC';
-  micBtn.title = on ? 'Mute microphone' : 'Microphone';
+  micBtn.textContent = on ? 'QUIET' : 'TALK';
+  micBtn.title = on ? "Don't talk — ignore me until you say talk" : "Talk — open Amy's ears";
   const tray = document.getElementById('tray-mic');
   if (tray) {
     tray.classList.toggle('active', on);
-    tray.title = on ? 'Mute mic' : 'Mic';
+    tray.title = on ? "Don't talk / quiet" : 'Talk';
   }
 }
 
@@ -1603,15 +1610,27 @@ function muteMic() {
   pending = '';
   desktopMic.busy = false;
   desktopMic.speaking = false;
-  stopDesktopMic();
-  if (recognition) {
-    try { recognition.abort?.(); } catch (_) {}
-    try { recognition.stop(); } catch (_) {}
+  desktopMic.pcm = [];
+  if (desktopMic._resetPcmCount) desktopMic._resetPcmCount();
+  desktopMic.silentMs = 0;
+  desktopMic.utterStart = 0;
+
+  if (useWhisperMic && desktopMic.stream && desktopMic.audioCtx) {
+    // Soft quiet: keep Whisper armed so "talk" / unmute actually works.
+    wakeListen = true;
+    if (!desktopMic.raf) watchDesktopLevels();
+  } else {
+    wakeListen = false;
+    stopDesktopMic();
+    if (recognition) {
+      try { recognition.abort?.(); } catch (_) {}
+      try { recognition.stop(); } catch (_) {}
+    }
   }
   listening = false;
   syncMicUi();
   if (!isSpeaking && statusEl.dataset.mode !== 'thinking') {
-    setStatus('idle', 'Mic muted');
+    setStatus('idle', wakeListen ? 'Quiet — say talk' : 'Quiet');
   }
 }
 
@@ -1701,11 +1720,16 @@ async function transcribeDesktopBlob(blob) {
 }
 
 async function flushDesktopUtterance() {
-  if (!wantListen || asleep || micIsDeaf() || desktopMic.busy) {
+  if (asleep || micIsDeaf() || desktopMic.busy) {
     desktopMic.pcm = [];
     return;
   }
-  const bargeIn = isSpeaking;
+  if (!micCaptureWanted()) {
+    desktopMic.pcm = [];
+    return;
+  }
+  const wakeOnly = !wantListen && wakeListen;
+  const bargeIn = isSpeaking && wantListen;
   desktopMic.busy = true;
   const chunks = desktopMic.pcm;
   desktopMic.pcm = [];
@@ -1717,30 +1741,57 @@ async function flushDesktopUtterance() {
     desktopMic.busy = false;
     return;
   }
-  if (!bargeIn) setStatus('thinking', 'Hearing you…');
+  if (!bargeIn && !wakeOnly) setStatus('thinking', 'Hearing you…');
   let text = '';
   try {
     text = await transcribeDesktopBlob(blob);
   } catch (err) {
     desktopMic.busy = false;
-    if (!bargeIn) {
+    if (!bargeIn && !wakeOnly) {
       answerEl.textContent = `Desktop mic STT failed (${err.message || err}). Typing still works.`;
       setStatus(wantListen ? 'listening' : 'idle', wantListen ? 'Listening · Whisper' : 'Mic error');
+    } else if (wakeOnly) {
+      setStatus('idle', 'Quiet — say talk');
     }
     return;
   }
   // Release BEFORE ask/speak so voice STOP can fire while Laura talks.
   desktopMic.busy = false;
-  if (!text || !wantListen || asleep) {
+  if (!text) {
+    if (wantListen && !asleep && !isSpeaking) setStatus('listening', 'Listening · Whisper');
+    else if (wakeOnly) setStatus('idle', 'Quiet — say talk');
+    return;
+  }
+  if (wakeOnly) {
+    if (isUnmuteMicPhrase(text)) {
+      wantListen = true;
+      wakeListen = false;
+      syncMicUi();
+      answerEl.textContent = 'Listening — go ahead.';
+      setStatus('listening', 'Listening · Whisper');
+      bumpIdle();
+    } else {
+      // Still quiet — ignore chatter / Spotify bleed without nagging.
+      setStatus('idle', 'Quiet — say talk');
+    }
+    return;
+  }
+  if (!wantListen || asleep) {
     if (wantListen && !asleep && !isSpeaking) setStatus('listening', 'Listening · Whisper');
     return;
   }
   if (looksLikeWhisperGarbage(text)) {
-    answerEl.textContent = "Ignored mic noise (Whisper heard gibberish). Music playing? Mute me or pause Spotify.";
+    answerEl.textContent = "Ignored mic noise (Whisper heard gibberish). Music playing? Say don't talk or pause Spotify.";
     if (wantListen && !asleep && !isSpeaking) setStatus('listening', 'Listening · Whisper');
     return;
   }
   if (bargeIn || isSpeaking) {
+    if (isMuteMicPhrase(text)) {
+      handleInterrupt();
+      muteMic();
+      answerEl.textContent = 'Quiet — say talk or hit TALK when you want me.';
+      return;
+    }
     if (isInterrupt(text) || looksLikeInterrupt(text)) handleInterrupt();
     return;
   }
@@ -1757,7 +1808,7 @@ async function flushDesktopUtterance() {
 }
 
 function armDesktopPcmCapture() {
-  if (!desktopMic.audioCtx || !desktopMic.stream || !wantListen) return;
+  if (!desktopMic.audioCtx || !desktopMic.stream || !micCaptureWanted()) return;
   const ctx = desktopMic.audioCtx;
   const src = ctx.createMediaStreamSource(desktopMic.stream);
   // ScriptProcessor is deprecated but reliable in WebView2 for PCM → Whisper WAV.
@@ -1767,7 +1818,7 @@ function armDesktopPcmCapture() {
   const maxSamples = Math.floor((ctx.sampleRate || 48000) * 12); // hard cap ~12s
   let sampleCount = 0;
   proc.onaudioprocess = (ev) => {
-    if (!wantListen || asleep || micIsDeaf() || desktopMic.busy) return;
+    if (!micCaptureWanted() || asleep || micIsDeaf() || desktopMic.busy) return;
     if (!desktopMic.speaking && desktopMic.pcm.length === 0) return;
     const input = ev.inputBuffer.getChannelData(0);
     desktopMic.pcm.push(new Float32Array(input));
@@ -1797,11 +1848,11 @@ function armDesktopPcmCapture() {
 }
 
 function watchDesktopLevels() {
-  if (!desktopMic.analyser || !wantListen) return;
+  if (!desktopMic.analyser || !micCaptureWanted()) return;
   const data = new Uint8Array(desktopMic.analyser.fftSize);
   const maxUtterMs = 10000; // force flush so music can't hang "Hearing you…"
   const tick = () => {
-    if (!wantListen || !desktopMic.analyser) {
+    if (!micCaptureWanted() || !desktopMic.analyser) {
       desktopMic.raf = 0;
       return;
     }
@@ -1819,7 +1870,7 @@ function watchDesktopLevels() {
       sum += v * v;
     }
     const rms = Math.sqrt(sum / data.length);
-    const thresh = isSpeaking ? 0.065 : 0.042;
+    const thresh = isSpeaking ? 0.065 : (wakeListen && !wantListen ? 0.055 : 0.042);
     if (rms > thresh) {
       if (!desktopMic.speaking) {
         desktopMic.pcm = [];
@@ -1886,11 +1937,20 @@ async function startMic() {
   // Use OpenAI Whisper via /stt instead — keeps the framed Amy window.
   if (DESKTOP_APP || useWhisperMic) {
     wantListen = true;
+    wakeListen = false;
     useWhisperMic = true;
     syncMicUi();
+    // Soft quiet already has the stream — just reopen ears, don't tear down.
+    if (desktopMic.stream && desktopMic.audioCtx && desktopMic.analyser) {
+      if (!desktopMic.raf) watchDesktopLevels();
+      if (!asleep) setStatus('listening', 'Listening · Whisper');
+      bumpIdle();
+      return;
+    }
     const ok = await startDesktopMic();
     if (!ok) {
       wantListen = false;
+      wakeListen = false;
       syncMicUi();
       return;
     }
@@ -1920,6 +1980,7 @@ async function startMic() {
     return;
   }
   wantListen = true;
+  wakeListen = false;
   syncMicUi();
   if (!asleep) setStatus('listening', 'Listening');
   bumpIdle();
