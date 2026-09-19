@@ -232,15 +232,13 @@
       color: var(--accent);
     }
 
-    /* Compact / "go small" — one centred column; tools wrap so nothing clips */
+    /* Compact / "go small" — centred column; organs/modes stay; mic unchanged */
     body.compact #graph,
     body.compact #stars,
     body.compact #vignette,
     body.compact #brand,
     body.compact #topbar,
     body.compact #share-dot,
-    body.compact .modes,
-    body.compact .organs,
     body.compact #side { display: none !important; }
     body.compact {
       display: flex;
@@ -248,7 +246,7 @@
       align-items: center;
       justify-content: flex-start;
       overflow-x: hidden;
-      padding: 8px 10px 0;
+      padding: 2px 10px 0;
     }
     body.compact #hud,
     body.compact #dock {
@@ -264,32 +262,45 @@
     }
     body.compact #hud {
       align-items: center;
+      gap: 6px;
     }
     body.compact .face-card {
       width: 100%;
-      padding: 14px 10px 10px;
+      padding: 6px 10px 8px;
       justify-items: center;
     }
+    body.compact .modes,
+    body.compact .organs {
+      display: grid;
+      width: 100%;
+      gap: 5px;
+    }
+    body.compact .modes button,
+    body.compact .organs button {
+      padding: 6px 3px;
+      font-size: 0.6rem;
+    }
     body.compact #dock {
-      margin-top: 8px;
+      margin-top: 6px;
       padding: 0 2px 8px;
       border-radius: 0;
     }
     body.compact .face-wrap,
     body.compact .face {
-      width: min(188px, 48vw);
-      height: min(188px, 48vw);
+      width: min(176px, 46vw);
+      height: min(176px, 46vw);
     }
+    /* Keep ears in frame — don't crop the sides of her head */
     body.compact .face video {
       object-fit: cover;
-      object-position: center 18%;
-      transform: none;
+      object-position: center 22%;
+      transform: scale(0.92);
     }
     body.compact #answer {
-      max-height: 18vh;
+      max-height: 14vh;
       overflow: auto;
       text-align: center;
-      font-size: 0.88rem;
+      font-size: 0.86rem;
     }
     body.compact .row {
       display: grid;
@@ -647,18 +658,39 @@ function isWhistlePhrase(t) {
     || /^(can you|could you|will you) (please )?(whistle|sing)\b/i.test(s);
 }
 
+function normalizeAmyCmd(t) {
+  let s = String(t || '').trim().toLowerCase().replace(/[.,!?]+$/g, '');
+  if (!s) return '';
+  // Whisper often mangles "Amy go …" — common garble → clean phrase
+  s = s
+    .replace(/\bamiga\b/g, 'amy go')
+    .replace(/\ba\s*me\s*go\b/g, 'amy go')
+    .replace(/\bany\s*go\b/g, 'amy go')
+    .replace(/\baimie?\s+go\b/g, 'amy go')
+    .replace(/\bemmy\s+go\b/g, 'amy go')
+    .replace(/\blodge\b/g, 'large')
+    .replace(/\blaunch\b/g, 'large')
+    .replace(/\bsmole\b/g, 'small')
+    .replace(/\bsmalls\b/g, 'small')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return s;
+}
+
 function isGoSmallPhrase(t) {
-  const s = String(t || '').trim().toLowerCase().replace(/[.,!?]+$/g, '');
+  const s = normalizeAmyCmd(t);
   if (!s) return false;
-  return /^(amy[, ]+)?(please[, ]+)?(go small|get small|shrink|compact( mode)?|mini(mise|mize)?( (the )?window)?|focus mode)(,?\s*please)?$/i.test(s)
-    || /^(can you|could you) (please )?(go small|shrink|minimise|minimize)\b/i.test(s);
+  return /^(amy[, ]+)?(please[, ]+)?(go small|get small|go mini|shrink|compact( mode)?|mini(mise|mize)?( (the )?window)?|focus mode)(,?\s*please)?$/i.test(s)
+    || /^(can you|could you) (please )?(go small|shrink|minimise|minimize)\b/i.test(s)
+    || /\b(go|get)\s+small\b/i.test(s);
 }
 
 function isGoBigPhrase(t) {
-  const s = String(t || '').trim().toLowerCase().replace(/[.,!?]+$/g, '');
+  const s = normalizeAmyCmd(t);
   if (!s) return false;
-  return /^(amy[, ]+)?(please[, ]+)?(go big|get big|expand|full( size| screen)?|normal( size)?|uncompact|exit focus)(,?\s*please)?$/i.test(s)
-    || /^(can you|could you) (please )?(go big|expand)\b/i.test(s);
+  return /^(amy[, ]+)?(please[, ]+)?(go big|get big|go large|get large|expand|full( size| screen)?|normal( size)?|uncompact|exit focus)(,?\s*please)?$/i.test(s)
+    || /^(can you|could you) (please )?(go big|go large|expand)\b/i.test(s)
+    || /\b(go|get)\s+(big|large)\b/i.test(s);
 }
 
 async function setCompactMode(on) {

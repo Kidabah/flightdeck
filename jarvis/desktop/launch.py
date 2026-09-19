@@ -239,7 +239,8 @@ def main() -> int:
                 return False
             w = webview.windows[0]
             try:
-                w.resize(420, 720)
+                w.resize(420, 780)
+                w.on_top = True
                 return True
             except Exception as exc:
                 print(f"[amy-desktop] go_small failed: {exc}", file=sys.stderr)
@@ -251,6 +252,7 @@ def main() -> int:
             w = webview.windows[0]
             try:
                 w.resize(1400, 900)
+                w.on_top = False
                 return True
             except Exception as exc:
                 print(f"[amy-desktop] go_big failed: {exc}", file=sys.stderr)
@@ -265,10 +267,11 @@ def main() -> int:
         min_size=(360, 480),
         confirm_close=False,
         js_api=api,
+        on_top=False,
     )
     print(f"[amy-desktop] opening webview {AMY_URL}")
     print("[amy-desktop] mic uses OpenAI Whisper (Google speech is broken in WebView2)")
-    print("[amy-desktop] tip: say 'go small' / 'go big' — or --chrome for Chrome app mode")
+    print("[amy-desktop] tip: say 'go small' / 'go large' — compact stays on top")
     try:
         webview.start(gui="edgechromium")
     except Exception as exc:
