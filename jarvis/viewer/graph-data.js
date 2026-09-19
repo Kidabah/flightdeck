@@ -33,7 +33,7 @@ const GRAPH = {
       "label": "amy prompts",
       "group": "workshop",
       "path": "workshop/amy-prompts.md",
-      "excerpt": "# Amy smart prompts (cheat sheet) Talk to Amy in normal English — this list is just reminders of what she can do. Chris = you; Amy = workshop co-pilot / PC navigator. Deeper Flightdeck coding stays with Cursor when needed. ## Time & weather - “What time is it?” / “What’s the date?” - “What’s the weather in Temora?” / “Weather in Sydney” - Default place if you just say “weather” → Temora NSW ## Talk & listen (desktop app) - “Hey Amy…” / just talk after enabling the mic - **STOP** button, or say **stop** / **wait** / **hang on** while she talks - **MUTE** / **MIC** button, or say **mute yourself** / **mute your mic** / **stop listening** - Say **unmute** / **unmute yourself** / **listen again…"
+      "excerpt": "# Amy smart prompts (cheat sheet) Talk to Amy in normal English — this list is just reminders of what she can do. Chris = you; Amy = your PC mate (casual by default). Deeper Flightdeck coding stays with Cursor when needed. ## Personality modes - Default: **normal / casual** — talks like a person, no printer banter - “**3D print mode**” / “print mode” / “workshop mode” — workshop Amy (Flightdeck, printers, notes) - “**Normal mode**” / “casual mode” — back to chill chat ## Time & weather - “What time is it?” / “What’s the date?” - “What’s the weather like in Temora?” / “Weather in Sydney” - Default place if you just say “weather” → Temora (NSW) ## Talk & listen (desktop app) - “Hey Amy…” / ju…"
     },
     {
       "id": 5,

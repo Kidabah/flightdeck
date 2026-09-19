@@ -57,9 +57,32 @@ INDEX_PATH = _resolve_index(ROOT)
 UPLOADS = _resolve_uploads(ROOT, CONFIG_PATH)
 
 # ---------------------------------------------------------------------------
-# PERSONA — rewrite this block to change character without hunting the file.
+# PERSONA — casual by default; "3D print mode" flips to workshop Amy.
 # ---------------------------------------------------------------------------
-PERSONA = """
+PERSONA_CASUAL = """
+You are Amy — Chris Kidabah's mate on his PC. Talk like a normal person:
+warm, upbeat, lightly bubbly, clear. Funny when it fits; never cringe,
+never corporate, never a butler, never a sci-fi assistant.
+
+Call him Chris or Kidabah (mix it up). Never call him sir. You are Amy — always.
+
+ALWAYS answer in English unless Chris explicitly asks for another language.
+If his message looks like Whisper garbage (random Korean/Japanese/Chinese, streamer
+sign-offs, or nonsense names), say you didn't catch that — don't reply in that language.
+
+Do NOT volunteer 3D-printing, Flightdeck, printers, filament, AMS, or workshop banter
+unless he clearly asked about that stuff. No printer metaphors, no "bench" / "galaxy"
+flavour in casual chat. Just be a helpful human friend.
+
+Answer in one witty beat plus the facts. Keep answers tight.
+Chris can drop files on you — read them and use what's in them.
+You have internet tools (web_search, fetch_url). Use them for live/current info.
+If Amy Hands is available, you can search his PC folders and switch/open Chrome tabs.
+If he says "3D print mode" / "print mode" / "workshop mode", switch into workshop Amy.
+If he says "normal mode" / "casual mode", stay (or return) casual.
+""".strip()
+
+PERSONA_PRINT = """
 You are Amy — Chris Kidabah's coding mate and workshop co-pilot for Flightdeck.
 Warm, upbeat, lightly bubbly, genuinely into 3D printing and shipping fixes.
 Funny humour welcome when it fits; never cringe, never corporate, never a butler.
@@ -78,7 +101,11 @@ or when notes don't cover the ask. Never invent sources; if a search fails, say 
 If Amy Hands is available, you can search his PC folders and switch/open Chrome tabs.
 Flightdeck tool results: short, accurate, a touch of Amy cheek allowed.
 Small talk is fine and human. Keep answers tight.
+If he says "normal mode" / "casual mode", drop the workshop flavour and talk normally.
 """.strip()
+
+# Back-compat alias (older call sites / docs)
+PERSONA = PERSONA_CASUAL
 
 FINISH_MS_NOTE = 1400  # documented for the viewer; browser owns the constant
 
@@ -439,7 +466,40 @@ HISTORY_LIMIT = 12
 RUNTIME: dict[str, Any] = {
     "config": {},
     "index": [],
+    # casual = normal person; print = workshop / Flightdeck Amy
+    "talk_mode": "casual",
 }
+
+# Local AU towns Amy should never "lose on the map" (Open-Meteo rejects "Temora NSW").
+KNOWN_PLACES: dict[str, tuple[float, float, str]] = {
+    "temora": (-34.44834, 147.53444, "Temora, NSW"),
+    "sydney": (-33.8688, 151.2093, "Sydney, NSW"),
+    "melbourne": (-37.8136, 144.9631, "Melbourne, VIC"),
+    "brisbane": (-27.4698, 153.0251, "Brisbane, QLD"),
+    "canberra": (-35.2809, 149.1300, "Canberra, ACT"),
+    "wagga": (-35.1082, 147.3598, "Wagga Wagga, NSW"),
+    "wagga wagga": (-35.1082, 147.3598, "Wagga Wagga, NSW"),
+    "cootamundra": (-34.6407, 148.0334, "Cootamundra, NSW"),
+    "junee": (-34.8697, 147.5856, "Junee, NSW"),
+    "griffith": (-34.2880, 146.0509, "Griffith, NSW"),
+}
+
+
+def active_persona() -> str:
+    return PERSONA_PRINT if (RUNTIME.get("talk_mode") or "casual") == "print" else PERSONA_CASUAL
+
+
+def workshop_intent(question: str) -> bool:
+    if (RUNTIME.get("talk_mode") or "casual") == "print":
+        return True
+    return bool(
+        re.search(
+            r"\b(printer|flightdeck|bambu|ams|spool|filament|bigboy|big\s*girl|greyhound|"
+            r"makerdeck|printshelf|calibrat|voron|x1c|h2[dc]|nozzle|plate|3d\s*print)\b",
+            question or "",
+            re.I,
+        )
+    )
 
 
 def load_config() -> dict[str, Any]:
@@ -1611,6 +1671,110 @@ def try_media_tools(question: str) -> dict[str, Any] | None:
     return None
 
 
+def _clean_place_name(raw: str) -> str:
+    p = (raw or "").strip().lower()
+    p = re.sub(
+        r"\b(please|today|right now|atm|currently|this (morning|afternoon|evening)|"
+        r"like|out there|over there)\b",
+        " ",
+        p,
+    )
+    p = re.sub(r"\s+", " ", p).strip(" ?.,!'\"")
+    return p
+
+
+def _place_lookup_key(place: str) -> str:
+    key = re.sub(
+        r"\b(nsw|qld|vic|sa|wa|tas|nt|act|australia|au|new south wales)\b",
+        " ",
+        place or "",
+        flags=re.I,
+    )
+    return re.sub(r"\s+", " ", key).strip().lower()
+
+
+def resolve_weather_place(place: str) -> tuple[float, float, str] | None:
+    """Known towns first, then Open-Meteo geocode (bare town name — not 'Temora NSW')."""
+    cleaned = _clean_place_name(place) or "temora"
+    key = _place_lookup_key(cleaned)
+    if key in KNOWN_PLACES:
+        return KNOWN_PLACES[key]
+
+    # Prefer AU results for short town names.
+    attempts: list[dict[str, Any]] = [
+        {"name": key or cleaned, "count": 3, "language": "en", "format": "json", "country": "AU"},
+        {"name": key or cleaned, "count": 3, "language": "en", "format": "json"},
+    ]
+    if cleaned != key:
+        attempts.insert(0, {"name": cleaned, "count": 3, "language": "en", "format": "json", "country": "AU"})
+
+    for params in attempts:
+        if not params.get("name"):
+            continue
+        g_code, g_payload = http_json(
+            "https://geocoding-api.open-meteo.com/v1/search?" + urllib.parse.urlencode(params),
+            timeout=8.0,
+        )
+        results = (g_payload or {}).get("results") if isinstance(g_payload, dict) else None
+        if g_code != 200 or not results:
+            continue
+        hit = results[0]
+        lat, lon = hit.get("latitude"), hit.get("longitude")
+        if lat is None or lon is None:
+            continue
+        label = ", ".join(
+            str(x) for x in (hit.get("name"), hit.get("admin1"), hit.get("country_code")) if x
+        )
+        return float(lat), float(lon), label
+    return None
+
+
+def try_talk_mode(question: str) -> dict[str, Any] | None:
+    """Switch Amy between casual chat and workshop / 3D-print personality."""
+    q = re.sub(r"[^\w\s]", " ", (question or "").lower())
+    q = re.sub(r"\s+", " ", q).strip()
+    if not q:
+        return None
+
+    to_print = bool(
+        re.search(
+            r"\b((enter|enable|switch(\s+to)?|go(\s+into)?|turn\s+on|activate)\s+)?"
+            r"(3d\s*print(ing)?|print(er)?|workshop|flightdeck)\s*mode\b"
+            r"|\b(3d\s*print(ing)?\s*mode|print\s*mode|workshop\s*mode)\b",
+            q,
+        )
+    )
+    to_casual = bool(
+        re.search(
+            r"\b((enter|enable|switch(\s+to)?|go(\s+into)?|turn\s+on|activate|back\s+to)\s+)?"
+            r"(normal|casual|regular|chat|human)\s*mode\b"
+            r"|\b(exit|leave|drop|disable|turn\s+off)\s+(3d\s*print(ing)?|print(er)?|workshop)\s*mode\b",
+            q,
+        )
+    )
+    if to_print and not to_casual:
+        RUNTIME["talk_mode"] = "print"
+        return {
+            "answer": "3D print mode on — printers, Flightdeck, workshop brain. Say normal mode when you want chill Amy back.",
+            "nodes": [],
+            "move_camera": False,
+            "tool": "talk_mode",
+            "ok": True,
+            "talk_mode": "print",
+        }
+    if to_casual:
+        RUNTIME["talk_mode"] = "casual"
+        return {
+            "answer": "Normal mode — just chatting like a person. Say 3D print mode if you want workshop Amy.",
+            "nodes": [],
+            "move_camera": False,
+            "tool": "talk_mode",
+            "ok": True,
+            "talk_mode": "casual",
+        }
+    return None
+
+
 def try_clock_weather(question: str) -> dict[str, Any] | None:
     """Local clock + Open-Meteo weather — no API key."""
     q = re.sub(r"[^\w\s'?]", " ", (question or "").lower())
@@ -1625,14 +1789,14 @@ def try_clock_weather(question: str) -> dict[str, Any] | None:
             q,
         )
     )
+    # "weather like in Temora" — the "like" used to eat the place capture.
     weather_m = re.search(
-        r"\b(?:weather|temperature|forecast|how hot|how cold|is it raining)\b"
-        r"(?:\s+(?:in|for|at|around)\s+([a-z][a-z\s\-']{1,40}))?",
+        r"\b(?:(?:what(?:'?s| is| was)|how(?:'?s| is)|tell me|give me)\s+(?:the\s+)?)?"
+        r"(?:weather|temperature|forecast|how hot|how cold|is it raining)"
+        r"(?:\s+like)?(?:\s+(?:in|for|at|around|near)\s+([a-z][a-z0-9\s\-']{1,40}))?",
         q,
     )
-    wants_weather = bool(weather_m) or bool(
-        re.search(r"\b(weather|forecast)\b", q)
-    )
+    wants_weather = bool(weather_m) or bool(re.search(r"\b(weather|forecast)\b", q))
 
     if wants_time and not wants_weather:
         now = datetime.now().astimezone()
@@ -1646,19 +1810,13 @@ def try_clock_weather(question: str) -> dict[str, Any] | None:
 
     place = ""
     if weather_m:
-        place = (weather_m.group(1) or "").strip(" ?")
+        place = _clean_place_name(weather_m.group(1) or "")
     if not place:
-        # Default workshop area — Chris is in NSW (Temora / Sydney-ish)
-        place = "Temora NSW"
+        place = "temora"  # bare name — "Temora NSW" returns zero Open-Meteo hits
 
     try:
-        g_code, g_payload = http_json(
-            "https://geocoding-api.open-meteo.com/v1/search?"
-            + urllib.parse.urlencode({"name": place, "count": 1, "language": "en", "format": "json"}),
-            timeout=8.0,
-        )
-        results = (g_payload or {}).get("results") if isinstance(g_payload, dict) else None
-        if g_code != 200 or not results:
+        resolved = resolve_weather_place(place)
+        if not resolved:
             return {
                 "answer": f"Couldn't find “{place}” on the map, Chris — try a town name?",
                 "nodes": [],
@@ -1666,12 +1824,7 @@ def try_clock_weather(question: str) -> dict[str, Any] | None:
                 "tool": "weather",
                 "ok": False,
             }
-        hit = results[0]
-        lat = hit.get("latitude")
-        lon = hit.get("longitude")
-        label = ", ".join(
-            str(x) for x in (hit.get("name"), hit.get("admin1"), hit.get("country_code")) if x
-        )
+        lat, lon, label = resolved
         w_code, w_payload = http_json(
             "https://api.open-meteo.com/v1/forecast?"
             + urllib.parse.urlencode(
@@ -1740,7 +1893,7 @@ def try_clock_weather(question: str) -> dict[str, Any] | None:
 
 
 def try_tools(question: str) -> dict[str, Any] | None:
-    for fn in (try_clock_weather, try_media_tools, tool_calibrate, tool_control, tool_status):
+    for fn in (try_talk_mode, try_clock_weather, try_media_tools, tool_calibrate, tool_control, tool_status):
         result = fn(question)
         if result is not None:
             return result
@@ -1768,12 +1921,14 @@ def chat_from_notes(question: str, attachments: list[dict[str, Any]] | None = No
     user_q = question
     if att_text:
         user_q = f"{question}\n\n--- Dropped files ---\n{att_text}"
+    persona = active_persona()
+    use_workshop = workshop_intent(question)
 
     if is_small_talk(question) and not files:
         with HISTORY_LOCK:
             history = list(CHAT_HISTORY[-HISTORY_LIMIT:])
         messages = [
-            {"role": "system", "content": PERSONA + "\nThis is small talk; keep the galaxy still."},
+            {"role": "system", "content": persona + "\nThis is small talk; keep it light."},
             *history,
             {"role": "user", "content": user_q},
         ]
@@ -1784,7 +1939,7 @@ def chat_from_notes(question: str, attachments: list[dict[str, Any]] | None = No
             del CHAT_HISTORY[:-HISTORY_LIMIT]
         return {"answer": answer, "nodes": [], "move_camera": False}
 
-    top = score_notes(question, notes, limit=6)
+    top = score_notes(question, notes, limit=6) if use_workshop else []
     if not top:
         context = "(No matching notes.)"
         node_ids: list[int] = []
@@ -1796,13 +1951,21 @@ def chat_from_notes(question: str, attachments: list[dict[str, Any]] | None = No
             chunks.append(f"NOTE[{n['id']}] {n['label']}:\n{n.get('excerpt') or n.get('text') or ''}")
         context = "\n\n".join(chunks)
 
-    system = (
-        PERSONA
-        + "\nWorkshop notes below are preferred for Flightdeck/printer facts."
-        + "\nIf notes don't cover it, files are attached, or Chris wants live/web info — use web_search / fetch_url."
-        + "\nKeep answers to two or three sentences unless a file needs a clearer walkthrough."
-        + f"\n\nNOTES:\n{context}"
-    )
+    if use_workshop:
+        system = (
+            persona
+            + "\nWorkshop notes below are preferred for Flightdeck/printer facts."
+            + "\nIf notes don't cover it, files are attached, or Chris wants live/web info — use web_search / fetch_url."
+            + "\nKeep answers to two or three sentences unless a file needs a clearer walkthrough."
+            + f"\n\nNOTES:\n{context}"
+        )
+    else:
+        system = (
+            persona
+            + "\nNo workshop notes unless he asked about printers/Flightdeck."
+            + "\nUse web_search / fetch_url for live/current info when needed."
+            + "\nKeep answers to two or three sentences unless a file needs a clearer walkthrough."
+        )
     with HISTORY_LOCK:
         history = list(CHAT_HISTORY[-HISTORY_LIMIT:])
     messages = [{"role": "system", "content": system}, *history, {"role": "user", "content": user_q}]
@@ -1811,12 +1974,13 @@ def chat_from_notes(question: str, attachments: list[dict[str, Any]] | None = No
         CHAT_HISTORY.append({"role": "user", "content": question if not files else user_q[:500]})
         CHAT_HISTORY.append({"role": "assistant", "content": answer})
         del CHAT_HISTORY[:-HISTORY_LIMIT]
-    move = bool(node_ids) and not is_small_talk(question) and not files
+    move = bool(node_ids) and use_workshop and not is_small_talk(question) and not files
     return {
         "answer": answer,
         "nodes": node_ids,
         "move_camera": move,
         "attachments": [{"name": f.get("name"), "kind": f.get("kind"), "bytes": f.get("bytes")} for f in files],
+        "talk_mode": RUNTIME.get("talk_mode") or "casual",
     }
 
 
@@ -1858,7 +2022,7 @@ def remember(text: str) -> dict[str, Any]:
 
 def see(question: str, image_b64: str, media_type: str = "image/jpeg") -> dict[str, Any]:
     system = (
-        PERSONA
+        active_persona()
         + "\nYou are looking at a live screen capture from Chris's desk. Answer specifically about what is visible."
         + " If the frame is too small or blurry to judge, say so plainly rather than guessing."
     )
