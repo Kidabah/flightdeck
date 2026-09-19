@@ -1,3 +1,9 @@
+## 2026-09-19 Session update (Amy prompts cheat sheet)
+
+Latest commit: _(pending)_ — Added jarvis/notes/workshop/amy-prompts.md smart-prompts cheat sheet for natural commands (Hands, volume, tabs, allowlist). Rebuild notes index; restart Amy.
+
+---
+
 ## 2026-09-19 Session update (Hands desktop + media)
 
 Latest commit: _(pending)_ — Amy Hands: launch allowlisted apps (Spotify+play), media play/pause/next/prev/stop, open file / open-with, close window. Random albums stay on Cindy Vinyl. Restart Hands on PC + Amy on Pi.
