@@ -1,8 +1,9 @@
-## 2026-09-19 Session update (Amy TALK/QUIET)
+# 2026-09-19 Session update (Amy TALK/QUIET)
 
-Latest commit: _(pending)_ — Mic control renamed **TALK** / **QUIET** (say **talk** / **don't talk**). Soft quiet keeps Whisper armed so voice "talk" actually works (old mute killed the mic, so unmute could never be heard). Hard refresh / reopen framed Amy. UI in `jarvis/viewer/index.html`.
+Latest commit: ``3cf8521`` — Mic control renamed **TALK** / **QUIET** (say **talk** / **don't talk**). Soft quiet keeps Whisper armed so voice "talk" actually works (old mute killed the mic, so unmute could never be heard). Hard refresh / reopen framed Amy. UI in `jarvis/viewer/index.html`.
 
----# 2026-09-19 Session update (Amy casual mode + Temora weather)
+---
+## 2026-09-19 Session update (Amy casual mode + Temora weather)
 
 Latest commit: `d14034e` — Amy defaults to **casual** (normal-person chat, no printer flavour). Say **3D print mode** / **print mode** / **workshop mode** for workshop Amy; **normal mode** / **casual mode** to switch back. Fixed Temora weather: default was `Temora NSW` which Open-Meteo returns zero hits for ("can't find on the map"); also handles "weather like in …". Hardcoded AU towns + AU-prefer geocode. Restart Amy (Pi + local). UI cache-bust N/A (server persona).
 
