@@ -1,4 +1,8 @@
-## 2026-09-19 Session update (Amy lights-out sleep)
+## 2026-09-19 Session update (Amy sleep GIF)
+
+Latest commit: _(pending)_ — Wired Tenor goodnight GIF as `amy-sleep.gif`: trimmed bright intro, dark sleep+Z loop only, darkened + cyan night tint. Bedtime/sleep uses it automatically. Reopen Amy.
+
+---# 2026-09-19 Session update (Amy lights-out sleep)
 
 Latest commit: _(pending)_ — Sleep/bedtime plays CSS lights-out (iris dim + floating Zzz) and dims the galaxy. Optional GIF: drop `jarvis/viewer/sounds/amy-sleep.gif` to replace Zzz. Reopen Amy.
 
