@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Amy Hands — tiny Windows companion for folders + Chrome tabs.
+"""Amy Hands — tiny Windows companion for folders, Chrome tabs, and scoped desktop actions.
 
 Run on Chris's PC (not the Pi):
   python amy_hands.py
@@ -8,14 +8,16 @@ Amy on the Pi calls this over Tailscale:
   hands_base_url in jarvis/config.json  e.g. http://100.x.x.x:4701
 
 Chrome tabs need the companion extension loaded (chrome://extensions → Load unpacked → chrome-extension/).
+
+Desktop extras (allowlisted, no arbitrary shell):
+  open Explorer / file / file-with-app, launch app (Spotify+play), media keys, close window.
+  Random albums belong in Cindy Vinyl — not here.
 """
 from __future__ import annotations
 
 import json
 import os
-import queue
 import re
-import subprocess
 import threading
 import time
 import urllib.parse
@@ -50,6 +52,27 @@ def load_config() -> dict[str, Any]:
 
 
 CFG = load_config()
+
+try:
+    from desktop_actions import (
+        close_window as _close_window,
+        launch_app as _launch_app,
+        list_apps as _list_apps,
+        media_control as _media_control,
+        open_file as _open_file,
+        open_file_explorer as _open_file_explorer,
+        open_file_with as _open_file_with,
+    )
+except ImportError:  # pragma: no cover
+    from jarvis.amy_hands.desktop_actions import (  # type: ignore
+        close_window as _close_window,
+        launch_app as _launch_app,
+        list_apps as _list_apps,
+        media_control as _media_control,
+        open_file as _open_file,
+        open_file_explorer as _open_file_explorer,
+        open_file_with as _open_file_with,
+    )
 
 
 def search_files(query: str, limit: int | None = None) -> list[dict[str, Any]]:
@@ -88,31 +111,7 @@ def search_files(query: str, limit: int | None = None) -> list[dict[str, Any]]:
 
 
 def open_file_explorer(path: str | None = None) -> dict[str, Any]:
-    """Open Windows File Explorer at a local path. No arbitrary shell."""
-    raw = str(path or "C:\\").strip().strip('"').strip("'")
-    if not raw:
-        raw = "C:\\"
-    if any(ch in raw for ch in "\n\r\0;&|`$<>"):
-        return {"ok": False, "detail": "path has unsafe characters"}
-    if re.fullmatch(r"[A-Za-z]:", raw):
-        raw = raw + "\\"
-    raw = raw.replace("/", "\\")
-    if not re.match(r"^[A-Za-z]:\\", raw):
-        return {"ok": False, "detail": "only local Windows paths like C:\\… are allowed"}
-    try:
-        text = os.path.normpath(raw)
-    except Exception as exc:
-        return {"ok": False, "detail": f"bad path: {exc}"}
-    if not re.match(r"^[A-Za-z]:\\", text):
-        return {"ok": False, "detail": "refused non-local path"}
-    is_drive = bool(re.fullmatch(r"[A-Za-z]:\\", text))
-    if not is_drive and not Path(text).exists():
-        return {"ok": False, "detail": f"path not found: {text}"}
-    try:
-        subprocess.Popen(["explorer.exe", text], shell=False, close_fds=True)
-    except Exception as exc:
-        return {"ok": False, "detail": str(exc)}
-    return {"ok": True, "path": text}
+    return _open_file_explorer(path)
 
 
 def enqueue(cmd: dict[str, Any]) -> str:
@@ -254,6 +253,43 @@ class Handler(BaseHTTPRequestHandler):
 
         if path in ("/explorer/open", "/open_explorer", "/open_file_explorer"):
             result = open_file_explorer(str(body.get("path") or body.get("folder") or "") or None)
+            self._json(200 if result.get("ok") else 400, result)
+            return
+
+        if path in ("/file/open", "/open_file"):
+            result = _open_file(str(body.get("path") or body.get("file") or ""))
+            self._json(200 if result.get("ok") else 400, result)
+            return
+
+        if path in ("/file/open_with", "/open_file_with"):
+            result = _open_file_with(
+                str(body.get("path") or body.get("file") or ""),
+                str(body.get("app") or body.get("with") or ""),
+                cfg=CFG,
+            )
+            self._json(200 if result.get("ok") else 400, result)
+            return
+
+        if path in ("/app/launch", "/launch_app"):
+            result = _launch_app(
+                str(body.get("name") or body.get("app") or ""),
+                cfg=CFG,
+                play=bool(body.get("play") or body.get("and_play")),
+            )
+            self._json(200 if result.get("ok") else 400, result)
+            return
+
+        if path in ("/app/list", "/list_apps"):
+            self._json(200, _list_apps(CFG))
+            return
+
+        if path in ("/media", "/media/control"):
+            result = _media_control(str(body.get("action") or body.get("command") or "play_pause"))
+            self._json(200 if result.get("ok") else 400, result)
+            return
+
+        if path in ("/window/close", "/close_window"):
+            result = _close_window(str(body.get("query") or body.get("title") or ""))
             self._json(200 if result.get("ok") else 400, result)
             return
 

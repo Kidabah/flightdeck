@@ -20,6 +20,21 @@ That starts Hands on **:4701** and opens the extension folder + `chrome://extens
 
 Folder search works **without** the extension. Tab list/focus/open need it.
 
+## Desktop actions (allowlisted)
+
+Hands can also (no arbitrary shell):
+
+| Say… | Tool |
+|------|------|
+| Open C: / Downloads | `open_file_explorer` |
+| Open this file | `open_file` |
+| Open it in Notepad | `open_file_with` |
+| Open Spotify and play | `launch_app` + `play` |
+| Pause / next / previous | `media_control` |
+| Close the Spotify window | `close_window` |
+
+**Random album** → Cindy Vinyl (`/api/random-album`), not Spotify Hands.
+
 ## Point Amy (Pi) at Hands
 
 In `jarvis/config.json` on the Pi:

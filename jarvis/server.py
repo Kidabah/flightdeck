@@ -180,6 +180,91 @@ HANDS_TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "open_file",
+            "description": "Open a local file on Chris's PC with the default associated app.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Full local Windows file path"},
+                },
+                "required": ["path"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "open_file_with",
+            "description": "Open a local file with a specific allowlisted app (e.g. notepad, chrome, vscode, cursor).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Full local Windows file path"},
+                    "app": {"type": "string", "description": "Allowlisted app name"},
+                },
+                "required": ["path", "app"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "launch_app",
+            "description": (
+                "Launch an allowlisted app on Chris's PC (spotify, chrome, edge, notepad, calculator, "
+                "explorer, photos, settings, terminal, vscode, cursor). "
+                "Set play=true after launching Spotify (or another media app) to send play/pause."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "App name, e.g. spotify"},
+                    "play": {
+                        "type": "boolean",
+                        "description": "If true, send media play/pause after launch (for Spotify etc.)",
+                    },
+                },
+                "required": ["name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "media_control",
+            "description": (
+                "Send a Windows media key: play_pause, next, previous, or stop. "
+                "Use for Spotify / system media. For random albums use Cindy Vinyl, not this."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "description": "play_pause | next | previous | stop",
+                    },
+                },
+                "required": ["action"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "close_window",
+            "description": "Close a visible Windows window whose title contains the query (WM_CLOSE).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Part of the window title"},
+                },
+                "required": ["query"],
+            },
+        },
+    },
 ]
 
 TEXT_SUFFIXES = {
@@ -634,6 +719,68 @@ def open_file_explorer(path: str = "") -> str:
     return f"Opened File Explorer at {payload.get('path') or path or 'C:\\\\'}"
 
 
+def _hands_action(path: str, body: dict[str, Any], *, ok_msg: str) -> str:
+    if not hands_configured():
+        return "Amy Hands not configured (hands_base_url)."
+    code, payload = hands_request(path, method="POST", body=body, timeout=15)
+    if not isinstance(payload, dict):
+        return f"Hands call failed: {payload}"
+    if code != 200 or not payload.get("ok"):
+        return f"Failed: {payload.get('detail') or payload}"
+    return ok_msg.format(**{k: payload.get(k) for k in ("path", "app", "title", "action", "via")})
+
+
+def open_pc_file(path: str) -> str:
+    return _hands_action("/file/open", {"path": path}, ok_msg="Opened {path}")
+
+
+def open_pc_file_with(path: str, app: str) -> str:
+    return _hands_action(
+        "/file/open_with",
+        {"path": path, "app": app},
+        ok_msg="Opened {path} with {app}",
+    )
+
+
+def launch_pc_app(name: str, play: bool = False) -> str:
+    if not hands_configured():
+        return "Amy Hands not configured (hands_base_url)."
+    code, payload = hands_request(
+        "/app/launch",
+        method="POST",
+        body={"name": name, "play": play},
+        timeout=20,
+    )
+    if not isinstance(payload, dict):
+        return f"Launch failed: {payload}"
+    if code != 200 or not payload.get("ok"):
+        return f"Launch failed: {payload.get('detail') or payload}"
+    msg = f"Launched {payload.get('app') or name}"
+    if play:
+        media = payload.get("media") or {}
+        if isinstance(media, dict) and media.get("ok"):
+            msg += " and sent play/pause"
+        elif play:
+            msg += " (play/pause may need a second try once Spotify is up)"
+    return msg
+
+
+def media_control(action: str) -> str:
+    return _hands_action(
+        "/media",
+        {"action": action or "play_pause"},
+        ok_msg="Media: {action}",
+    )
+
+
+def close_pc_window(query: str) -> str:
+    return _hands_action(
+        "/window/close",
+        {"query": query},
+        ok_msg="Closed window: {title}",
+    )
+
+
 def active_tools() -> list[dict[str, Any]]:
     tools = list(WEB_TOOLS)
     if hands_configured():
@@ -660,6 +807,22 @@ def run_tool(name: str, arguments: str | dict[str, Any]) -> str:
         return list_browser_tabs()
     if name == "open_file_explorer":
         return open_file_explorer(str(args.get("path") or args.get("folder") or ""))
+    if name == "open_file":
+        return open_pc_file(str(args.get("path") or args.get("file") or ""))
+    if name == "open_file_with":
+        return open_pc_file_with(
+            str(args.get("path") or args.get("file") or ""),
+            str(args.get("app") or args.get("with") or ""),
+        )
+    if name == "launch_app":
+        return launch_pc_app(
+            str(args.get("name") or args.get("app") or ""),
+            play=bool(args.get("play") or args.get("and_play")),
+        )
+    if name == "media_control":
+        return media_control(str(args.get("action") or args.get("command") or "play_pause"))
+    if name == "close_window":
+        return close_pc_window(str(args.get("query") or args.get("title") or ""))
     return f"Unknown tool: {name}"
 
 

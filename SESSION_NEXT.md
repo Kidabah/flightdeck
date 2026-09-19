@@ -1,3 +1,9 @@
+## 2026-09-19 Session update (Hands desktop + media)
+
+Latest commit: _(pending)_ — Amy Hands: launch allowlisted apps (Spotify+play), media play/pause/next/prev/stop, open file / open-with, close window. Random albums stay on Cindy Vinyl. Restart Hands on PC + Amy on Pi.
+
+---
+
 ## 2026-09-19 Session update (voice interrupt + Explorer)
 
 Latest commit: _(pending)_ — Fix Whisper barge-in (mic was held busy for whole ask/speak). STOP on pointerdown. Hands open_file_explorer opens local folders via explorer.exe. Restart Amy + Hands.
