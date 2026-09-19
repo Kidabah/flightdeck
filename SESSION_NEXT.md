@@ -1,3 +1,9 @@
+## 2026-09-19 Session update (Amy Laura + STOP)
+
+Latest commit: _(pending)_ — Switch TTS back to ElevenLabs **Laura** (Starter plan). STOP hard-kills in-flight TTS; Whisper can barge-in with stop/wait. Desktop + Pi 	ts_provider: elevenlabs. Restart Amy / reopen framed app.
+
+---
+
 ﻿## 2026-09-19 Session update (Amy mute + transcript + second listen)
 
 Latest commit: `2ad6f0f` — Mute sticks (WebView SpeechRecognition no longer force-unmutes). Desktop mic ignores echo while she talks so the next utterance still fires. Shows `You: …` in the answer box + transcript in the input. Restart local Amy / reopen `/?desktop=1`. Pi: pull + restart.

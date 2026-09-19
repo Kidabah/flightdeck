@@ -444,6 +444,8 @@ let recognition = null;
 let pending = '';
 let finishTimer = null;
 let chatAbort = null;
+let speakGen = 0;
+let ttsAbort = null;
 let desktopMic = {
   stream: null,
   recorder: null,
@@ -522,11 +524,16 @@ function handleInterrupt() {
   chatAbort = null;
   stopSpeaking();
   isSpeaking = false;
-  micMutedUntil = Date.now() + 350;
+  desktopMic.busy = false;
+  desktopMic.speaking = false;
+  desktopMic.silentMs = 0;
+  desktopMic.pcm = [];
+  micMutedUntil = Date.now() + 400;
   bumpIdle();
   answerEl.textContent = '(stopped)';
+  try { desktopMic.audioCtx?.resume?.(); } catch (_) {}
   if (wantListen) {
-    setStatus('listening', useWhisperMic ? 'Listening · Whisper — interrupted' : 'Listening — interrupted');
+    setStatus('listening', useWhisperMic ? 'Listening · Whisper' : 'Listening');
     syncMicUi();
     if (!useWhisperMic) {
       setTimeout(() => {
@@ -735,8 +742,20 @@ function pickVoice() {
 }
 
 function stopSpeaking() {
-  try { amyAudio?.pause(); } catch (_) {}
+  speakGen += 1;
+  try { ttsAbort?.abort(); } catch (_) {}
+  ttsAbort = null;
+  const a = amyAudio;
   amyAudio = null;
+  if (a) {
+    try { a.onended = null; a.onerror = null; } catch (_) {}
+    try { a.pause(); } catch (_) {}
+    try {
+      a.removeAttribute('src');
+      a.src = '';
+      a.load();
+    } catch (_) {}
+  }
   window.speechSynthesis?.cancel();
 }
 
@@ -745,6 +764,7 @@ function speakBrowser(text) {
     unduckMic();
     return;
   }
+  const gen = speakGen;
   window.speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
   const voice = pickVoice();
@@ -757,18 +777,29 @@ function speakBrowser(text) {
   u.rate = 0.92;
   u.pitch = 0.82;
   setStatus('speaking', cachedVoiceName ? `Talking · ${cachedVoiceName.split(' - ')[0]}` : 'Talking');
-  u.onend = () => unduckMic();
-  u.onerror = () => unduckMic();
+  u.onend = () => { if (gen === speakGen) unduckMic(); };
+  u.onerror = () => { if (gen === speakGen) unduckMic(); };
+  if (gen !== speakGen) return;
   window.speechSynthesis.speak(u);
 }
 
 async function speakLaura(text) {
+  const gen = speakGen;
   setStatus('speaking', `Talking · ${ttsVoiceLabel}`);
-  const r = await fetch('/tts', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text }),
-  });
+  ttsAbort = new AbortController();
+  let r;
+  try {
+    r = await fetch('/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+      signal: ttsAbort.signal,
+    });
+  } catch (err) {
+    if (err && err.name === 'AbortError') return;
+    throw err;
+  }
+  if (gen !== speakGen) return;
   if (!r.ok) {
     let detail = `TTS HTTP ${r.status}`;
     try {
@@ -778,18 +809,30 @@ async function speakLaura(text) {
     throw new Error(detail);
   }
   const blob = await r.blob();
+  if (gen !== speakGen) return;
   const url = URL.createObjectURL(blob);
   stopSpeaking();
+  // stopSpeaking bumped speakGen — restore this utterance's gen token
+  const playGen = speakGen;
   amyAudio = new Audio(url);
-  amyAudio.onended = () => {
-    URL.revokeObjectURL(url);
-    unduckMic();
-  };
-  amyAudio.onerror = () => {
-    URL.revokeObjectURL(url);
-    unduckMic();
-  };
-  await amyAudio.play();
+  await new Promise((resolve) => {
+    const finish = () => {
+      try { URL.revokeObjectURL(url); } catch (_) {}
+      resolve();
+    };
+    amyAudio.onended = finish;
+    amyAudio.onerror = finish;
+    amyAudio.play().catch(() => finish());
+    const iv = setInterval(() => {
+      if (playGen !== speakGen) {
+        clearInterval(iv);
+        finish();
+      }
+    }, 80);
+    amyAudio.addEventListener('ended', () => clearInterval(iv), { once: true });
+    amyAudio.addEventListener('error', () => clearInterval(iv), { once: true });
+  });
+  if (playGen === speakGen) unduckMic();
 }
 
 async function speak(text) {
@@ -798,18 +841,20 @@ async function speak(text) {
     return;
   }
   duckMic();
-  stopSpeaking();
+  const gen = speakGen;
   if (ttsMode === 'laura' || ttsMode === 'openai') {
     try {
       await speakLaura(text);
       return;
     } catch (err) {
+      if (gen !== speakGen) return;
       console.warn('Server TTS failed, falling back', err);
       if (/ElevenLabs|OpenAI|API key|quota|rate|credits/i.test(String(err.message || err))) {
         answerEl.textContent = `${text}\n\n(${err.message})`;
       }
     }
   }
+  if (gen !== speakGen) return;
   speakBrowser(text);
 }
 
@@ -1309,10 +1354,11 @@ async function transcribeDesktopBlob(blob) {
 }
 
 async function flushDesktopUtterance() {
-  if (!wantListen || asleep || isSpeaking || micIsDeaf() || desktopMic.busy) {
+  if (!wantListen || asleep || micIsDeaf() || desktopMic.busy) {
     desktopMic.pcm = [];
     return;
   }
+  const bargeIn = isSpeaking;
   desktopMic.busy = true;
   const chunks = desktopMic.pcm;
   desktopMic.pcm = [];
@@ -1322,21 +1368,28 @@ async function flushDesktopUtterance() {
     desktopMic.busy = false;
     return;
   }
-  setStatus('thinking', 'Hearing you…');
+  if (!bargeIn) setStatus('thinking', 'Hearing you…');
   try {
     const text = await transcribeDesktopBlob(blob);
-    if (text && wantListen && !asleep) {
-      bumpIdle();
-      await ask(text);
-    } else if (wantListen && !asleep) {
-      setStatus('listening', 'Listening · Whisper');
+    if (!text || !wantListen || asleep) {
+      if (wantListen && !asleep && !isSpeaking) setStatus('listening', 'Listening · Whisper');
+      return;
     }
+    // While Amy talks, only honour stop / wait / hang on — ignore everything else (incl. her own voice).
+    if (bargeIn || isSpeaking) {
+      if (isInterrupt(text) || looksLikeInterrupt(text)) handleInterrupt();
+      return;
+    }
+    bumpIdle();
+    await ask(text);
   } catch (err) {
-    answerEl.textContent = `Desktop mic STT failed (${err.message || err}). Typing still works.`;
-    setStatus(wantListen ? 'listening' : 'idle', wantListen ? 'Listening · Whisper' : 'Mic error');
+    if (!bargeIn) {
+      answerEl.textContent = `Desktop mic STT failed (${err.message || err}). Typing still works.`;
+      setStatus(wantListen ? 'listening' : 'idle', wantListen ? 'Listening · Whisper' : 'Mic error');
+    }
   } finally {
     desktopMic.busy = false;
-    if (wantListen && !asleep) {
+    if (wantListen && !asleep && !isSpeaking) {
       if (statusEl.dataset.mode !== 'thinking' && statusEl.dataset.mode !== 'speaking') {
         setStatus('listening', 'Listening · Whisper');
       }
@@ -1353,7 +1406,7 @@ function armDesktopPcmCapture() {
   const mute = ctx.createGain();
   mute.gain.value = 0;
   proc.onaudioprocess = (ev) => {
-    if (!wantListen || asleep || isSpeaking || micIsDeaf() || desktopMic.busy) return;
+    if (!wantListen || asleep || micIsDeaf() || desktopMic.busy) return;
     if (!desktopMic.speaking && desktopMic.pcm.length === 0) return;
     const input = ev.inputBuffer.getChannelData(0);
     desktopMic.pcm.push(new Float32Array(input));
@@ -1381,8 +1434,8 @@ function watchDesktopLevels() {
       desktopMic.raf = 0;
       return;
     }
-    // Ignore speaker bleed / echo while Amy talks or mic is in cooldown.
-    if (isSpeaking || micIsDeaf() || desktopMic.busy) {
+    // Echo cooldown only — stay live while Amy talks so STOP / “hang on” still work.
+    if (micIsDeaf() || desktopMic.busy) {
       desktopMic.speaking = false;
       desktopMic.silentMs = 0;
       desktopMic.raf = window.setTimeout(tick, 50);
@@ -1395,18 +1448,17 @@ function watchDesktopLevels() {
       sum += v * v;
     }
     const rms = Math.sqrt(sum / data.length);
-    if (rms > 0.045) {
+    // Slightly higher threshold while she talks so her own voice doesn’t trip barge-in.
+    const thresh = isSpeaking ? 0.07 : 0.04;
+    if (rms > thresh) {
       if (!desktopMic.speaking) desktopMic.pcm = [];
       desktopMic.speaking = true;
       desktopMic.silentMs = 0;
       desktopMic.lastVoiceAt = performance.now();
     } else if (desktopMic.speaking) {
       desktopMic.silentMs += 50;
-      if (
-        desktopMic.silentMs >= Math.max(700, FINISH_MS - 400)
-        && !desktopMic.busy
-        && !isSpeaking
-      ) {
+      const need = isSpeaking ? 450 : Math.max(700, FINISH_MS - 400);
+      if (desktopMic.silentMs >= need && !desktopMic.busy) {
         desktopMic.speaking = false;
         desktopMic.silentMs = 0;
         flushDesktopUtterance();
