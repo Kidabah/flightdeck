@@ -1,4 +1,8 @@
-## 2026-09-19 Session update (Amy sleep GIF)
+## 2026-09-19 Session update (sleep GIF brighter whites)
+
+Latest commit: _(pending)_ — Boosted `Good Night` / Z whites on `amy-sleep.gif`; removed CSS shade over the GIF so text pops. Reopen Amy / say bedtime.
+
+---# 2026-09-19 Session update (Amy sleep GIF)
 
 Latest commit: _(pending)_ — Wired Tenor goodnight GIF as `amy-sleep.gif`: trimmed bright intro, dark sleep+Z loop only, darkened + cyan night tint. Bedtime/sleep uses it automatically. Reopen Amy.
 
