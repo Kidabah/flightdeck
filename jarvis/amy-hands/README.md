@@ -30,7 +30,8 @@ Hands can also (no arbitrary shell):
 | Open this file | `open_file` |
 | Open it in Notepad | `open_file_with` |
 | Open Spotify and play | `launch_app` + `play` |
-| Pause / next / previous / volume | `media_control` |
+| Pause / next / previous / volume | `media_control` (volume prefers Spotify session) |
+| Duck only Spotify | `app_volume` — Amy keeps talking |
 | Close the Spotify window | `close_window` |
 | Minimise Spotify | `minimize_window` |
 | Minimise everything | `minimize_all_windows` |

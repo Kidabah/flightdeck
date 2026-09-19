@@ -236,10 +236,10 @@ HANDS_TOOLS = [
         "function": {
             "name": "media_control",
             "description": (
-                "Send a Windows media key: play_pause, next, previous, stop, "
-                "volume_up, volume_down, or mute. "
-                "Use steps (1–20) for how many volume taps. "
-                "For random albums use Cindy Vinyl, not this."
+                "Control media on Chris's PC. play_pause/next/previous/stop use media keys. "
+                "volume_up/volume_down/mute prefer Spotify's per-app volume when Spotify is open "
+                "(so Amy's voice is NOT muted). Pass app='system' for master volume, or app='spotify' "
+                "to force Spotify. steps = how many volume nudges."
             ),
             "parameters": {
                 "type": "object",
@@ -250,10 +250,35 @@ HANDS_TOOLS = [
                     },
                     "steps": {
                         "type": "integer",
-                        "description": "How many volume key taps (default ~2 for up/down).",
+                        "description": "How many volume nudges (default ~2 for up/down).",
+                    },
+                    "app": {
+                        "type": "string",
+                        "description": "Optional: spotify (default for volume), chrome, or system for master volume",
                     },
                 },
                 "required": ["action"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "app_volume",
+            "description": (
+                "Set per-app volume/mute on Chris's PC without touching Amy's voice. "
+                "Prefer this (or media_control with app=spotify) when music is playing. "
+                "Actions: volume_up, volume_down, mute, unmute, set (with level 0.0–1.0)."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "app": {"type": "string", "description": "Allowlisted app, usually spotify"},
+                    "action": {"type": "string", "description": "volume_up | volume_down | mute | unmute | set"},
+                    "steps": {"type": "integer", "description": "Nudges for up/down"},
+                    "level": {"type": "number", "description": "0.0–1.0 when action=set"},
+                },
+                "required": ["app", "action"],
             },
         },
     },
@@ -810,22 +835,44 @@ def launch_pc_app(name: str, play: bool = False) -> str:
     return msg
 
 
-def media_control(action: str, steps: int = 1) -> str:
+def media_control(action: str, steps: int = 1, app: str = "") -> str:
     if not hands_configured():
         return "Amy Hands not configured (hands_base_url)."
     body: dict[str, Any] = {"action": action or "play_pause"}
     if steps and int(steps) > 0:
         body["steps"] = int(steps)
+    if app:
+        body["app"] = app
     code, payload = hands_request("/media", method="POST", body=body, timeout=10)
     if not isinstance(payload, dict):
         return f"Media failed: {payload}"
     if code != 200 or not payload.get("ok"):
         return f"Media failed: {payload.get('detail') or payload}"
     act = payload.get("action") or action
+    via = payload.get("via") or payload.get("app") or ""
     n = payload.get("steps")
+    extra = f" ({via})" if via else ""
     if n and act in ("volume_up", "volume_down"):
-        return f"Media: {act} ×{n}"
-    return f"Media: {act}"
+        return f"Media: {act} ×{n}{extra}"
+    return f"Media: {act}{extra}"
+
+
+def app_volume(app: str, action: str, steps: int = 1, level: float | None = None) -> str:
+    if not hands_configured():
+        return "Amy Hands not configured (hands_base_url)."
+    body: dict[str, Any] = {"app": app or "spotify", "action": action or "volume_down", "steps": steps}
+    if level is not None:
+        body["level"] = level
+    code, payload = hands_request("/app/audio", method="POST", body=body, timeout=10)
+    if not isinstance(payload, dict):
+        return f"App volume failed: {payload}"
+    if code != 200 or not payload.get("ok"):
+        return f"App volume failed: {payload.get('detail') or payload}"
+    return (
+        f"{payload.get('app') or app}: {payload.get('action') or action}"
+        + (f" ×{payload.get('steps')}" if payload.get("steps") else "")
+        + (f" → {payload.get('level')}" if payload.get("level") is not None else "")
+    )
 
 
 def close_pc_window(query: str) -> str:
@@ -910,6 +957,21 @@ def run_tool(name: str, arguments: str | dict[str, Any]) -> str:
         return media_control(
             str(args.get("action") or args.get("command") or "play_pause"),
             steps=steps_i,
+            app=str(args.get("app") or args.get("target") or ""),
+        )
+    if name == "app_volume":
+        steps = args.get("steps") or args.get("count") or 1
+        try:
+            steps_i = int(steps)
+        except (TypeError, ValueError):
+            steps_i = 1
+        level = args.get("level")
+        level_f = float(level) if level is not None else None
+        return app_volume(
+            str(args.get("app") or args.get("name") or "spotify"),
+            str(args.get("action") or args.get("command") or "volume_down"),
+            steps=steps_i,
+            level=level_f,
         )
     if name == "close_window":
         return close_pc_window(str(args.get("query") or args.get("title") or ""))

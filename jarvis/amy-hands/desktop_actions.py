@@ -43,6 +43,7 @@ DEFAULT_APPS: dict[str, dict[str, Any]] = {
     "spotify": {
         "label": "Spotify",
         "uri": "spotify:",
+        "process": ["Spotify.exe"],
         "exe": [
             str(Path(os.environ.get("APPDATA", "")) / "Spotify" / "Spotify.exe"),
             str(Path(os.environ.get("LOCALAPPDATA", "")) / "Microsoft" / "WindowsApps" / "Spotify.exe"),
@@ -50,6 +51,7 @@ DEFAULT_APPS: dict[str, dict[str, Any]] = {
     },
     "chrome": {
         "label": "Google Chrome",
+        "process": ["chrome.exe"],
         "exe": [
             str(Path(os.environ.get("PROGRAMFILES", r"C:\Program Files")) / "Google" / "Chrome" / "Application" / "chrome.exe"),
             str(Path(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)")) / "Google" / "Chrome" / "Application" / "chrome.exe"),
@@ -58,19 +60,21 @@ DEFAULT_APPS: dict[str, dict[str, Any]] = {
     },
     "edge": {
         "label": "Microsoft Edge",
+        "process": ["msedge.exe"],
         "exe": [
             str(Path(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)")) / "Microsoft" / "Edge" / "Application" / "msedge.exe"),
             str(Path(os.environ.get("PROGRAMFILES", r"C:\Program Files")) / "Microsoft" / "Edge" / "Application" / "msedge.exe"),
         ],
     },
-    "notepad": {"label": "Notepad", "exe": ["notepad.exe"]},
-    "calculator": {"label": "Calculator", "uri": "calculator:"},
-    "calc": {"label": "Calculator", "uri": "calculator:"},
-    "explorer": {"label": "File Explorer", "exe": ["explorer.exe"]},
-    "photos": {"label": "Photos", "uri": "ms-photos:"},
+    "notepad": {"label": "Notepad", "exe": ["notepad.exe"], "process": ["notepad.exe"]},
+    "calculator": {"label": "Calculator", "uri": "calculator:", "process": ["CalculatorApp.exe", "Calculator.exe"]},
+    "calc": {"label": "Calculator", "uri": "calculator:", "process": ["CalculatorApp.exe", "Calculator.exe"]},
+    "explorer": {"label": "File Explorer", "exe": ["explorer.exe"], "process": ["explorer.exe"]},
+    "photos": {"label": "Photos", "uri": "ms-photos:", "process": ["Photos.exe", "Microsoft.Photos.exe"]},
     "settings": {"label": "Settings", "uri": "ms-settings:"},
     "terminal": {
         "label": "Windows Terminal",
+        "process": ["WindowsTerminal.exe", "wt.exe"],
         "exe": [
             str(Path(os.environ.get("LOCALAPPDATA", "")) / "Microsoft" / "WindowsApps" / "wt.exe"),
         ],
@@ -78,6 +82,7 @@ DEFAULT_APPS: dict[str, dict[str, Any]] = {
     },
     "vscode": {
         "label": "VS Code",
+        "process": ["Code.exe"],
         "exe": [
             str(Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Microsoft VS Code" / "Code.exe"),
             str(Path(os.environ.get("PROGRAMFILES", r"C:\Program Files")) / "Microsoft VS Code" / "Code.exe"),
@@ -85,6 +90,7 @@ DEFAULT_APPS: dict[str, dict[str, Any]] = {
     },
     "code": {
         "label": "VS Code",
+        "process": ["Code.exe"],
         "exe": [
             str(Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Microsoft VS Code" / "Code.exe"),
             str(Path(os.environ.get("PROGRAMFILES", r"C:\Program Files")) / "Microsoft VS Code" / "Code.exe"),
@@ -92,6 +98,7 @@ DEFAULT_APPS: dict[str, dict[str, Any]] = {
     },
     "cursor": {
         "label": "Cursor",
+        "process": ["Cursor.exe"],
         "exe": [
             str(Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "cursor" / "Cursor.exe"),
             str(Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Cursor" / "Cursor.exe"),
@@ -273,7 +280,7 @@ def open_file_with(path: str, app: str, *, cfg: dict[str, Any] | None = None) ->
         return {"ok": False, "detail": str(exc)}
 
 
-def media_control(action: str = "play_pause", steps: int = 1) -> dict[str, Any]:
+def media_control(action: str = "play_pause", steps: int = 1, app: str | None = None) -> dict[str, Any]:
     key_name = str(action or "play_pause").strip().lower().replace("-", "_").replace(" ", "_")
     # Friendly aliases
     aliases = {
@@ -289,6 +296,18 @@ def media_control(action: str = "play_pause", steps: int = 1) -> dict[str, Any]:
         "turn_down": "volume_down",
     }
     key_name = aliases.get(key_name, key_name)
+    # Per-app volume/mute — does NOT touch Amy's voice (system / other apps).
+    vol_actions = {"volume_up", "volume_down", "mute", "unmute", "volume_mute"}
+    target = str(app or "").strip()
+    if key_name in vol_actions and target and target.lower() not in ("system", "master", "pc"):
+        return app_audio(target, key_name, steps=steps)
+    # Default volume nudges prefer Spotify when it's running, so Amy stays audible.
+    if key_name in vol_actions and not target:
+        spot = app_audio("spotify", key_name, steps=steps)
+        if spot.get("ok"):
+            spot["via"] = "spotify_session"
+            return spot
+        # fall through to system keys if Spotify isn't open
     vk = VK_MEDIA.get(key_name)
     if vk is None:
         return {
@@ -313,7 +332,132 @@ def media_control(action: str = "play_pause", steps: int = 1) -> dict[str, Any]:
             time.sleep(0.04)
     except Exception as exc:
         return {"ok": False, "detail": str(exc)}
-    return {"ok": True, "action": key_name, "steps": n}
+    return {"ok": True, "action": key_name, "steps": n, "via": "system"}
+
+
+def _session_volumes_for_app(app: str, cfg: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Return pycaw SimpleAudioVolume controls for an allowlisted app's processes."""
+    try:
+        from pycaw.pycaw import AudioUtilities, ISimpleAudioVolume
+    except ImportError:
+        return {
+            "ok": False,
+            "detail": "Per-app volume needs pycaw — run: pip install pycaw comtypes",
+        }
+    hit = resolve_app(app, cfg)
+    if not hit.get("ok"):
+        return hit
+    spec = hit["spec"]
+    label = str(spec.get("label") or hit["key"])
+    names = [str(n).lower() for n in (spec.get("process") or [])]
+    if not names:
+        # Derive from exe basenames
+        for exe in spec.get("exe") or []:
+            names.append(Path(str(exe)).name.lower())
+    names = [n for n in names if n]
+    if not names:
+        return {"ok": False, "detail": f"no process name mapped for {label}"}
+
+    controls = []
+    try:
+        sessions = AudioUtilities.GetAllSessions()
+    except Exception as exc:
+        return {"ok": False, "detail": f"audio session error: {exc}"}
+    for session in sessions:
+        proc = session.Process
+        if not proc:
+            continue
+        try:
+            pname = str(proc.name() or "").lower()
+        except Exception:
+            continue
+        if pname not in names:
+            continue
+        try:
+            vol = session._ctl.QueryInterface(ISimpleAudioVolume)
+            controls.append((pname, vol))
+        except Exception:
+            continue
+    if not controls:
+        return {"ok": False, "detail": f"{label} isn’t playing audio right now (no session)."}
+    return {"ok": True, "app": label, "controls": controls}
+
+
+def app_audio(
+    app: str,
+    action: str = "volume_down",
+    *,
+    steps: int = 1,
+    level: float | None = None,
+    cfg: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Per-app volume/mute via Windows audio sessions — leaves Amy's TTS alone."""
+    act = str(action or "volume_down").strip().lower().replace("-", "_").replace(" ", "_")
+    aliases = {
+        "up": "volume_up",
+        "down": "volume_down",
+        "lower": "volume_down",
+        "louder": "volume_up",
+        "raise": "volume_up",
+        "increase": "volume_up",
+        "decrease": "volume_down",
+        "unmute": "unmute",
+        "mute": "mute",
+        "set": "set",
+        "volume_mute": "mute",
+    }
+    act = aliases.get(act, act)
+    found = _session_volumes_for_app(app, cfg)
+    if not found.get("ok"):
+        return found
+    controls = found["controls"]
+    label = found["app"]
+    try:
+        n = max(1, min(int(steps or 1), 20))
+    except (TypeError, ValueError):
+        n = 1
+    if act in ("volume_up", "volume_down") and n == 1:
+        n = 2
+    step = 0.06
+    touched = 0
+    try:
+        for _pname, vol in controls:
+            if act == "mute":
+                vol.SetMute(1, None)
+                touched += 1
+            elif act == "unmute":
+                vol.SetMute(0, None)
+                touched += 1
+            elif act == "set":
+                if level is None:
+                    return {"ok": False, "detail": "level 0.0–1.0 required for set"}
+                lv = max(0.0, min(1.0, float(level)))
+                vol.SetMute(0, None)
+                vol.SetMasterVolume(lv, None)
+                touched += 1
+            elif act == "volume_up":
+                vol.SetMute(0, None)
+                cur = float(vol.GetMasterVolume())
+                for _ in range(n):
+                    cur = min(1.0, cur + step)
+                vol.SetMasterVolume(cur, None)
+                touched += 1
+            elif act == "volume_down":
+                cur = float(vol.GetMasterVolume())
+                for _ in range(n):
+                    cur = max(0.0, cur - step)
+                vol.SetMasterVolume(cur, None)
+                touched += 1
+            else:
+                return {"ok": False, "detail": f"unknown app audio action “{action}”"}
+    except Exception as exc:
+        return {"ok": False, "detail": str(exc)}
+    out: dict[str, Any] = {"ok": True, "app": label, "action": act, "sessions": touched}
+    if act in ("volume_up", "volume_down"):
+        out["steps"] = n
+    if act == "set" and level is not None:
+        out["level"] = max(0.0, min(1.0, float(level)))
+    return out
 
 
 def _find_windows(query: str) -> dict[str, Any]:

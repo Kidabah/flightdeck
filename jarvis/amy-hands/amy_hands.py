@@ -55,6 +55,7 @@ CFG = load_config()
 
 try:
     from desktop_actions import (
+        app_audio as _app_audio,
         close_window as _close_window,
         launch_app as _launch_app,
         list_apps as _list_apps,
@@ -68,6 +69,7 @@ try:
     )
 except ImportError:  # pragma: no cover
     from jarvis.amy_hands.desktop_actions import (  # type: ignore
+        app_audio as _app_audio,
         close_window as _close_window,
         launch_app as _launch_app,
         list_apps as _list_apps,
@@ -294,6 +296,18 @@ class Handler(BaseHTTPRequestHandler):
             result = _media_control(
                 str(body.get("action") or body.get("command") or "play_pause"),
                 steps=steps,
+                app=str(body.get("app") or body.get("target") or "") or None,
+            )
+            self._json(200 if result.get("ok") else 400, result)
+            return
+
+        if path in ("/app/audio", "/app_volume", "/app/volume"):
+            result = _app_audio(
+                str(body.get("app") or body.get("name") or "spotify"),
+                str(body.get("action") or body.get("command") or "volume_down"),
+                steps=body.get("steps") or body.get("count") or 1,
+                level=body.get("level"),
+                cfg=CFG,
             )
             self._json(200 if result.get("ok") else 400, result)
             return
