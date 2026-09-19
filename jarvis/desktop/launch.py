@@ -174,8 +174,56 @@ def _open_chrome_app(url: str) -> bool:
     return False
 
 
+def _patch_webview2_auto_media() -> None:
+    """Make WebView2 auto-accept mic/camera (Chromium fake UI) before the control starts."""
+    try:
+        import webview.platforms.edgechromium as ec  # type: ignore
+    except Exception as exc:
+        print(f"[amy-desktop] edgechromium patch skipped: {exc}", file=sys.stderr)
+        return
+    if getattr(ec.EdgeChrome, "_amy_media_patched", False):
+        return
+    orig = ec.EdgeChrome.__init__
+
+    def __init__(self, form, window, cache_dir):  # type: ignore[no-untyped-def]
+        try:
+            from Microsoft.Web.WebView2.WinForms import WebView2  # type: ignore
+
+            ensure = WebView2.EnsureCoreWebView2Async
+
+            def ensure_patched(ctrl, env=None):  # type: ignore[no-untyped-def]
+                try:
+                    props = ctrl.CreationProperties
+                    if props is not None:
+                        args = str(getattr(props, "AdditionalBrowserArguments", "") or "")
+                        for flag in (
+                            "--use-fake-ui-for-media-stream",
+                            "--autoplay-policy=no-user-gesture-required",
+                        ):
+                            if flag not in args:
+                                args = f"{args} {flag}".strip()
+                        props.AdditionalBrowserArguments = args
+                        ctrl.CreationProperties = props
+                except Exception as exc:
+                    print(f"[amy-desktop] media-arg inject failed: {exc}", file=sys.stderr)
+                return ensure(ctrl) if env is None else ensure(ctrl, env)
+
+            WebView2.EnsureCoreWebView2Async = ensure_patched  # type: ignore[method-assign]
+            try:
+                orig(self, form, window, cache_dir)
+            finally:
+                WebView2.EnsureCoreWebView2Async = ensure  # type: ignore[method-assign]
+        except Exception as exc:
+            print(f"[amy-desktop] EnsureCoreWebView2 patch failed ({exc}); raw init", file=sys.stderr)
+            orig(self, form, window, cache_dir)
+
+    ec.EdgeChrome.__init__ = __init__  # type: ignore[method-assign]
+    ec.EdgeChrome._amy_media_patched = True  # type: ignore[attr-defined]
+    print("[amy-desktop] WebView2 will auto-accept mic/camera")
+
+
 def _install_auto_media_permissions(window) -> None:
-    """Auto-allow mic/camera for localhost — must run on the WinForms UI thread."""
+    """Also handle PermissionRequested on the UI thread (belt + braces)."""
 
     def attach() -> None:
         try:
@@ -195,13 +243,11 @@ def _install_auto_media_permissions(window) -> None:
                 def on_permission(_sender, args) -> None:  # noqa: ANN001
                     try:
                         kind = str(getattr(args, "PermissionKind", ""))
-                        uri = str(getattr(args, "Uri", "") or "")
-                        local = ("127.0.0.1" in uri) or ("localhost" in uri) or (not uri)
                         media = any(
                             token in kind
                             for token in ("Microphone", "Camera", "Media")
                         )
-                        if not (local and media):
+                        if not media:
                             return
                         args.State = 1  # Allow
                         args.Handled = True
@@ -213,10 +259,29 @@ def _install_auto_media_permissions(window) -> None:
                         pass
 
                 core.PermissionRequested += on_permission
+                # Pre-grant for this origin when API exists
+                try:
+                    profile = getattr(core, "Profile", None)
+                    if profile is not None and hasattr(profile, "SetPermissionState"):
+                        origin = "http://127.0.0.1:4700/"
+                        for kind_name in ("Microphone", "Camera"):
+                            try:
+                                kind = getattr(
+                                    __import__(
+                                        "Microsoft.Web.WebView2.Core",
+                                        fromlist=["CoreWebView2PermissionKind"],
+                                    ).CoreWebView2PermissionKind,
+                                    kind_name,
+                                )
+                                allow = 1
+                                profile.SetPermissionState(kind, origin, allow)
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
                 window._amy_perm_hooked = True  # type: ignore[attr-defined]
-                print("[amy-desktop] WebView2 mic/camera auto-allow ready")
+                print("[amy-desktop] WebView2 PermissionRequested auto-allow ready")
 
-            # Never touch CoreWebView2 from a random thread — that whitescreens WebView2.
             try:
                 from System import Action  # type: ignore
 
@@ -229,19 +294,9 @@ def _install_auto_media_permissions(window) -> None:
     try:
         window.events.loaded += lambda: attach()
     except Exception:
-        # Fallback: try once after a short delay on GUI start callback path
         def delayed() -> None:
             time.sleep(1.0)
-            try:
-                form = getattr(window, "native", None)
-                if form is not None:
-                    from System import Action  # type: ignore
-
-                    form.BeginInvoke(Action(attach))
-                else:
-                    attach()
-            except Exception:
-                attach()
+            attach()
 
         threading.Thread(target=delayed, daemon=True, name="amy-perm").start()
 
@@ -305,6 +360,8 @@ def main() -> int:
         finally:
             stop_children()
         return 0
+
+    _patch_webview2_auto_media()
 
     class AmyApi:
         def go_small(self) -> bool:
@@ -383,11 +440,22 @@ def main() -> int:
     print("[amy-desktop] mic uses OpenAI Whisper (Google speech is broken in WebView2)")
     print("[amy-desktop] always on top — say 'minimise' to drop, 'come back' to restore")
     print("[amy-desktop] mic/camera prompts auto-allowed for localhost")
+    storage = str(app_data_dir() / "webview")
     try:
-        webview.start(gui="edgechromium")
+        webview.start(gui="edgechromium", private_mode=False, storage_path=storage)
+    except TypeError:
+        # Older pywebview may not take storage_path
+        try:
+            webview.start(gui="edgechromium", private_mode=False)
+        except Exception as exc:
+            print(f"[amy-desktop] edgechromium failed ({exc}); default gui")
+            webview.start(private_mode=False)
     except Exception as exc:
         print(f"[amy-desktop] edgechromium failed ({exc}); default gui")
-        webview.start()
+        try:
+            webview.start(private_mode=False, storage_path=storage)
+        except TypeError:
+            webview.start(private_mode=False)
     finally:
         stop_children()
     print("[amy-desktop] window closed")

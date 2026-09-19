@@ -132,18 +132,18 @@
     }
     .face video {
       width: 100%; height: 100%; object-fit: cover; display: block;
-      /* Hard crop Tripo QR (top-right) + pull face forward */
-      object-position: 38% 18%;
-      transform: scale(1.72);
-      transform-origin: 42% 30%;
+      /* Centre her face in the square; QR sits top-right of source so scale+mask kills it */
+      object-position: 46% 48%;
+      transform: scale(1.38);
+      transform-origin: center center;
     }
-    /* Belt-and-braces: paint out any leftover QR corner */
+    /* Paint out Tripo QR corner if any remains */
     .face::after {
       content: "";
       position: absolute;
       top: 0; right: 0;
-      width: 34%; height: 34%;
-      background: radial-gradient(ellipse at 100% 0%, #020617 62%, transparent 78%);
+      width: 42%; height: 32%;
+      background: linear-gradient(225deg, #020617 42%, transparent 68%);
       pointer-events: none;
       z-index: 3;
     }
@@ -362,9 +362,9 @@
     }
     body.compact .face video {
       object-fit: cover;
-      object-position: 38% 18%;
-      transform: scale(1.72);
-      transform-origin: 42% 30%;
+      object-position: 46% 48%;
+      transform: scale(1.38);
+      transform-origin: center center;
     }
     body.compact #answer {
       max-height: 14vh;
