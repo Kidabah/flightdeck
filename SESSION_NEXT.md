@@ -1,6 +1,6 @@
 ## 2026-09-19 Session update (Amy whistle actually plays)
 
-Latest commit: _(pending)_ — Whistle was hitting the LLM (text "Fweeeet!") instead of SFX. Looser phrase match; play WAV via Web Audio decodeAudioData (HTML Audio fallback + louder synth); persona told not to fake whistles. Reopen Amy; say **whistle** — expect `♪` + sound, not banter.
+Latest commit: `8b670fc` — Whistle was hitting the LLM (text "Fweeeet!") instead of SFX. Looser phrase match; play WAV via Web Audio decodeAudioData (HTML Audio fallback + louder synth); persona told not to fake whistles. Reopen Amy; say **whistle** — expect `♪` + sound, not banter.
 
 ---# 2026-09-19 Session update (Amy whistle 16-bit)
 
