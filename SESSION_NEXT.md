@@ -1,4 +1,8 @@
-## 2026-09-19 Session update (Amy sleep wake + STT)
+## 2026-09-19 Session update (Amy whistle 16-bit)
+
+Latest commit: _(pending)_ — Whistle/yawn were 24-bit WAVs (WebView2 often silent). Converted to 16-bit, trimmed whistle to ~5s, hardened SFX play + preload. Reopen Amy; say **whistle**.
+
+---# 2026-09-19 Session update (Amy sleep wake + STT)
 
 Latest commit: _(pending)_ — Fix: while asleep Whisper discarded all audio so wake phrases never landed. Sleep now still listens for wake. Whisper forced `language=en` + AU/Amy prompt; mic VAD a bit more sensitive + AGC. Reopen Amy; say **wake up Amy** if she's sleeping. Glowing **TALK** = ears open.
 

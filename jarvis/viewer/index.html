@@ -1014,6 +1014,7 @@ async function setCompactMode(on) {
 
 function doWhistle() {
   unlockedAudio = true;
+  unlockSfx();
   if (asleep) wakeAmy('force');
   bumpIdle();
   whistle();
@@ -1056,25 +1057,58 @@ async function onIdleNudge() {
 }
 
 let sfxAudio = null;
+let sfxUnlocked = false;
+const SFX = {
+  whistle: '/sounds/amy-whistle.wav?v=16bit5s',
+  yawn: '/sounds/amy-yawn.wav?v=16bit',
+};
+
+function unlockSfx() {
+  sfxUnlocked = true;
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  } catch (_) {}
+  // Warm the browser cache so the first whistle isn't a miss
+  ['whistle', 'yawn'].forEach((k) => {
+    try {
+      const a = new Audio(SFX[k]);
+      a.preload = 'auto';
+      a.load();
+    } catch (_) {}
+  });
+}
 
 function playSfx(kind) {
-  const src = kind === 'yawn' ? '/sounds/amy-yawn.wav' : '/sounds/amy-whistle.wav';
+  const src = SFX[kind] || SFX.whistle;
+  unlockSfx();
   return new Promise((resolve) => {
     try {
       try { sfxAudio?.pause(); } catch (_) {}
       const a = new Audio(src);
       sfxAudio = a;
-      a.volume = kind === 'yawn' ? 0.85 : 0.75;
-      const done = () => resolve(true);
+      a.volume = kind === 'yawn' ? 0.9 : 0.85;
+      const done = () => {
+        if (sfxAudio === a) sfxAudio = null;
+        resolve(true);
+      };
       a.addEventListener('ended', done, { once: true });
       a.addEventListener('error', () => {
         if (kind === 'whistle') whistleSynth();
         resolve(false);
       }, { once: true });
-      a.play().catch(() => {
-        if (kind === 'whistle') whistleSynth();
-        resolve(false);
-      });
+      const tryPlay = () => {
+        a.play().then(() => {}).catch(() => {
+          if (kind === 'whistle') whistleSynth();
+          resolve(false);
+        });
+      };
+      if (a.readyState >= 2) tryPlay();
+      else a.addEventListener('canplaythrough', tryPlay, { once: true });
+      // Safety if canplaythrough never fires
+      window.setTimeout(() => {
+        if (sfxAudio === a && a.paused) tryPlay();
+      }, 400);
     } catch (_) {
       if (kind === 'whistle') whistleSynth();
       resolve(false);
@@ -1083,12 +1117,14 @@ function playSfx(kind) {
 }
 
 function whistle() {
+  unlockSfx();
   playSfx('whistle');
 }
 
 function whistleSynth() {
   try {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
     const ctx = audioCtx;
     // Fallback tune if the WAV can't load.
     const notes = [
@@ -1109,7 +1145,7 @@ function whistleSynth() {
       osc.type = 'sine';
       osc.frequency.setValueAtTime(n.f, t);
       gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.exponentialRampToValueAtTime(0.07, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.09, t + 0.02);
       gain.gain.exponentialRampToValueAtTime(0.0001, t + n.d);
       osc.connect(gain);
       gain.connect(ctx.destination);
@@ -2502,6 +2538,7 @@ async function bootGreeting() {
     // Unlock audio on first tap — no spoken/written intro.
     const once = () => {
       unlockedAudio = true;
+      unlockSfx();
       window.removeEventListener('pointerdown', once);
     };
     window.addEventListener('pointerdown', once, { once: true });
