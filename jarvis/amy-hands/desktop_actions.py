@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import ctypes
+import json
 import os
 import re
 import subprocess
@@ -570,3 +571,208 @@ def list_apps(cfg: dict[str, Any] | None = None) -> dict[str, Any]:
     cat = app_catalog(cfg)
     apps = sorted({str(v.get("label") or k) for k, v in cat.items()})
     return {"ok": True, "apps": apps}
+
+
+# Common apps Amy can register by name without Chris hunting paths.
+_REGISTER_HINTS: dict[str, dict[str, Any]] = {
+    "discord": {
+        "label": "Discord",
+        "process": ["Discord.exe"],
+        "exe_globs": [
+            str(Path(os.environ.get("LOCALAPPDATA", "")) / "Discord" / "app-*" / "Discord.exe"),
+        ],
+    },
+    "steam": {
+        "label": "Steam",
+        "process": ["steam.exe"],
+        "exe": [
+            str(Path(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)")) / "Steam" / "steam.exe"),
+            str(Path(os.environ.get("PROGRAMFILES", r"C:\Program Files")) / "Steam" / "steam.exe"),
+        ],
+    },
+    "vlc": {
+        "label": "VLC",
+        "process": ["vlc.exe"],
+        "exe": [
+            str(Path(os.environ.get("PROGRAMFILES", r"C:\Program Files")) / "VideoLAN" / "VLC" / "vlc.exe"),
+            str(Path(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)")) / "VideoLAN" / "VLC" / "vlc.exe"),
+        ],
+    },
+    "firefox": {
+        "label": "Firefox",
+        "process": ["firefox.exe"],
+        "exe": [
+            str(Path(os.environ.get("PROGRAMFILES", r"C:\Program Files")) / "Mozilla Firefox" / "firefox.exe"),
+            str(Path(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)")) / "Mozilla Firefox" / "firefox.exe"),
+        ],
+    },
+    "obs": {
+        "label": "OBS Studio",
+        "process": ["obs64.exe", "obs32.exe"],
+        "exe": [
+            str(Path(os.environ.get("PROGRAMFILES", r"C:\Program Files")) / "obs-studio" / "bin" / "64bit" / "obs64.exe"),
+        ],
+    },
+    "whatsapp": {
+        "label": "WhatsApp",
+        "process": ["WhatsApp.exe"],
+        "uri": "whatsapp:",
+        "exe_globs": [
+            str(Path(os.environ.get("LOCALAPPDATA", "")) / "WhatsApp" / "app-*" / "WhatsApp.exe"),
+        ],
+    },
+}
+
+
+def _first_existing(paths: list[str]) -> str | None:
+    for p in paths:
+        if p and Path(p).exists():
+            return str(Path(p))
+    return None
+
+
+def _expand_globs(patterns: list[str]) -> list[str]:
+    import glob
+
+    out: list[str] = []
+    for pat in patterns:
+        out.extend(sorted(glob.glob(pat)))
+    # Prefer highest version folder last → reverse so latest app-* wins often
+    return list(reversed(out))
+
+
+def _sanitize_app_key(name: str) -> str:
+    key = re.sub(r"[^a-z0-9]+", "", str(name or "").strip().lower())
+    return key
+
+
+def _sanitize_process_list(raw: Any) -> list[str] | None:
+    if raw is None:
+        return None
+    items = raw if isinstance(raw, list) else [raw]
+    out: list[str] = []
+    for item in items:
+        s = str(item or "").strip()
+        if not s:
+            continue
+        base = Path(s).name
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*\.exe", base, re.I):
+            return None
+        out.append(base)
+    return out or None
+
+
+def discover_app_hint(name: str) -> dict[str, Any] | None:
+    key = _sanitize_app_key(name)
+    if not key:
+        return None
+    hint = _REGISTER_HINTS.get(key)
+    if not hint:
+        # fuzzy
+        for k, v in _REGISTER_HINTS.items():
+            if key in k or k in key or key in str(v.get("label") or "").lower().replace(" ", ""):
+                hint = v
+                key = k
+                break
+    if not hint:
+        return None
+    entry: dict[str, Any] = {
+        "label": hint.get("label") or key.title(),
+        "process": list(hint.get("process") or []),
+    }
+    if hint.get("uri"):
+        entry["uri"] = hint["uri"]
+    exes = list(hint.get("exe") or [])
+    exes.extend(_expand_globs(list(hint.get("exe_globs") or [])))
+    found = _first_existing(exes)
+    if found:
+        entry["exe"] = [found]
+    return {"key": key, "entry": entry}
+
+
+def register_app(
+    name: str,
+    *,
+    config_path: str | Path,
+    process: list[str] | str | None = None,
+    exe: str | list[str] | None = None,
+    uri: str | None = None,
+    label: str | None = None,
+) -> dict[str, Any]:
+    """Persist an allowlisted app into Hands config.json (safe fields only)."""
+    key = _sanitize_app_key(name)
+    if len(key) < 2:
+        return {"ok": False, "detail": "app name too short / invalid"}
+    if key in ("amy", "system", "cmd", "powershell", "python", "explorer"):
+        # explorer already built-in; block dangerous names
+        if key != "explorer":
+            return {"ok": False, "detail": f"can't register reserved name “{name}”"}
+
+    entry: dict[str, Any] = {}
+    hint = discover_app_hint(name)
+    if hint:
+        entry.update(hint["entry"])
+        key = hint["key"]
+
+    if label:
+        lab = str(label).strip()[:64]
+        if lab:
+            entry["label"] = lab
+    entry.setdefault("label", key.title())
+
+    procs = _sanitize_process_list(process) if process is not None else None
+    if procs:
+        entry["process"] = procs
+    elif not entry.get("process"):
+        # Default guess: Name.exe
+        guess = f"{entry['label'].replace(' ', '')}.exe"
+        if re.fullmatch(r"[A-Za-z0-9].*\.exe", guess, re.I):
+            entry["process"] = [guess]
+
+    if exe is not None:
+        paths = exe if isinstance(exe, list) else [exe]
+        clean: list[str] = []
+        for p in paths:
+            norm = normalize_local_path(str(p))
+            if not norm.get("ok"):
+                return {"ok": False, "detail": f"bad exe path: {norm.get('detail')}"}
+            text = str(norm["path"])
+            if not text.lower().endswith(".exe"):
+                return {"ok": False, "detail": "exe must be a .exe file"}
+            clean.append(text)
+        if clean:
+            entry["exe"] = clean
+
+    if uri is not None:
+        u = str(uri).strip()
+        if u and not re.fullmatch(r"[a-z][a-z0-9+.-]*:", u, re.I):
+            return {"ok": False, "detail": "uri must look like discord: or spotify:"}
+        if u:
+            entry["uri"] = u
+
+    if not entry.get("process") and not entry.get("exe") and not entry.get("uri"):
+        return {
+            "ok": False,
+            "detail": (
+                f"Need at least process, exe, or uri for “{name}”. "
+                "Known one-word adds: discord, steam, vlc, firefox, obs, whatsapp."
+            ),
+        }
+
+    path = Path(config_path)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except Exception as exc:
+        return {"ok": False, "detail": f"couldn't read config: {exc}"}
+    if not isinstance(data, dict):
+        data = {}
+    apps = data.get("apps")
+    if not isinstance(apps, dict):
+        apps = {}
+    apps[key] = entry
+    data["apps"] = apps
+    try:
+        path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    except Exception as exc:
+        return {"ok": False, "detail": f"couldn't write config: {exc}"}
+    return {"ok": True, "key": key, "app": entry.get("label") or key, "entry": entry, "config": str(path)}

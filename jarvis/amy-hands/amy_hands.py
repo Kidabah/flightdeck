@@ -45,13 +45,23 @@ def load_config() -> dict[str, Any]:
                 str(Path.home() / "Desktop"),
             ],
             "max_results": 40,
+            "apps": {},
         }
         CONFIG_PATH.write_text(json.dumps(example, indent=2) + "\n", encoding="utf-8")
         return example
     return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
 
 
-CFG = load_config()
+CFG: dict[str, Any] = {}
+
+
+def reload_config() -> dict[str, Any]:
+    global CFG
+    CFG = load_config()
+    return CFG
+
+
+reload_config()
 
 try:
     from desktop_actions import (
@@ -65,6 +75,7 @@ try:
         open_file as _open_file,
         open_file_explorer as _open_file_explorer,
         open_file_with as _open_file_with,
+        register_app as _register_app,
         restore_window as _restore_window,
     )
 except ImportError:  # pragma: no cover
@@ -79,6 +90,7 @@ except ImportError:  # pragma: no cover
         open_file as _open_file,
         open_file_explorer as _open_file_explorer,
         open_file_with as _open_file_with,
+        register_app as _register_app,
         restore_window as _restore_window,
     )
 
@@ -289,6 +301,20 @@ class Handler(BaseHTTPRequestHandler):
 
         if path in ("/app/list", "/list_apps"):
             self._json(200, _list_apps(CFG))
+            return
+
+        if path in ("/app/register", "/register_app"):
+            result = _register_app(
+                str(body.get("name") or body.get("app") or ""),
+                config_path=CONFIG_PATH,
+                process=body.get("process"),
+                exe=body.get("exe") or body.get("path"),
+                uri=body.get("uri"),
+                label=body.get("label"),
+            )
+            if result.get("ok"):
+                reload_config()
+            self._json(200 if result.get("ok") else 400, result)
             return
 
         if path in ("/media", "/media/control"):

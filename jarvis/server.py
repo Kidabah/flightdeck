@@ -285,6 +285,39 @@ HANDS_TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "register_app",
+            "description": (
+                "Add an app to Amy Hands allowlist so Chris can launch/volume-control it later. "
+                "Use when Chris says 'add Discord to the allow list' (also knows steam, vlc, firefox, obs, whatsapp). "
+                "Optional process/exe/uri if it's an unusual app."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "App name, e.g. discord"},
+                    "process": {
+                        "type": "string",
+                        "description": "Optional process exe name, e.g. Discord.exe",
+                    },
+                    "exe": {"type": "string", "description": "Optional full path to .exe"},
+                    "uri": {"type": "string", "description": "Optional URI protocol like discord:"},
+                    "label": {"type": "string", "description": "Optional display label"},
+                },
+                "required": ["name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_hands_apps",
+            "description": "List apps currently on the Amy Hands allowlist (launch / volume targets).",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "close_window",
             "description": "Close a visible Windows window whose title contains the query (WM_CLOSE).",
             "parameters": {
@@ -875,6 +908,42 @@ def app_volume(app: str, action: str, steps: int = 1, level: float | None = None
     )
 
 
+def register_hands_app(
+    name: str,
+    process: str = "",
+    exe: str = "",
+    uri: str = "",
+    label: str = "",
+) -> str:
+    if not hands_configured():
+        return "Amy Hands not configured (hands_base_url)."
+    body: dict[str, Any] = {"name": name}
+    if process:
+        body["process"] = process
+    if exe:
+        body["exe"] = exe
+    if uri:
+        body["uri"] = uri
+    if label:
+        body["label"] = label
+    code, payload = hands_request("/app/register", method="POST", body=body, timeout=10)
+    if not isinstance(payload, dict):
+        return f"Register failed: {payload}"
+    if code != 200 or not payload.get("ok"):
+        return f"Register failed: {payload.get('detail') or payload}"
+    return f"Added {payload.get('app') or name} to the Hands allowlist (key: {payload.get('key')})."
+
+
+def list_hands_apps() -> str:
+    if not hands_configured():
+        return "Amy Hands not configured (hands_base_url)."
+    code, payload = hands_request("/app/list", method="POST", body={}, timeout=10)
+    if not isinstance(payload, dict) or code != 200 or not payload.get("ok"):
+        return f"Couldn’t list apps: {payload}"
+    apps = payload.get("apps") or []
+    return "Hands allowlist: " + ", ".join(apps) if apps else "Hands allowlist is empty."
+
+
 def close_pc_window(query: str) -> str:
     return _hands_action(
         "/window/close",
@@ -973,6 +1042,16 @@ def run_tool(name: str, arguments: str | dict[str, Any]) -> str:
             steps=steps_i,
             level=level_f,
         )
+    if name == "register_app":
+        return register_hands_app(
+            str(args.get("name") or args.get("app") or ""),
+            process=str(args.get("process") or ""),
+            exe=str(args.get("exe") or args.get("path") or ""),
+            uri=str(args.get("uri") or ""),
+            label=str(args.get("label") or ""),
+        )
+    if name == "list_hands_apps":
+        return list_hands_apps()
     if name == "close_window":
         return close_pc_window(str(args.get("query") or args.get("title") or ""))
     if name == "minimize_window":
