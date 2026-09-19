@@ -1,6 +1,6 @@
 ## 2026-09-19 Session update (Amy compact centre)
 
-Latest commit: _(pending)_ ? Compact / ?go small? layout centred: `#hud` was still right-anchored, brand/search still showed. Face + dock now centre in the slim window. Reopen framed Amy (or hard refresh `/?desktop=1`). UI-only; restart optional.
+Latest commit: `9c7911f` ? Compact / go-small layout centred: `#hud` was still right-anchored, brand/search still showed. Face + dock now centre in the slim window. Reopen framed Amy (or hard refresh `/?desktop=1`). UI-only; restart optional.
 
 ---
 
