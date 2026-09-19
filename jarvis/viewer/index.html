@@ -731,6 +731,15 @@ function isWhistlePhrase(t) {
     || /^(can you|could you|will you) (please )?(whistle|sing)\b/i.test(s);
 }
 
+function isBedtimePhrase(t) {
+  const s = normalizeAmyCmd(t);
+  if (!s) return false;
+  return /^(amy[, ]+)?(please[, ]+)?(bedtime|bed time|good\s*night|nighty?\s*night|go to sleep|time for bed|go to bed|sleep well|lights out)( amy)?(,?\s*please)?$/i.test(s)
+    || /^(can you|could you) (please )?(go to sleep|go to bed|say good\s*night)\b/i.test(s)
+    || /\b(good\s*night|bedtime|night night)\b.*\bamy\b/i.test(s)
+    || /\bamy\b.*\b(good\s*night|bedtime|go to sleep)\b/i.test(s);
+}
+
 function normalizeAmyCmd(t) {
   let s = String(t || '').trim().toLowerCase().replace(/[.,!?]+$/g, '');
   if (!s) return '';
@@ -877,6 +886,18 @@ function doWhistle() {
   if (asleep) wakeAmy('force');
   bumpIdle();
   whistle();
+}
+
+async function doBedtime() {
+  unlockedAudio = true;
+  stopSpeaking();
+  answerEl.textContent = 'Goodnight, Chris…';
+  try {
+    if (!MUTE) await speak('Goodnight, Chris. Sweet dreams.');
+  } catch (_) {}
+  await playSfx('yawn');
+  nudgedIdle = true; // already yawned — don't double in enterSleep
+  enterSleep();
 }
 
 function bumpIdle() {
@@ -1342,6 +1363,10 @@ async function ask(question) {
     setStatus(wantListen ? 'listening' : 'idle', wantListen ? 'Listening' : 'Ready');
     return;
   }
+  if (isBedtimePhrase(q) && !pendingFiles.length) {
+    await doBedtime();
+    return;
+  }
   if (isGoSmallPhrase(q) && !pendingFiles.length) {
     await setCompactMode(true);
     answerEl.textContent = 'Going small — still listening.';
@@ -1613,6 +1638,10 @@ function armRecognition() {
     if (isWhistlePhrase(chunk)) {
       doWhistle();
       answerEl.textContent = '♪';
+      return;
+    }
+    if (isBedtimePhrase(chunk)) {
+      doBedtime();
       return;
     }
     // While Amy talks (or echo cooldown), ignore normal speech so she doesn't self-answer.
