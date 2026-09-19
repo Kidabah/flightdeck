@@ -1,4 +1,9 @@
-﻿## 2026-09-19 Session update (Amy go-large + compact polish)
+﻿## 2026-09-19 Session update (Amy always on top)
+
+Latest commit: `6bb5407` — Amy stays on top by default; say minimise to drop, come back to restore. go large keeps on top. Compact ring clip padding included. Reopen framed Amy.
+
+---
+## 2026-09-19 Session update (Amy go-large + compact polish)
 
 Latest commit: `719fd94` — Whisper “amiga lodge” → go large; compact shows RING/EYES again, less top pad, ears uncropped, always-on-top while small. Reopen framed Amy.
 
@@ -2779,5 +2784,6 @@ Older local/static change:
 - Static cache bumped to `app.js?v=645`; frontend refresh only.
 
 ---
+
 
 
