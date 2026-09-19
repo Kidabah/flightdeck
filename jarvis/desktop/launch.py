@@ -233,17 +233,42 @@ def main() -> int:
             stop_children()
         return 0
 
+    class AmyApi:
+        def go_small(self) -> bool:
+            if not webview.windows:
+                return False
+            w = webview.windows[0]
+            try:
+                w.resize(400, 680)
+                return True
+            except Exception as exc:
+                print(f"[amy-desktop] go_small failed: {exc}", file=sys.stderr)
+                return False
+
+        def go_big(self) -> bool:
+            if not webview.windows:
+                return False
+            w = webview.windows[0]
+            try:
+                w.resize(1400, 900)
+                return True
+            except Exception as exc:
+                print(f"[amy-desktop] go_big failed: {exc}", file=sys.stderr)
+                return False
+
+    api = AmyApi()
     webview.create_window(
         "Amy - Flightdeck",
         AMY_URL,
         width=1400,
         height=900,
-        min_size=(900, 600),
+        min_size=(360, 480),
         confirm_close=False,
+        js_api=api,
     )
     print(f"[amy-desktop] opening webview {AMY_URL}")
     print("[amy-desktop] mic uses OpenAI Whisper (Google speech is broken in WebView2)")
-    print("[amy-desktop] tip: --chrome for Chrome app mode instead")
+    print("[amy-desktop] tip: say 'go small' / 'go big' — or --chrome for Chrome app mode")
     try:
         webview.start(gui="edgechromium")
     except Exception as exc:

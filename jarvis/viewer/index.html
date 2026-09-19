@@ -226,6 +226,43 @@
       background: rgba(8, 145, 178, 0.22);
     }
     .organs button:disabled { opacity: 0.4; cursor: default; }
+    .organs button.active {
+      border-color: var(--accent);
+      box-shadow: var(--glow);
+      color: var(--accent);
+    }
+
+    /* Compact / "go small" — face + talk dock, mic stays live */
+    body.compact #graph,
+    body.compact #stars,
+    body.compact .brand,
+    body.compact .modes,
+    body.compact #side,
+    body.compact #search-wrap { display: none !important; }
+    body.compact {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+    }
+    body.compact aside#rail,
+    body.compact .face-card {
+      position: relative;
+      width: 100%;
+      max-width: none;
+      margin: 0 auto;
+      padding: 12px 12px 0;
+    }
+    body.compact .organs { display: none; }
+    body.compact #dock {
+      position: relative;
+      inset: auto;
+      width: 100%;
+      max-width: none;
+      margin-top: auto;
+      border-radius: 18px 18px 0 0;
+    }
+    body.compact .face-wrap { width: min(210px, 56vw); height: min(210px, 56vw); }
+    body.compact #answer { max-height: 28vh; overflow: auto; }
 
     /* Note panel — LEFT side, clear of HUD */
     #side {
@@ -345,10 +382,10 @@
       <button type="button" data-view="face">ORBIT</button>
     </div>
     <div class="organs" aria-label="Organs">
-      <button type="button" id="eyes-btn">EYES</button>
-      <button type="button" id="watch-btn" disabled title="Coming soon">WATCH</button>
-      <button type="button" id="holo-btn" disabled title="Coming soon">HOLO</button>
-      <button type="button" id="focus-btn" disabled title="Coming soon">FOCUS</button>
+      <button type="button" id="eyes-btn" title="Share your screen so Amy can see it">EYES</button>
+      <button type="button" id="watch-btn" title="Webcam — Amy can see you">WATCH</button>
+      <button type="button" id="holo-btn" disabled title="Hologram desk overlay — not built yet">HOLO</button>
+      <button type="button" id="focus-btn" title="Compact face + chat (same as ‘go small’)">FOCUS</button>
     </div>
   </aside>
 
@@ -434,6 +471,8 @@ const NUDGE_LINES = [
 let graph = null;
 let shareStream = null;
 let shareVideo = null;
+let visionMode = null; // 'eyes' | 'watch'
+let compactMode = false;
 let unlockedAudio = false;
 let viewMode = 'ring';
 let listening = false;
@@ -559,6 +598,41 @@ function isWhistlePhrase(t) {
   if (!s) return false;
   return /^(amy[, ]+)?(please[, ]+)?(whistle|sing|give me a whistle|do a whistle|whistle for me|sing for me)(,?\s*please)?$/i.test(s)
     || /^(can you|could you|will you) (please )?(whistle|sing)\b/i.test(s);
+}
+
+function isGoSmallPhrase(t) {
+  const s = String(t || '').trim().toLowerCase().replace(/[.,!?]+$/g, '');
+  if (!s) return false;
+  return /^(amy[, ]+)?(please[, ]+)?(go small|get small|shrink|compact( mode)?|mini(mise|mize)?( (the )?window)?|focus mode)(,?\s*please)?$/i.test(s)
+    || /^(can you|could you) (please )?(go small|shrink|minimise|minimize)\b/i.test(s);
+}
+
+function isGoBigPhrase(t) {
+  const s = String(t || '').trim().toLowerCase().replace(/[.,!?]+$/g, '');
+  if (!s) return false;
+  return /^(amy[, ]+)?(please[, ]+)?(go big|get big|expand|full( size| screen)?|normal( size)?|uncompact|exit focus)(,?\s*please)?$/i.test(s)
+    || /^(can you|could you) (please )?(go big|expand)\b/i.test(s);
+}
+
+async function setCompactMode(on) {
+  compactMode = !!on;
+  document.body.classList.toggle('compact', compactMode);
+  const focusBtn = document.getElementById('focus-btn');
+  if (focusBtn) focusBtn.classList.toggle('active', compactMode);
+  try {
+    if (window.pywebview?.api) {
+      if (compactMode && typeof window.pywebview.api.go_small === 'function') {
+        await window.pywebview.api.go_small();
+      } else if (!compactMode && typeof window.pywebview.api.go_big === 'function') {
+        await window.pywebview.api.go_big();
+      }
+    }
+  } catch (_) {}
+  // Mic keeps running — compact is UI only.
+  if (wantListen) {
+    setStatus('listening', useWhisperMic ? 'Listening · Whisper' : 'Listening');
+  }
+  return compactMode;
 }
 
 function doWhistle() {
@@ -992,6 +1066,18 @@ async function ask(question) {
     doWhistle();
     answerEl.textContent = '♪';
     setStatus(wantListen ? 'listening' : 'idle', wantListen ? 'Listening' : 'Ready');
+    return;
+  }
+  if (isGoSmallPhrase(q) && !pendingFiles.length) {
+    await setCompactMode(true);
+    answerEl.textContent = 'Going small — still listening.';
+    setStatus(wantListen ? 'listening' : 'idle', wantListen ? (useWhisperMic ? 'Listening · Whisper' : 'Listening') : 'Ready');
+    return;
+  }
+  if (isGoBigPhrase(q) && !pendingFiles.length) {
+    await setCompactMode(false);
+    answerEl.textContent = 'Back to full size.';
+    setStatus(wantListen ? 'listening' : 'idle', wantListen ? (useWhisperMic ? 'Listening · Whisper' : 'Listening') : 'Ready');
     return;
   }
   bumpIdle();
@@ -1569,16 +1655,26 @@ function toggleMic() {
   else startMic();
 }
 
+async function stopVision() {
+  if (shareStream) {
+    shareStream.getTracks().forEach((t) => t.stop());
+  }
+  shareStream = null;
+  shareVideo = null;
+  visionMode = null;
+  shareDot.style.display = 'none';
+  eyesBtn.classList.remove('active');
+  const watchBtn = document.getElementById('watch-btn');
+  if (watchBtn) watchBtn.classList.remove('active');
+}
+
 async function toggleEyes() {
   unlockedAudio = true;
-  if (shareStream) {
-    shareStream.getTracks().forEach(t => t.stop());
-    shareStream = null;
-    shareVideo = null;
-    shareDot.style.display = 'none';
-    eyesBtn.classList.remove('active');
+  if (shareStream && visionMode === 'eyes') {
+    await stopVision();
     return;
   }
+  if (shareStream) await stopVision();
   if (!IS_SECURE) {
     answerEl.textContent = 'Eyes also need HTTPS for screen share.';
     secureHint.style.display = 'block';
@@ -1586,17 +1682,54 @@ async function toggleEyes() {
   }
   try {
     shareStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    visionMode = 'eyes';
     shareDot.style.display = 'block';
     eyesBtn.classList.add('active');
-    shareStream.getVideoTracks()[0].addEventListener('ended', () => {
-      shareStream = null;
-      shareVideo = null;
-      shareDot.style.display = 'none';
-      eyesBtn.classList.remove('active');
-    });
+    shareStream.getVideoTracks()[0].addEventListener('ended', () => { stopVision(); });
+    answerEl.textContent = 'Eyes on — I can see your screen when you ask.';
   } catch (_) {
     answerEl.textContent = 'Screen share cancelled.';
   }
+}
+
+async function toggleWatch() {
+  unlockedAudio = true;
+  const watchBtn = document.getElementById('watch-btn');
+  if (shareStream && visionMode === 'watch') {
+    await stopVision();
+    return;
+  }
+  if (shareStream) await stopVision();
+  if (!IS_SECURE) {
+    answerEl.textContent = 'Watch needs a secure context (desktop app or HTTPS).';
+    secureHint.style.display = 'block';
+    return;
+  }
+  if (!navigator.mediaDevices?.getUserMedia) {
+    answerEl.textContent = 'No camera API in this window.';
+    return;
+  }
+  try {
+    shareStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false,
+    });
+    visionMode = 'watch';
+    shareDot.style.display = 'block';
+    if (watchBtn) watchBtn.classList.add('active');
+    shareStream.getVideoTracks()[0].addEventListener('ended', () => { stopVision(); });
+    answerEl.textContent = 'Watch on — I can see you when you ask.';
+  } catch (err) {
+    answerEl.textContent = `Camera blocked (${err && err.name ? err.name : err}). Allow camera for Amy.`;
+  }
+}
+
+async function toggleFocus() {
+  unlockedAudio = true;
+  await setCompactMode(!compactMode);
+  answerEl.textContent = compactMode
+    ? 'Focus mode — small Amy, mic still live.'
+    : 'Full workshop view.';
 }
 
 function applyViewMode(mode) {
@@ -1667,6 +1800,8 @@ window.addEventListener('keydown', (e) => {
 });
 eyesBtn.addEventListener('click', toggleEyes);
 document.getElementById('tray-eyes').addEventListener('click', toggleEyes);
+document.getElementById('watch-btn')?.addEventListener('click', toggleWatch);
+document.getElementById('focus-btn')?.addEventListener('click', toggleFocus);
 document.getElementById('tray-refresh').addEventListener('click', () => {
   const script = document.createElement('script');
   script.src = '/graph-data.js?t=' + Date.now();
