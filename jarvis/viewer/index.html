@@ -849,9 +849,10 @@ function handleInterrupt() {
 function isWakePhrase(t) {
   const s = String(t || '').trim().toLowerCase().replace(/[.,!?]+$/g, '');
   if (!s) return false;
-  return /^(wake up( amy)?|amy wake up|hey amy|good morning amy|rise and shine)$/i.test(s)
-    || /\bwake up\b.*\bamy\b/i.test(s)
-    || /\bamy\b.*\bwake up\b/i.test(s);
+  return /^(wake up( amy)?|amy wake up|hey amy|hi amy|good morning amy|rise and shine)$/i.test(s)
+    || /\bwake(\s+up)?\b.*\bamy\b/i.test(s)
+    || /\bamy\b.*\bwake(\s+up)?\b/i.test(s)
+    || /^(i'?m back|ok amy|okay amy)$/i.test(s);
 }
 
 function isWhistlePhrase(t) {
@@ -1132,6 +1133,11 @@ function enterSleep() {
   if (!nudgedIdle) playSfx('yawn');
   document.body.classList.add('asleep');
   armSleepGif();
+  // Keep Whisper ears open for "wake up Amy" (soft quiet or full listen).
+  if (useWhisperMic) {
+    if (!wantListen) wakeListen = true;
+    if (desktopMic.stream && desktopMic.audioCtx && !desktopMic.raf) watchDesktopLevels();
+  }
   // Stay mic-armed so "wake up amy" works, but ignore normal chat.
   setStatus('asleep', 'Sleeping — say wake up Amy');
   syncMicUi();
@@ -1953,16 +1959,24 @@ async function transcribeDesktopBlob(blob) {
 }
 
 async function flushDesktopUtterance() {
-  if (asleep || micIsDeaf() || desktopMic.busy) {
+  // While asleep, still transcribe — but only wake phrases get through (Whisper path
+  // used to discard everything, so "wake up Amy" never worked).
+  if (micIsDeaf() || desktopMic.busy) {
     desktopMic.pcm = [];
     return;
   }
-  if (!micCaptureWanted()) {
+  if (!asleep && !micCaptureWanted()) {
+    desktopMic.pcm = [];
+    return;
+  }
+  // Asleep still needs an armed mic stream
+  if (asleep && !desktopMic.stream) {
     desktopMic.pcm = [];
     return;
   }
   const wakeOnly = !wantListen && wakeListen;
-  const bargeIn = isSpeaking && wantListen;
+  const sleepWake = !!asleep;
+  const bargeIn = isSpeaking && wantListen && !asleep;
   desktopMic.busy = true;
   const chunks = desktopMic.pcm;
   desktopMic.pcm = [];
@@ -1974,25 +1988,35 @@ async function flushDesktopUtterance() {
     desktopMic.busy = false;
     return;
   }
-  if (!bargeIn && !wakeOnly) setStatus('thinking', 'Hearing you…');
+  if (!bargeIn && !wakeOnly && !sleepWake) setStatus('thinking', 'Hearing you…');
   let text = '';
   try {
     text = await transcribeDesktopBlob(blob);
   } catch (err) {
     desktopMic.busy = false;
-    if (!bargeIn && !wakeOnly) {
+    if (!bargeIn && !wakeOnly && !sleepWake) {
       answerEl.textContent = `Desktop mic STT failed (${err.message || err}). Typing still works.`;
       setStatus(wantListen ? 'listening' : 'idle', wantListen ? 'Listening · Whisper' : 'Mic error');
     } else if (wakeOnly) {
       setStatus('idle', 'Quiet — say talk');
+    } else if (sleepWake) {
+      setStatus('asleep', 'Sleeping — say wake up Amy');
     }
     return;
   }
-  // Release BEFORE ask/speak so voice STOP can fire while Laura talks.
   desktopMic.busy = false;
   if (!text) {
-    if (wantListen && !asleep && !isSpeaking) setStatus('listening', 'Listening · Whisper');
+    if (sleepWake) setStatus('asleep', 'Sleeping — say wake up Amy');
+    else if (wantListen && !isSpeaking) setStatus('listening', 'Listening · Whisper');
     else if (wakeOnly) setStatus('idle', 'Quiet — say talk');
+    return;
+  }
+  if (sleepWake) {
+    if (isWakePhrase(text)) {
+      wakeAmy('voice');
+    } else {
+      setStatus('asleep', 'Sleeping — say wake up Amy');
+    }
     return;
   }
   if (wakeOnly) {
@@ -2004,7 +2028,6 @@ async function flushDesktopUtterance() {
       setStatus('listening', 'Listening · Whisper');
       bumpIdle();
     } else {
-      // Still quiet — ignore chatter / Spotify bleed without nagging.
       setStatus('idle', 'Quiet — say talk');
     }
     return;
@@ -2019,7 +2042,6 @@ async function flushDesktopUtterance() {
     return;
   }
   if (bargeIn || isSpeaking) {
-    // While she talks: "quiet"/"stop" = barge-in only. Permanent quiet needs "don't talk".
     if (/\b(don'?t talk|do not talk|mute yourself|stop listening|go quiet|quiet mode)\b/i.test(text)) {
       handleInterrupt();
       muteMic();
@@ -2104,7 +2126,7 @@ function watchDesktopLevels() {
       sum += v * v;
     }
     const rms = Math.sqrt(sum / data.length);
-    const thresh = isSpeaking ? 0.065 : (wakeListen && !wantListen ? 0.055 : 0.042);
+    const thresh = isSpeaking ? 0.058 : (wakeListen && !wantListen ? 0.048 : 0.032);
     if (rms > thresh) {
       if (!desktopMic.speaking) {
         desktopMic.pcm = [];
@@ -2141,7 +2163,11 @@ async function startDesktopMic() {
   }
   try {
     desktopMic.stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true },
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
     });
   } catch (err) {
     answerEl.textContent = `Mic permission denied (${err && err.name ? err.name : err}). Allow microphone for Amy.`;

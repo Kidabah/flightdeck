@@ -1,4 +1,8 @@
-## 2026-09-19 Session update (Amy Thunderbird mail)
+## 2026-09-19 Session update (Amy sleep wake + STT)
+
+Latest commit: _(pending)_ — Fix: while asleep Whisper discarded all audio so wake phrases never landed. Sleep now still listens for wake. Whisper forced `language=en` + AU/Amy prompt; mic VAD a bit more sensitive + AGC. Reopen Amy; say **wake up Amy** if she's sleeping. Glowing **TALK** = ears open.
+
+---# 2026-09-19 Session update (Amy Thunderbird mail)
 
 Latest commit: _(pending)_ — Email defaults to **Thunderbird** (Chris's app). Empty spam opens Thunderbird for Empty Junk after approval. Restart Hands + Amy.
 

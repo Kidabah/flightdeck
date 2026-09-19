@@ -1583,10 +1583,20 @@ def transcribe_openai(audio: bytes, *, filename: str = "speech.webm", mime: str 
         raise RuntimeError("Empty audio.")
     base = str(cfg.get("openai_base_url") or "https://api.openai.com/v1").rstrip("/")
     model = str(cfg.get("openai_stt_model") or "whisper-1").strip() or "whisper-1"
+    prompt = str(
+        cfg.get("openai_stt_prompt")
+        or (
+            "Australian English. Chris talking to Amy. Common phrases: wake up Amy, "
+            "bedtime, goodnight, open Thunderbird, go small, 3D print mode, Flightdeck, "
+            "Desktop, Downloads, yes delete, empty spam."
+        )
+    ).strip()
     boundary = f"----AmySTT{int(time.time() * 1000)}"
     disposition = f'form-data; name="file"; filename="{filename}"'
     parts = [
         f"--{boundary}\r\nContent-Disposition: form-data; name=\"model\"\r\n\r\n{model}\r\n".encode(),
+        f"--{boundary}\r\nContent-Disposition: form-data; name=\"language\"\r\n\r\nen\r\n".encode(),
+        f"--{boundary}\r\nContent-Disposition: form-data; name=\"prompt\"\r\n\r\n{prompt}\r\n".encode(),
         (
             f"--{boundary}\r\nContent-Disposition: {disposition}\r\n"
             f"Content-Type: {mime}\r\n\r\n"
