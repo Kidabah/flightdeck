@@ -175,55 +175,44 @@ def _open_chrome_app(url: str) -> bool:
 
 
 def _patch_webview2_auto_media() -> None:
-    """Make WebView2 auto-accept mic/camera (Chromium fake UI) before the control starts."""
+    """Inject Chromium flags so WebView2 never shows mic/camera allow dialogs."""
     try:
+        import inspect
+        import textwrap
+
         import webview.platforms.edgechromium as ec  # type: ignore
     except Exception as exc:
         print(f"[amy-desktop] edgechromium patch skipped: {exc}", file=sys.stderr)
         return
     if getattr(ec.EdgeChrome, "_amy_media_patched", False):
         return
-    orig = ec.EdgeChrome.__init__
-
-    def __init__(self, form, window, cache_dir):  # type: ignore[no-untyped-def]
-        try:
-            from Microsoft.Web.WebView2.WinForms import WebView2  # type: ignore
-
-            ensure = WebView2.EnsureCoreWebView2Async
-
-            def ensure_patched(ctrl, env=None):  # type: ignore[no-untyped-def]
-                try:
-                    props = ctrl.CreationProperties
-                    if props is not None:
-                        args = str(getattr(props, "AdditionalBrowserArguments", "") or "")
-                        for flag in (
-                            "--use-fake-ui-for-media-stream",
-                            "--autoplay-policy=no-user-gesture-required",
-                        ):
-                            if flag not in args:
-                                args = f"{args} {flag}".strip()
-                        props.AdditionalBrowserArguments = args
-                        ctrl.CreationProperties = props
-                except Exception as exc:
-                    print(f"[amy-desktop] media-arg inject failed: {exc}", file=sys.stderr)
-                return ensure(ctrl) if env is None else ensure(ctrl, env)
-
-            WebView2.EnsureCoreWebView2Async = ensure_patched  # type: ignore[method-assign]
-            try:
-                orig(self, form, window, cache_dir)
-            finally:
-                WebView2.EnsureCoreWebView2Async = ensure  # type: ignore[method-assign]
-        except Exception as exc:
-            print(f"[amy-desktop] EnsureCoreWebView2 patch failed ({exc}); raw init", file=sys.stderr)
-            orig(self, form, window, cache_dir)
-
-    ec.EdgeChrome.__init__ = __init__  # type: ignore[method-assign]
-    ec.EdgeChrome._amy_media_patched = True  # type: ignore[attr-defined]
-    print("[amy-desktop] WebView2 will auto-accept mic/camera")
+    try:
+        src = textwrap.dedent(inspect.getsource(ec.EdgeChrome.__init__))
+        old = "props.AdditionalBrowserArguments = '--disable-features=ElasticOverscroll'"
+        new = (
+            "props.AdditionalBrowserArguments = ("
+            "'--disable-features=ElasticOverscroll "
+            "--use-fake-ui-for-media-stream "
+            "--autoplay-policy=no-user-gesture-required'"
+            ")"
+        )
+        if old not in src:
+            print("[amy-desktop] warning: could not locate browser-args line to patch", file=sys.stderr)
+            return
+        src = src.replace(old, new, 1)
+        # Strip the `def __init__...` so exec can bind a function
+        ns: dict = {}
+        # Build a closure namespace from the edgechromium module dict
+        exec(compile(src, "<amy-edgechromium-init>", "exec"), ec.__dict__, ns)
+        ec.EdgeChrome.__init__ = ns["__init__"]  # type: ignore[method-assign]
+        ec.EdgeChrome._amy_media_patched = True  # type: ignore[attr-defined]
+        print("[amy-desktop] WebView2 mic/camera auto-accept flags injected")
+    except Exception as exc:
+        print(f"[amy-desktop] browser-args patch failed: {exc}", file=sys.stderr)
 
 
 def _install_auto_media_permissions(window) -> None:
-    """Also handle PermissionRequested on the UI thread (belt + braces)."""
+    """PermissionRequested handler — backup if Chromium flags are ignored."""
 
     def attach() -> None:
         try:
@@ -235,52 +224,36 @@ def _install_auto_media_permissions(window) -> None:
 
             def hook() -> None:
                 core = getattr(wv, "CoreWebView2", None)
-                if core is None:
-                    return
-                if getattr(window, "_amy_perm_hooked", False):
+                if core is None or getattr(window, "_amy_perm_hooked", False):
                     return
 
                 def on_permission(_sender, args) -> None:  # noqa: ANN001
+                    deferral = None
                     try:
-                        kind = str(getattr(args, "PermissionKind", ""))
-                        media = any(
-                            token in kind
-                            for token in ("Microphone", "Camera", "Media")
-                        )
-                        if not media:
-                            return
-                        args.State = 1  # Allow
-                        args.Handled = True
                         try:
-                            args.SavesInProfile = True
+                            deferral = args.GetDeferral()
                         except Exception:
-                            pass
-                    except Exception:
-                        pass
-
-                core.PermissionRequested += on_permission
-                # Pre-grant for this origin when API exists
-                try:
-                    profile = getattr(core, "Profile", None)
-                    if profile is not None and hasattr(profile, "SetPermissionState"):
-                        origin = "http://127.0.0.1:4700/"
-                        for kind_name in ("Microphone", "Camera"):
+                            deferral = None
+                        kind = str(getattr(args, "PermissionKind", ""))
+                        if any(tok in kind for tok in ("Microphone", "Camera", "Media")):
+                            args.State = 1  # Allow
+                            args.Handled = True
                             try:
-                                kind = getattr(
-                                    __import__(
-                                        "Microsoft.Web.WebView2.Core",
-                                        fromlist=["CoreWebView2PermissionKind"],
-                                    ).CoreWebView2PermissionKind,
-                                    kind_name,
-                                )
-                                allow = 1
-                                profile.SetPermissionState(kind, origin, allow)
+                                args.SavesInProfile = True
                             except Exception:
                                 pass
-                except Exception:
-                    pass
+                    except Exception:
+                        pass
+                    finally:
+                        if deferral is not None:
+                            try:
+                                deferral.Complete()
+                            except Exception:
+                                pass
+
+                core.PermissionRequested += on_permission
                 window._amy_perm_hooked = True  # type: ignore[attr-defined]
-                print("[amy-desktop] WebView2 PermissionRequested auto-allow ready")
+                print("[amy-desktop] PermissionRequested auto-allow ready")
 
             try:
                 from System import Action  # type: ignore
@@ -294,11 +267,7 @@ def _install_auto_media_permissions(window) -> None:
     try:
         window.events.loaded += lambda: attach()
     except Exception:
-        def delayed() -> None:
-            time.sleep(1.0)
-            attach()
-
-        threading.Thread(target=delayed, daemon=True, name="amy-perm").start()
+        threading.Thread(target=lambda: (time.sleep(1.0), attach()), daemon=True).start()
 
 
 def main() -> int:
