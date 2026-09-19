@@ -735,17 +735,21 @@ function isRestorePhrase(t) {
 function isMuteMicPhrase(t) {
   const s = normalizeAmyCmd(t);
   if (!s) return false;
-  // Bare "mute" = Spotify (server). Mic mute needs mic/listen wording.
-  return /^(amy[, ]+)?(please[, ]+)?(mute( your| the)? (mic|microphone)|stop listening|mic off|microphone off|go deaf|deaf mode)(,?\s*please)?$/i.test(s)
-    || /\bmute\s+(your\s+)?(mic|microphone)\b/i.test(s)
+  // Bare "mute" alone = Spotify (server). "Mute yourself" / mic wording = Amy's ears off.
+  return /^(amy[, ]+)?(please[, ]+)?(mute( your| the)? (mic|microphone|ears)|mute yourself|mute you|mute amy|stop listening|mic off|microphone off|go deaf|deaf mode)(,?\s*please)?$/i.test(s)
+    || /^(can you|could you) (please )?mute (yourself|your mic|your microphone|amy)\b/i.test(s)
+    || /\bmute\s+(your\s+)?(mic|microphone|ears|yourself)\b/i.test(s)
+    || /\bmute\s+(you|amy)\b/i.test(s)
     || /\b(stop listening|mic off|go deaf)\b/i.test(s);
 }
 
 function isUnmuteMicPhrase(t) {
   const s = normalizeAmyCmd(t);
   if (!s) return false;
-  return /^(amy[, ]+)?(please[, ]+)?(unmute( your| the)?( mic| microphone)?|start listening|listen again|mic on|microphone on|hear me)(,?\s*please)?$/i.test(s)
-    || /\bunmute\s+(your\s+)?(mic|microphone)\b/i.test(s)
+  return /^(amy[, ]+)?(please[, ]+)?(unmute( your| the)?( mic| microphone| ears)?|unmute yourself|unmute you|unmute amy|start listening|listen again|mic on|microphone on|hear me)(,?\s*please)?$/i.test(s)
+    || /^(can you|could you) (please )?unmute (yourself|your mic|amy)\b/i.test(s)
+    || /\bunmute\s+(your\s+)?(mic|microphone|ears|yourself)\b/i.test(s)
+    || /\bunmute\s+(you|amy)\b/i.test(s)
     || /\b(start listening|mic on|hear me)\b/i.test(s);
 }
 
@@ -1253,6 +1257,7 @@ async function ask(question) {
     return;
   }
   if (isMuteMicPhrase(q) && !pendingFiles.length) {
+    stopSpeaking();
     muteMic();
     answerEl.textContent = 'Mic muted. Say unmute or hit MIC when you want me.';
     return;

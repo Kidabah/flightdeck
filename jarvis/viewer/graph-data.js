@@ -33,7 +33,7 @@ const GRAPH = {
       "label": "amy prompts",
       "group": "workshop",
       "path": "workshop/amy-prompts.md",
-      "excerpt": "# Amy smart prompts (cheat sheet) Talk to Amy in normal English — this list is just reminders of what she can do. Chris = you; Amy = workshop co-pilot / PC navigator. Deeper Flightdeck coding stays with Cursor when needed. ## Talk & listen (desktop app) - “Hey Amy…” / just talk after enabling the mic - **STOP** button, or say **stop** / **wait** / **hang on** while she talks - **MUTE** button, or say **mute your mic** / **stop listening** (say **unmute** / **listen again** to come back) - **“Go small”** / **FOCUS** — compact face + chat; mic stays on. **“Go big”** / **go large** to expand - **Always on top** until you say **minimise** (then **come back**) - Your words show in the Talk box;…"
+      "excerpt": "# Amy smart prompts (cheat sheet) Talk to Amy in normal English — this list is just reminders of what she can do. Chris = you; Amy = workshop co-pilot / PC navigator. Deeper Flightdeck coding stays with Cursor when needed. ## Talk & listen (desktop app) - “Hey Amy…” / just talk after enabling the mic - **STOP** button, or say **stop** / **wait** / **hang on** while she talks - **MUTE** / **MIC** button, or say **mute yourself** / **mute your mic** / **stop listening** - Say **unmute** / **unmute yourself** / **listen again** to come back - Bare **“mute”** (no “yourself/mic”) ducks **Spotify**, not Amy’s ears - **“Go small”** / **FOCUS** — compact face + chat; mic stays on. **“Go big”** / **…"
     },
     {
       "id": 5,
