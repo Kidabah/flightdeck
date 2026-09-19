@@ -38,6 +38,13 @@ Hands can also (no arbitrary shell):
 | Minimise Spotify | `minimize_window` |
 | Minimise everything | `minimize_all_windows` |
 | Bring Spotify back | `restore_window` |
+| Make a folder on Desktop | `create_folder` |
+| Copy / move a file | `copy_path` / `move_path` |
+| Delete (asks first) | `delete_path` + confirm |
+| Open email | `open_email` |
+| Empty spam (asks first) | `empty_email_spam` + confirm |
+
+File ops stay inside configured **roots** (Desktop / Documents / Downloads / flightdeck by default).
 
 **Random album** → Cindy Vinyl (`/api/random-album`), not Spotify Hands.
 

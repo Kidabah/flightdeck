@@ -67,11 +67,17 @@ try:
     from desktop_actions import (
         app_audio as _app_audio,
         close_window as _close_window,
+        copy_path as _copy_path,
+        create_folder as _create_folder,
+        delete_path as _delete_path,
+        empty_email_spam as _empty_email_spam,
         launch_app as _launch_app,
         list_apps as _list_apps,
         media_control as _media_control,
         minimize_all_windows as _minimize_all_windows,
         minimize_window as _minimize_window,
+        move_path as _move_path,
+        open_email as _open_email,
         open_file as _open_file,
         open_file_explorer as _open_file_explorer,
         open_file_with as _open_file_with,
@@ -82,11 +88,17 @@ except ImportError:  # pragma: no cover
     from jarvis.amy_hands.desktop_actions import (  # type: ignore
         app_audio as _app_audio,
         close_window as _close_window,
+        copy_path as _copy_path,
+        create_folder as _create_folder,
+        delete_path as _delete_path,
+        empty_email_spam as _empty_email_spam,
         launch_app as _launch_app,
         list_apps as _list_apps,
         media_control as _media_control,
         minimize_all_windows as _minimize_all_windows,
         minimize_window as _minimize_window,
+        move_path as _move_path,
+        open_email as _open_email,
         open_file as _open_file,
         open_file_explorer as _open_file_explorer,
         open_file_with as _open_file_with,
@@ -295,6 +307,59 @@ class Handler(BaseHTTPRequestHandler):
                 cfg=CFG,
             )
             self._json(200 if result.get("ok") else 400, result)
+            return
+
+        if path in ("/file/mkdir", "/folder/create", "/create_folder"):
+            result = _create_folder(
+                str(body.get("parent") or body.get("path") or body.get("folder") or ""),
+                str(body.get("name") or body.get("folder_name") or ""),
+                cfg=CFG,
+            )
+            self._json(200 if result.get("ok") else 400, result)
+            return
+
+        if path in ("/file/copy", "/copy_path"):
+            result = _copy_path(
+                str(body.get("src") or body.get("source") or body.get("path") or ""),
+                str(body.get("dest") or body.get("destination") or body.get("to") or ""),
+                cfg=CFG,
+            )
+            self._json(200 if result.get("ok") else 400, result)
+            return
+
+        if path in ("/file/move", "/move_path", "/file/cut"):
+            result = _move_path(
+                str(body.get("src") or body.get("source") or body.get("path") or ""),
+                str(body.get("dest") or body.get("destination") or body.get("to") or ""),
+                cfg=CFG,
+            )
+            self._json(200 if result.get("ok") else 400, result)
+            return
+
+        if path in ("/file/delete", "/delete_path"):
+            result = _delete_path(
+                str(body.get("path") or body.get("file") or body.get("folder") or ""),
+                confirm=bool(body.get("confirm") or body.get("approved") or body.get("yes")),
+                cfg=CFG,
+            )
+            # needs_confirm is a soft refusal — still 200 so Amy can ask
+            code = 200 if result.get("ok") or result.get("needs_confirm") else 400
+            self._json(code, result)
+            return
+
+        if path in ("/email/open", "/open_email"):
+            result = _open_email(str(body.get("provider") or body.get("app") or "auto"), cfg=CFG)
+            self._json(200 if result.get("ok") else 400, result)
+            return
+
+        if path in ("/email/empty_spam", "/empty_spam"):
+            result = _empty_email_spam(
+                confirm=bool(body.get("confirm") or body.get("approved") or body.get("yes")),
+                provider=str(body.get("provider") or body.get("app") or "auto"),
+                cfg=CFG,
+            )
+            code = 200 if result.get("ok") or result.get("needs_confirm") else 400
+            self._json(code, result)
             return
 
         if path in ("/app/launch", "/launch_app"):

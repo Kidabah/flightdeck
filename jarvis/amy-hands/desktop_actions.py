@@ -105,6 +105,24 @@ DEFAULT_APPS: dict[str, dict[str, Any]] = {
             str(Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Cursor" / "Cursor.exe"),
         ],
     },
+    "outlook": {
+        "label": "Outlook",
+        "process": ["OUTLOOK.EXE"],
+        "exe": [
+            str(Path(os.environ.get("PROGRAMFILES", r"C:\Program Files")) / "Microsoft Office" / "root" / "Office16" / "OUTLOOK.EXE"),
+            str(Path(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)")) / "Microsoft Office" / "root" / "Office16" / "OUTLOOK.EXE"),
+        ],
+        "uri": "outlookmail:",
+    },
+    "mail": {
+        "label": "Mail",
+        "uri": "mailto:",
+        "process": ["HxOutlook.exe", "MailClient.exe"],
+    },
+    "gmail": {
+        "label": "Gmail",
+        "uri": "https://mail.google.com/",
+    },
 }
 
 # Refuse closing / bulk-minimising these window-title patterns.
@@ -312,6 +330,278 @@ def open_file_with(path: str, app: str, *, cfg: dict[str, Any] | None = None) ->
             return {"ok": True, "path": text, "app": label, "via": exe_s}
         # URI apps can't open arbitrary files cleanly.
         return {"ok": False, "detail": f"{label} has no executable for open-with"}
+    except Exception as exc:
+        return {"ok": False, "detail": str(exc)}
+
+
+def _roots_from_cfg(cfg: dict[str, Any] | None) -> list[Path]:
+    roots: list[Path] = []
+    for raw in (cfg or {}).get("roots") or []:
+        try:
+            roots.append(Path(str(raw)).expanduser().resolve())
+        except OSError:
+            continue
+    if not roots:
+        home = Path.home()
+        roots = [home / "Desktop", home / "Documents", home / "Downloads"]
+    return roots
+
+
+def path_allowed(path: str, *, cfg: dict[str, Any] | None = None, must_exist: bool = False) -> dict[str, Any]:
+    """Only allow file ops inside configured Hands roots."""
+    norm = normalize_local_path(path)
+    if not norm.get("ok"):
+        return norm
+    text = str(norm["path"])
+    try:
+        target = Path(text).resolve()
+    except OSError as exc:
+        return {"ok": False, "detail": f"bad path: {exc}"}
+    if must_exist and not target.exists():
+        return {"ok": False, "detail": f"path not found: {text}"}
+    roots = _roots_from_cfg(cfg)
+    for root in roots:
+        try:
+            target.relative_to(root)
+            return {"ok": True, "path": str(target), "root": str(root)}
+        except ValueError:
+            continue
+    return {
+        "ok": False,
+        "detail": f"path outside allowlisted roots. Allowed: {', '.join(str(r) for r in roots)}",
+    }
+
+
+def _is_protected_path(target: Path, cfg: dict[str, Any] | None = None) -> bool:
+    """Refuse deleting/moving the root folders themselves or system-ish paths."""
+    try:
+        resolved = target.resolve()
+    except OSError:
+        return True
+    roots = {r.resolve() for r in _roots_from_cfg(cfg)}
+    if resolved in roots:
+        return True
+    low = str(resolved).lower()
+    blocked = ("\\windows\\", "\\program files", "\\program files (x86)", "\\$recycle.bin")
+    return any(b in low for b in blocked)
+
+
+def resolve_friendly_dir(place: str, *, cfg: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Map 'desktop' / 'downloads' / full paths to an allowed folder."""
+    raw = str(place or "").strip().strip('"').strip("'")
+    if not raw:
+        return {"ok": False, "detail": "folder required"}
+    key = re.sub(r"\s+", " ", raw.lower())
+    home = Path.home()
+    aliases = {
+        "desktop": home / "Desktop",
+        "my desktop": home / "Desktop",
+        "downloads": home / "Downloads",
+        "download": home / "Downloads",
+        "documents": home / "Documents",
+        "docs": home / "Documents",
+        "flightdeck": home / "flightdeck",
+    }
+    if key in aliases:
+        return path_allowed(str(aliases[key]), cfg=cfg, must_exist=True)
+    # "X on desktop"
+    m = re.match(r"^(.+?)\s+on\s+(my\s+)?desktop$", key)
+    if m:
+        name = m.group(1).strip()
+        return path_allowed(str(home / "Desktop" / name), cfg=cfg, must_exist=False)
+    return path_allowed(raw, cfg=cfg, must_exist=False)
+
+
+def create_folder(parent: str, name: str, *, cfg: dict[str, Any] | None = None) -> dict[str, Any]:
+    parent_hit = resolve_friendly_dir(parent, cfg=cfg)
+    if not parent_hit.get("ok"):
+        return parent_hit
+    folder_name = str(name or "").strip().strip("\\/")
+    if not folder_name or any(ch in folder_name for ch in '<>:"|?*\n\r\0'):
+        return {"ok": False, "detail": "invalid folder name"}
+    if ".." in folder_name.split("\\") or ".." in folder_name.split("/"):
+        return {"ok": False, "detail": "invalid folder name"}
+    dest = Path(str(parent_hit["path"])) / folder_name
+    check = path_allowed(str(dest), cfg=cfg, must_exist=False)
+    if not check.get("ok"):
+        return check
+    try:
+        dest.mkdir(parents=False, exist_ok=False)
+    except FileExistsError:
+        return {"ok": False, "detail": f"already exists: {dest}"}
+    except OSError as exc:
+        return {"ok": False, "detail": str(exc)}
+    return {"ok": True, "path": str(dest), "action": "create_folder", "reveal": True}
+
+
+def copy_path(src: str, dest_dir: str, *, cfg: dict[str, Any] | None = None) -> dict[str, Any]:
+    import shutil
+
+    src_hit = path_allowed(src, cfg=cfg, must_exist=True)
+    if not src_hit.get("ok"):
+        return src_hit
+    dest_hit = resolve_friendly_dir(dest_dir, cfg=cfg)
+    if not dest_hit.get("ok"):
+        return dest_hit
+    source = Path(str(src_hit["path"]))
+    dest_parent = Path(str(dest_hit["path"]))
+    if not dest_parent.is_dir():
+        return {"ok": False, "detail": f"destination is not a folder: {dest_parent}"}
+    target = dest_parent / source.name
+    if target.exists():
+        return {"ok": False, "detail": f"already exists: {target}"}
+    try:
+        if source.is_dir():
+            shutil.copytree(source, target)
+        else:
+            shutil.copy2(source, target)
+    except OSError as exc:
+        return {"ok": False, "detail": str(exc)}
+    return {"ok": True, "path": str(target), "from": str(source), "action": "copy", "reveal": True}
+
+
+def move_path(src: str, dest_dir: str, *, cfg: dict[str, Any] | None = None) -> dict[str, Any]:
+    import shutil
+
+    src_hit = path_allowed(src, cfg=cfg, must_exist=True)
+    if not src_hit.get("ok"):
+        return src_hit
+    source = Path(str(src_hit["path"]))
+    if _is_protected_path(source, cfg):
+        return {"ok": False, "detail": f"refused to move protected path: {source}"}
+    dest_hit = resolve_friendly_dir(dest_dir, cfg=cfg)
+    if not dest_hit.get("ok"):
+        return dest_hit
+    dest_parent = Path(str(dest_hit["path"]))
+    if not dest_parent.is_dir():
+        return {"ok": False, "detail": f"destination is not a folder: {dest_parent}"}
+    target = dest_parent / source.name
+    if target.exists():
+        return {"ok": False, "detail": f"already exists: {target}"}
+    try:
+        shutil.move(str(source), str(target))
+    except OSError as exc:
+        return {"ok": False, "detail": str(exc)}
+    return {"ok": True, "path": str(target), "from": str(source), "action": "move", "reveal": True}
+
+
+def delete_path(path: str, *, confirm: bool = False, cfg: dict[str, Any] | None = None) -> dict[str, Any]:
+    import shutil
+
+    hit = path_allowed(path, cfg=cfg, must_exist=True)
+    if not hit.get("ok"):
+        return hit
+    target = Path(str(hit["path"]))
+    if _is_protected_path(target, cfg):
+        return {"ok": False, "detail": f"refused to delete protected path: {target}"}
+    if not confirm:
+        kind = "folder" if target.is_dir() else "file"
+        return {
+            "ok": False,
+            "needs_confirm": True,
+            "path": str(target),
+            "detail": (
+                f"Delete needs your OK — say “yes delete” / “approve delete” for this {kind}: {target}"
+            ),
+        }
+    try:
+        if target.is_dir():
+            shutil.rmtree(target)
+        else:
+            target.unlink()
+    except OSError as exc:
+        return {"ok": False, "detail": str(exc)}
+    return {"ok": True, "path": str(target), "action": "delete"}
+
+
+def open_email(provider: str = "auto", *, cfg: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Open Outlook, Windows Mail, or Gmail in Chrome."""
+    key = re.sub(r"\s+", " ", str(provider or "auto").strip().lower())
+    order: list[str]
+    if key in ("outlook", "desktop outlook"):
+        order = ["outlook"]
+    elif key in ("mail", "windows mail"):
+        order = ["mail"]
+    elif key in ("gmail", "google mail", "google"):
+        order = ["gmail", "chrome"]
+    else:
+        order = ["outlook", "gmail", "mail"]
+
+    last_err = "no email app found"
+    for name in order:
+        if name == "gmail":
+            # Prefer Chrome tab for Gmail
+            chrome = resolve_app("chrome", cfg)
+            if chrome.get("ok"):
+                try:
+                    _start_uri("https://mail.google.com/")
+                    return {"ok": True, "app": "Gmail", "via": "https://mail.google.com/", "reveal": True}
+                except Exception as exc:
+                    last_err = str(exc)
+            try:
+                _start_uri("https://mail.google.com/")
+                return {"ok": True, "app": "Gmail", "via": "https://mail.google.com/", "reveal": True}
+            except Exception as exc:
+                last_err = str(exc)
+                continue
+        hit = launch_app(name, cfg=cfg)
+        if hit.get("ok"):
+            hit["reveal"] = True
+            return hit
+        last_err = str(hit.get("detail") or last_err)
+    return {"ok": False, "detail": last_err}
+
+
+def empty_email_spam(*, confirm: bool = False, provider: str = "auto", cfg: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Empty Outlook Junk, or open Gmail Spam for Chris to empty."""
+    if not confirm:
+        return {
+            "ok": False,
+            "needs_confirm": True,
+            "detail": (
+                "Emptying spam needs your OK — say “yes empty spam” / “approve empty spam”. "
+                "Outlook Junk can be cleared automatically; Gmail opens the Spam folder for you."
+            ),
+        }
+
+    key = re.sub(r"\s+", " ", str(provider or "auto").strip().lower())
+    # Try Outlook COM first when requested or auto
+    if key in ("auto", "outlook", "desktop outlook"):
+        try:
+            import win32com.client  # type: ignore
+
+            outlook = win32com.client.Dispatch("Outlook.Application")
+            ns = outlook.GetNamespace("MAPI")
+            junk = ns.GetDefaultFolder(23)  # olFolderJunk
+            count = int(junk.Items.Count)
+            # Delete newest-first-ish by repeatedly removing item 1
+            deleted = 0
+            while junk.Items.Count > 0:
+                junk.Items.Item(1).Delete()
+                deleted += 1
+                if deleted > 5000:
+                    break
+            return {
+                "ok": True,
+                "app": "Outlook",
+                "action": "empty_spam",
+                "deleted": deleted,
+                "had": count,
+            }
+        except Exception as exc:
+            if key == "outlook":
+                return {"ok": False, "detail": f"Outlook spam clear failed: {exc}"}
+
+    # Gmail: open spam folder (Chrome can't click Empty without extension automation)
+    try:
+        _start_uri("https://mail.google.com/mail/u/0/#spam")
+        return {
+            "ok": True,
+            "app": "Gmail",
+            "action": "open_spam",
+            "detail": "Opened Gmail Spam — tap Empty spam in the browser when you’re ready.",
+            "reveal": True,
+        }
     except Exception as exc:
         return {"ok": False, "detail": str(exc)}
 

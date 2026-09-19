@@ -54,7 +54,10 @@ Talk to Amy in normal English — this list is just reminders of what she can do
 - “Open C:” / “Open my Downloads” / “Open that folder on my desktop”
 - When she opens Explorer she **drops always-on-top** so the folder isn’t hiding behind her — say **come back** to float again
 - “Open that file” (after a search hit — give the path if needed)
-- “Open it in Notepad” / VS Code / Cursor (allowlisted apps)
+- “Make a folder called Invoices on my Desktop”
+- “Copy that file to Downloads” / “Move it to Documents”
+- “Delete that folder” → she asks first; say **yes delete** / **approve**
+- “Open my email” / “Empty spam” → spam clear needs **yes empty spam**
 
 ### Chrome tabs (extension loaded)
 - “List my Chrome tabs”

@@ -1,4 +1,8 @@
-## 2026-09-19 Session update (Amy mobile layout)
+## 2026-09-19 Session update (Amy PC file + email tools)
+
+Latest commit: _(pending)_ — Hands can create folders, copy/move files, delete with explicit approval, open email, empty spam with approval (Outlook Junk auto; Gmail opens Spam). Roots only. Restart Hands + Amy. Say **yes delete** / **yes empty spam** to approve.
+
+---# 2026-09-19 Session update (Amy mobile layout)
 
 Latest commit: _(pending)_ — Narrow/phone browser gets a compact chat layout (no galaxy). Open Tailscale HTTPS `:4700` on phone for talk. Hands + framed desktop Amy stay PC-only. Hard refresh on phone.
 

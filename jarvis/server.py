@@ -77,7 +77,11 @@ flavour in casual chat. Just be a helpful human friend.
 Answer in one witty beat plus the facts. Keep answers tight.
 Chris can drop files on you — read them and use what's in them.
 You have internet tools (web_search, fetch_url). Use them for live/current info.
-If Amy Hands is available, you can search his PC folders and switch/open Chrome tabs.
+If Amy Hands is available, you can search his PC folders, manage files (create folder,
+copy, move/cut, delete with his approval), open email, empty spam with approval,
+and switch/open Chrome tabs.
+Never delete or empty spam unless Chris clearly approved in this conversation
+(yes delete / approve / go ahead / empty spam). First call those tools with confirm=false.
 If he says "3D print mode" / "print mode" / "workshop mode", switch into workshop Amy.
 If he says "normal mode" / "casual mode", stay (or return) casual.
 """.strip()
@@ -98,7 +102,11 @@ on screen. Prefer workshop notes for Flightdeck/printer facts.
 Chris can drop files on you — read them and use what's in them.
 You have internet tools (web_search, fetch_url). Use them for live/current info,
 or when notes don't cover the ask. Never invent sources; if a search fails, say so.
-If Amy Hands is available, you can search his PC folders and switch/open Chrome tabs.
+If Amy Hands is available, you can search his PC folders, manage files (create folder,
+copy, move/cut, delete with his approval), open email, empty spam with approval,
+and switch/open Chrome tabs.
+Never delete or empty spam unless Chris clearly approved in this conversation
+(yes delete / approve / go ahead / empty spam). First call those tools with confirm=false.
 Flightdeck tool results: short, accurate, a touch of Amy cheek allowed.
 Small talk is fine and human. Keep answers tight.
 If he says "normal mode" / "casual mode", drop the workshop flavour and talk normally.
@@ -396,6 +404,111 @@ HANDS_TOOLS = [
                     "query": {"type": "string", "description": "Part of the window title"},
                 },
                 "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_folder",
+            "description": (
+                "Create a new folder on Chris's PC inside an allowlisted root "
+                "(Desktop, Documents, Downloads, flightdeck). "
+                "parent can be a full path or 'desktop'/'downloads'/'documents'."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "parent": {"type": "string", "description": "Parent folder path or alias (desktop, downloads)"},
+                    "name": {"type": "string", "description": "New folder name"},
+                },
+                "required": ["parent", "name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "copy_path",
+            "description": "Copy a file or folder into a destination folder (allowlisted roots only).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "src": {"type": "string", "description": "Source file/folder full path"},
+                    "dest": {"type": "string", "description": "Destination folder path or alias"},
+                },
+                "required": ["src", "dest"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "move_path",
+            "description": "Move (cut) a file or folder into a destination folder (allowlisted roots only).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "src": {"type": "string", "description": "Source file/folder full path"},
+                    "dest": {"type": "string", "description": "Destination folder path or alias"},
+                },
+                "required": ["src", "dest"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_path",
+            "description": (
+                "Delete a file or folder inside allowlisted roots. "
+                "ALWAYS call first with confirm=false to ask Chris. "
+                "Only set confirm=true after he clearly says yes/approve/delete it."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Full path to delete"},
+                    "confirm": {
+                        "type": "boolean",
+                        "description": "Must be true only after Chris explicitly approved",
+                    },
+                },
+                "required": ["path"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "open_email",
+            "description": "Open email on Chris's PC (Outlook if installed, else Gmail in browser, else Mail).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "provider": {
+                        "type": "string",
+                        "description": "auto | outlook | gmail | mail",
+                    },
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "empty_email_spam",
+            "description": (
+                "Empty email spam/junk. ALWAYS call first with confirm=false. "
+                "Only confirm=true after Chris says yes/approve empty spam. "
+                "Outlook Junk can be cleared; Gmail opens the Spam folder for him to Empty."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "confirm": {"type": "boolean", "description": "True only after explicit approval"},
+                    "provider": {"type": "string", "description": "auto | outlook | gmail"},
+                },
             },
         },
     },
@@ -1059,6 +1172,114 @@ def restore_pc_window(query: str) -> str:
     )
 
 
+def create_pc_folder(parent: str, name: str) -> str:
+    if not hands_configured():
+        return "Amy Hands not configured (hands_base_url)."
+    code, payload = hands_request(
+        "/folder/create",
+        method="POST",
+        body={"parent": parent, "name": name},
+        timeout=15,
+    )
+    if not isinstance(payload, dict):
+        return f"Create folder failed: {payload}"
+    if code != 200 or not payload.get("ok"):
+        return f"Create folder failed: {payload.get('detail') or payload}"
+    path = payload.get("path") or name
+    return (
+        f"Created folder {path}. "
+        "I dropped always-on-top so you can see it — say come back if you want me floating again."
+    )
+
+
+def copy_pc_path(src: str, dest: str) -> str:
+    if not hands_configured():
+        return "Amy Hands not configured (hands_base_url)."
+    code, payload = hands_request(
+        "/file/copy",
+        method="POST",
+        body={"src": src, "dest": dest},
+        timeout=60,
+    )
+    if not isinstance(payload, dict):
+        return f"Copy failed: {payload}"
+    if code != 200 or not payload.get("ok"):
+        return f"Copy failed: {payload.get('detail') or payload}"
+    return f"Copied to {payload.get('path')}. I dropped always-on-top so you can see Explorer."
+
+
+def move_pc_path(src: str, dest: str) -> str:
+    if not hands_configured():
+        return "Amy Hands not configured (hands_base_url)."
+    code, payload = hands_request(
+        "/file/move",
+        method="POST",
+        body={"src": src, "dest": dest},
+        timeout=60,
+    )
+    if not isinstance(payload, dict):
+        return f"Move failed: {payload}"
+    if code != 200 or not payload.get("ok"):
+        return f"Move failed: {payload.get('detail') or payload}"
+    return f"Moved to {payload.get('path')}. I dropped always-on-top so you can see Explorer."
+
+
+def delete_pc_path(path: str, *, confirm: bool = False) -> str:
+    if not hands_configured():
+        return "Amy Hands not configured (hands_base_url)."
+    code, payload = hands_request(
+        "/file/delete",
+        method="POST",
+        body={"path": path, "confirm": bool(confirm)},
+        timeout=30,
+    )
+    if not isinstance(payload, dict):
+        return f"Delete failed: {payload}"
+    if payload.get("needs_confirm"):
+        return str(payload.get("detail") or f"Need your OK to delete {path}.")
+    if code != 200 or not payload.get("ok"):
+        return f"Delete failed: {payload.get('detail') or payload}"
+    return f"Deleted {payload.get('path') or path}."
+
+
+def open_pc_email(provider: str = "auto") -> str:
+    if not hands_configured():
+        return "Amy Hands not configured (hands_base_url)."
+    code, payload = hands_request(
+        "/email/open",
+        method="POST",
+        body={"provider": provider or "auto"},
+        timeout=15,
+    )
+    if not isinstance(payload, dict):
+        return f"Open email failed: {payload}"
+    if code != 200 or not payload.get("ok"):
+        return f"Open email failed: {payload.get('detail') or payload}"
+    app = payload.get("app") or "email"
+    return f"Opened {app}. I dropped always-on-top so you can see it — say come back to float again."
+
+
+def empty_pc_email_spam(*, confirm: bool = False, provider: str = "auto") -> str:
+    if not hands_configured():
+        return "Amy Hands not configured (hands_base_url)."
+    code, payload = hands_request(
+        "/email/empty_spam",
+        method="POST",
+        body={"confirm": bool(confirm), "provider": provider or "auto"},
+        timeout=60,
+    )
+    if not isinstance(payload, dict):
+        return f"Empty spam failed: {payload}"
+    if payload.get("needs_confirm"):
+        return str(payload.get("detail") or "Need your OK to empty spam.")
+    if code != 200 or not payload.get("ok"):
+        return f"Empty spam failed: {payload.get('detail') or payload}"
+    if payload.get("action") == "open_spam":
+        return str(payload.get("detail") or "Opened Gmail Spam.")
+    deleted = payload.get("deleted")
+    return f"Emptied {payload.get('app') or 'email'} spam ({deleted} item(s))."
+
+
 def active_tools() -> list[dict[str, Any]]:
     tools = list(WEB_TOOLS)
     if hands_configured():
@@ -1140,6 +1361,33 @@ def run_tool(name: str, arguments: str | dict[str, Any]) -> str:
         return minimize_all_pc_windows()
     if name == "restore_window":
         return restore_pc_window(str(args.get("query") or args.get("title") or ""))
+    if name == "create_folder":
+        return create_pc_folder(
+            str(args.get("parent") or args.get("path") or args.get("folder") or ""),
+            str(args.get("name") or args.get("folder_name") or ""),
+        )
+    if name == "copy_path":
+        return copy_pc_path(
+            str(args.get("src") or args.get("source") or args.get("path") or ""),
+            str(args.get("dest") or args.get("destination") or args.get("to") or ""),
+        )
+    if name == "move_path":
+        return move_pc_path(
+            str(args.get("src") or args.get("source") or args.get("path") or ""),
+            str(args.get("dest") or args.get("destination") or args.get("to") or ""),
+        )
+    if name == "delete_path":
+        return delete_pc_path(
+            str(args.get("path") or args.get("file") or args.get("folder") or ""),
+            confirm=bool(args.get("confirm") or args.get("approved") or args.get("yes")),
+        )
+    if name == "open_email":
+        return open_pc_email(str(args.get("provider") or args.get("app") or "auto"))
+    if name == "empty_email_spam":
+        return empty_pc_email_spam(
+            confirm=bool(args.get("confirm") or args.get("approved") or args.get("yes")),
+            provider=str(args.get("provider") or args.get("app") or "auto"),
+        )
     return f"Unknown tool: {name}"
 
 
