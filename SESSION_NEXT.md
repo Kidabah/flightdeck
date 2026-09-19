@@ -1,6 +1,12 @@
+## 2026-09-19 Session update (Amy compact centre)
+
+Latest commit: _(pending)_ ? Compact / ?go small? layout centred: `#hud` was still right-anchored, brand/search still showed. Face + dock now centre in the slim window. Reopen framed Amy (or hard refresh `/?desktop=1`). UI-only; restart optional.
+
+---
+
 ## 2026-09-19 Session update (Amy prompts cheat sheet)
 
-Latest commit: _(pending)_ — Added jarvis/notes/workshop/amy-prompts.md smart-prompts cheat sheet for natural commands (Hands, volume, tabs, allowlist). Rebuild notes index; restart Amy.
+Latest commit: _(pending)_ ? Added jarvis/notes/workshop/amy-prompts.md smart-prompts cheat sheet for natural commands (Hands, volume, tabs, allowlist). Rebuild notes index; restart Amy.
 
 ---
 

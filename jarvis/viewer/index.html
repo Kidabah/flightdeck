@@ -232,37 +232,50 @@
       color: var(--accent);
     }
 
-    /* Compact / "go small" — face + talk dock, mic stays live */
+    /* Compact / "go small" — centred face + talk dock, mic stays live */
     body.compact #graph,
     body.compact #stars,
-    body.compact .brand,
+    body.compact #vignette,
+    body.compact #brand,
+    body.compact #topbar,
+    body.compact #share-dot,
     body.compact .modes,
-    body.compact #side,
-    body.compact #search-wrap { display: none !important; }
+    body.compact .organs,
+    body.compact #side { display: none !important; }
     body.compact {
       display: flex;
       flex-direction: column;
-      align-items: stretch;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 10px 12px 0;
     }
-    body.compact aside#rail,
-    body.compact .face-card {
+    body.compact #hud {
       position: relative;
-      width: 100%;
-      max-width: none;
+      top: auto; right: auto; left: auto;
+      width: min(320px, 100%);
       margin: 0 auto;
-      padding: 12px 12px 0;
+      align-items: center;
     }
-    body.compact .organs { display: none; }
+    body.compact .face-card {
+      width: 100%;
+      padding: 18px 14px 12px;
+    }
     body.compact #dock {
       position: relative;
+      left: auto; right: auto; bottom: auto;
+      transform: none;
       inset: auto;
-      width: 100%;
+      width: min(360px, 100%);
       max-width: none;
-      margin-top: auto;
+      margin: 12px auto 0;
+      padding-bottom: 10px;
       border-radius: 18px 18px 0 0;
     }
-    body.compact .face-wrap { width: min(210px, 56vw); height: min(210px, 56vw); }
-    body.compact #answer { max-height: 28vh; overflow: auto; }
+    body.compact .face-wrap,
+    body.compact .face { width: min(200px, 52vw); height: min(200px, 52vw); }
+    body.compact #answer { max-height: 22vh; overflow: auto; text-align: center; }
+    body.compact #tray { justify-content: center; }
+    body.compact .row { justify-content: center; }
 
     /* Note panel — LEFT side, clear of HUD */
     #side {
