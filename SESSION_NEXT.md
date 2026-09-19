@@ -1,4 +1,8 @@
-﻿## 2026-09-19 Session update (Amy always on top)
+## 2026-09-19 Session update (Amy casual mode + Temora weather)
+
+Latest commit: `d14034e` — Amy defaults to **casual** (normal-person chat, no printer flavour). Say **3D print mode** / **print mode** / **workshop mode** for workshop Amy; **normal mode** / **casual mode** to switch back. Fixed Temora weather: default was `Temora NSW` which Open-Meteo returns zero hits for ("can't find on the map"); also handles "weather like in …". Hardcoded AU towns + AU-prefer geocode. Restart Amy (Pi + local). UI cache-bust N/A (server persona).
+
+---# 2026-09-19 Session update (Amy always on top)
 
 Latest commit: `6bb5407` — Amy stays on top by default; say minimise to drop, come back to restore. go large keeps on top. Compact ring clip padding included. Reopen framed Amy.
 
