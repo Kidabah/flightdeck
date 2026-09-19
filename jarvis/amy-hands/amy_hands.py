@@ -164,7 +164,14 @@ class Handler(BaseHTTPRequestHandler):
     server_version = "AmyHands/1.0"
 
     def log_message(self, fmt: str, *args: Any) -> None:
-        print(f"[hands] {self.address_string()} {fmt % args}")
+        # Chrome extension polls /commands/next constantly — don't flood the console.
+        try:
+            line = fmt % args if args else str(fmt)
+        except Exception:
+            line = str(fmt)
+        if "/commands/next" in line or " /health" in line or line.endswith("/health"):
+            return
+        print(f"[hands] {self.address_string()} {line}")
 
     def _cors(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")

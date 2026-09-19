@@ -564,6 +564,7 @@ let desktopMic = {
   speaking: false,
   silentMs: 0,
   lastVoiceAt: 0,
+  utterStart: 0,
   busy: false,
 };
 
@@ -1614,11 +1615,16 @@ async function transcribeDesktopBlob(blob) {
   const ext = /wav/i.test(mime) ? 'wav' : /mp4|m4a/i.test(mime) ? 'mp4' : /ogg/i.test(mime) ? 'ogg' : 'webm';
   const form = new FormData();
   form.append('file', blob, `speech.${ext}`);
+  const ctrl = new AbortController();
+  const timer = window.setTimeout(() => ctrl.abort(), 25000);
   let r;
   try {
-    r = await fetch(`${location.origin}/stt`, { method: 'POST', body: form });
+    r = await fetch(`${location.origin}/stt`, { method: 'POST', body: form, signal: ctrl.signal });
   } catch (err) {
+    if (err && err.name === 'AbortError') throw new Error('STT timed out (25s) — try again closer to the mic');
     throw new Error(`network (${err && err.message ? err.message : err}) — is Amy still running?`);
+  } finally {
+    clearTimeout(timer);
   }
   let payload = {};
   try { payload = await r.json(); } catch (_) {}
@@ -1635,6 +1641,8 @@ async function flushDesktopUtterance() {
   desktopMic.busy = true;
   const chunks = desktopMic.pcm;
   desktopMic.pcm = [];
+  if (desktopMic._resetPcmCount) desktopMic._resetPcmCount();
+  desktopMic.utterStart = 0;
   const rate = desktopMic.audioCtx?.sampleRate || 48000;
   const blob = encodeWavFromPcm(chunks, rate);
   if (!blob) {
@@ -1688,17 +1696,27 @@ function armDesktopPcmCapture() {
   const proc = ctx.createScriptProcessor(4096, 1, 1);
   const mute = ctx.createGain();
   mute.gain.value = 0;
+  const maxSamples = Math.floor((ctx.sampleRate || 48000) * 12); // hard cap ~12s
+  let sampleCount = 0;
   proc.onaudioprocess = (ev) => {
     if (!wantListen || asleep || micIsDeaf() || desktopMic.busy) return;
     if (!desktopMic.speaking && desktopMic.pcm.length === 0) return;
     const input = ev.inputBuffer.getChannelData(0);
     desktopMic.pcm.push(new Float32Array(input));
-    // Cap ~20s so we don't balloon memory if silence detect fails
-    let n = 0;
-    for (const c of desktopMic.pcm) n += c.length;
-    const max = (ctx.sampleRate || 48000) * 20;
-    while (n > max && desktopMic.pcm.length > 1) {
-      n -= desktopMic.pcm.shift().length;
+    sampleCount += input.length;
+    // Drop oldest in one pass — avoid O(n²) shift loops that freeze WebView2
+    if (sampleCount > maxSamples) {
+      const keep = [];
+      let kept = 0;
+      for (let i = desktopMic.pcm.length - 1; i >= 0; i--) {
+        const c = desktopMic.pcm[i];
+        if (kept + c.length > maxSamples && keep.length) break;
+        keep.push(c);
+        kept += c.length;
+      }
+      keep.reverse();
+      desktopMic.pcm = keep;
+      sampleCount = kept;
     }
   };
   src.connect(desktopMic.analyser);
@@ -1707,11 +1725,13 @@ function armDesktopPcmCapture() {
   mute.connect(ctx.destination);
   desktopMic.processor = proc;
   desktopMic.muteGain = mute;
+  desktopMic._resetPcmCount = () => { sampleCount = 0; };
 }
 
 function watchDesktopLevels() {
   if (!desktopMic.analyser || !wantListen) return;
   const data = new Uint8Array(desktopMic.analyser.fftSize);
+  const maxUtterMs = 10000; // force flush so music can't hang "Hearing you…"
   const tick = () => {
     if (!wantListen || !desktopMic.analyser) {
       desktopMic.raf = 0;
@@ -1731,20 +1751,28 @@ function watchDesktopLevels() {
       sum += v * v;
     }
     const rms = Math.sqrt(sum / data.length);
-    const thresh = isSpeaking ? 0.065 : 0.038;
+    const thresh = isSpeaking ? 0.065 : 0.042;
     if (rms > thresh) {
-      if (!desktopMic.speaking) desktopMic.pcm = [];
+      if (!desktopMic.speaking) {
+        desktopMic.pcm = [];
+        if (desktopMic._resetPcmCount) desktopMic._resetPcmCount();
+        desktopMic.utterStart = performance.now();
+      }
       desktopMic.speaking = true;
       desktopMic.silentMs = 0;
       desktopMic.lastVoiceAt = performance.now();
     } else if (desktopMic.speaking) {
       desktopMic.silentMs += 50;
       const need = isSpeaking ? 320 : Math.max(700, FINISH_MS - 400);
-      if (desktopMic.silentMs >= need && !desktopMic.busy) {
+      const tooLong = desktopMic.utterStart && (performance.now() - desktopMic.utterStart) > maxUtterMs;
+      if ((desktopMic.silentMs >= need || tooLong) && !desktopMic.busy) {
         desktopMic.speaking = false;
         desktopMic.silentMs = 0;
+        desktopMic.utterStart = 0;
         flushDesktopUtterance();
       }
+    } else {
+      desktopMic.utterStart = 0;
     }
     desktopMic.raf = window.setTimeout(tick, 50);
   };
@@ -1898,7 +1926,7 @@ async function toggleWatch() {
   }
   try {
     shareStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+      video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15, max: 24 } },
       audio: false,
     });
     visionMode = 'watch';
