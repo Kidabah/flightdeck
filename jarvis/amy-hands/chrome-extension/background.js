@@ -1,4 +1,5 @@
 const HANDS = "http://127.0.0.1:4701";
+const POLL_ALARM = "amy-hands-poll";
 
 async function poll() {
   try {
@@ -49,9 +50,30 @@ async function poll() {
       body: JSON.stringify(result),
     });
   } catch (_) {
-    // Hands not running — silent.
+    // Hands companion not running — silent.
   }
 }
 
-setInterval(poll, 800);
+function armAlarm() {
+  chrome.alarms.create(POLL_ALARM, { periodInMinutes: 0.025 }); // ~1.5s (min Chrome allows ~1 min on some builds; 0.025≈1.5s where supported)
+}
+
+chrome.runtime.onInstalled.addListener(() => {
+  armAlarm();
+  poll();
+});
+chrome.runtime.onStartup.addListener(() => {
+  armAlarm();
+  poll();
+});
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === POLL_ALARM) poll();
+});
+// Also poke on click so you can wake it from the toolbar.
+chrome.action.onClicked.addListener(() => {
+  armAlarm();
+  poll();
+});
+
+armAlarm();
 poll();
