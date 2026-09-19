@@ -10,6 +10,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import time
 import urllib.request
 import webbrowser
@@ -173,6 +174,57 @@ def _open_chrome_app(url: str) -> bool:
     return False
 
 
+def _install_auto_media_permissions(window) -> None:
+    """Auto-allow mic/camera prompts in WebView2 for http://127.0.0.1:4700."""
+
+    def worker() -> None:
+        for _ in range(120):  # ~6s
+            try:
+                form = getattr(window, "native", None)
+                browser = getattr(form, "browser", None) if form is not None else None
+                wv = getattr(browser, "webview", None) if browser is not None else None
+                core = getattr(wv, "CoreWebView2", None) if wv is not None else None
+                if core is None:
+                    time.sleep(0.05)
+                    continue
+
+                def on_permission(_sender, args) -> None:  # noqa: ANN001
+                    try:
+                        kind = str(getattr(args, "PermissionKind", ""))
+                        uri = str(getattr(args, "Uri", "") or "")
+                        local = ("127.0.0.1" in uri) or ("localhost" in uri) or (not uri)
+                        media = any(
+                            token in kind
+                            for token in ("Microphone", "Camera", "Media", "Audio", "Video")
+                        )
+                        if local and media:
+                            try:
+                                # Enum value Allow == 1
+                                args.State = 1
+                            except Exception:
+                                pass
+                            try:
+                                args.Handled = True
+                            except Exception:
+                                pass
+                            try:
+                                args.SavesInProfile = True
+                            except Exception:
+                                pass
+                            print(f"[amy-desktop] auto-allowed {kind} for {uri or 'local'}")
+                    except Exception as exc:
+                        print(f"[amy-desktop] permission handler error: {exc}", file=sys.stderr)
+
+                core.PermissionRequested += on_permission
+                print("[amy-desktop] WebView2 mic/camera auto-allow ready")
+                return
+            except Exception:
+                time.sleep(0.05)
+        print("[amy-desktop] warning: could not hook WebView2 permissions", file=sys.stderr)
+
+    threading.Thread(target=worker, daemon=True, name="amy-perm").start()
+
+
 def main() -> int:
     app_data_dir()
     env = _apply_env()
@@ -294,7 +346,7 @@ def main() -> int:
                 return False
 
     api = AmyApi()
-    webview.create_window(
+    window = webview.create_window(
         "Amy - Flightdeck",
         AMY_URL,
         width=1400,
@@ -307,11 +359,18 @@ def main() -> int:
     print(f"[amy-desktop] opening webview {AMY_URL}")
     print("[amy-desktop] mic uses OpenAI Whisper (Google speech is broken in WebView2)")
     print("[amy-desktop] always on top — say 'minimise' to drop, 'come back' to restore")
+    print("[amy-desktop] mic/camera prompts auto-allowed for localhost")
+
+    def _after_gui() -> None:
+        target = window if window is not None else (webview.windows[0] if webview.windows else None)
+        if target is not None:
+            _install_auto_media_permissions(target)
+
     try:
-        webview.start(gui="edgechromium")
+        webview.start(_after_gui, gui="edgechromium")
     except Exception as exc:
         print(f"[amy-desktop] edgechromium failed ({exc}); default gui")
-        webview.start()
+        webview.start(_after_gui)
     finally:
         stop_children()
     print("[amy-desktop] window closed")
