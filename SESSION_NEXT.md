@@ -1,6 +1,6 @@
-## 2026-09-19 Session update (Amy whistle + yawn SFX)
+# 2026-09-19 Session update (Amy whistle + yawn SFX)
 
-Latest commit: _(pending)_ — Real `amy-whistle.wav` / `amy-yawn.wav` in `jarvis/viewer/sounds/`. Whistle/sing plays the melody; ~3 min idle yawns then sleepy nudge; sleep at ~6 min. Reopen Amy / hard refresh. Server serves `.wav`.
+Latest commit: ``11eb282`` — Real `amy-whistle.wav` / `amy-yawn.wav` in `jarvis/viewer/sounds/`. Whistle/sing plays the melody; ~3 min idle yawns then sleepy nudge; sleep at ~6 min. Reopen Amy / hard refresh. Server serves `.wav`.
 
 ---# 2026-09-19 Session update (Explorer behind Amy)
 
