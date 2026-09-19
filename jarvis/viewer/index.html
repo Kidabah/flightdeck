@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#020617" />
   <title>Amy — Flightdeck</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -460,6 +463,54 @@
       letter-spacing: 0.04em;
     }
     body.compact #tray { justify-content: center; }
+
+    /* Phone / narrow browser — chat mate layout (no galaxy chrome) */
+    @media (max-width: 720px) {
+      html, body {
+        overflow: auto;
+        min-height: 100%;
+        min-height: 100dvh;
+      }
+      #graph, #stars, #vignette, #brand, #topbar, #side { display: none !important; }
+      #share-dot {
+        top: auto; bottom: 12px; left: 12px; right: auto;
+        font-size: 0.62rem;
+      }
+      #hud, #dock {
+        position: relative !important;
+        left: auto !important; right: auto !important;
+        top: auto !important; bottom: auto !important;
+        width: min(420px, calc(100vw - 20px)) !important;
+        margin: 12px auto;
+        max-height: none;
+      }
+      #hud { z-index: 9; padding-top: env(safe-area-inset-top, 0); }
+      #dock {
+        z-index: 10;
+        padding-bottom: calc(10px + env(safe-area-inset-bottom, 0));
+      }
+      .face-card { width: 100%; }
+      .modes, .organs {
+        display: grid !important;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+        width: 100%;
+      }
+      .modes button, .organs button { font-size: 0.62rem; padding: 8px 4px; }
+      .row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .row #chat-input {
+        grid-column: 1 / -1;
+        font-size: 16px; /* iOS zoom guard */
+        min-height: 44px;
+      }
+      .row button.tool { min-height: 44px; width: 100%; }
+      #answer { max-height: 28vh; font-size: 0.92rem; }
+      #tray { padding-bottom: 4px; }
+    }
 
     /* Note panel — LEFT side, clear of HUD */
     #side {

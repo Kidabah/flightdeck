@@ -28,6 +28,10 @@ Talk to Amy in normal English — this list is just reminders of what she can do
 - **“Whistle”** / **“sing”** — real whistle melody
 - **“Bedtime”** / **“goodnight”** / **“night night”** — yawn + sleep (wake with **wake up Amy**)
 
+## Phone
+- Open Amy in Safari/Chrome via Tailscale HTTPS (`flightdeck…:4700`) — chat + mic work on a narrow layout
+- Desktop framed Amy + Amy Hands (open folders / Spotify / tabs) stay on the PC
+
 ## See
 
 - **EYES** — share your screen so she can look at it

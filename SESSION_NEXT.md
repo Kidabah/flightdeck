@@ -1,4 +1,8 @@
-## 2026-09-19 Session update (sleep GIF brighter whites)
+## 2026-09-19 Session update (Amy mobile layout)
+
+Latest commit: _(pending)_ — Narrow/phone browser gets a compact chat layout (no galaxy). Open Tailscale HTTPS `:4700` on phone for talk. Hands + framed desktop Amy stay PC-only. Hard refresh on phone.
+
+---# 2026-09-19 Session update (sleep GIF brighter whites)
 
 Latest commit: _(pending)_ — Boosted `Good Night` / Z whites on `amy-sleep.gif`; removed CSS shade over the GIF so text pops. Reopen Amy / say bedtime.
 
