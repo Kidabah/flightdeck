@@ -62,9 +62,10 @@
     #search:focus { border-color: var(--accent); }
 
     #share-dot {
-      display: none; position: absolute; top: 16px; left: 170px; z-index: 8;
+      display: none; position: absolute; top: 68px; left: 16px; z-index: 9;
       background: rgba(127, 29, 29, 0.92); color: #fecaca; border: 1px solid #ef4444;
       border-radius: 999px; padding: 8px 12px; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em;
+      max-width: calc(100vw - 300px); white-space: nowrap;
     }
 
     /* Right HUD column — never overlaps note card */
@@ -1903,6 +1904,7 @@ async function toggleEyes() {
   try {
     shareStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
     visionMode = 'eyes';
+    shareDot.textContent = 'SCREEN SHARE LIVE';
     shareDot.style.display = 'block';
     eyesBtn.classList.add('active');
     shareStream.getVideoTracks()[0].addEventListener('ended', () => { stopVision(); });
@@ -1935,6 +1937,7 @@ async function toggleWatch() {
       audio: false,
     });
     visionMode = 'watch';
+    shareDot.textContent = 'CAMERA LIVE';
     shareDot.style.display = 'block';
     if (watchBtn) watchBtn.classList.add('active');
     shareStream.getVideoTracks()[0].addEventListener('ended', () => { stopVision(); });

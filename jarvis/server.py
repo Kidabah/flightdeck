@@ -1611,8 +1611,136 @@ def try_media_tools(question: str) -> dict[str, Any] | None:
     return None
 
 
+def try_clock_weather(question: str) -> dict[str, Any] | None:
+    """Local clock + Open-Meteo weather — no API key."""
+    q = re.sub(r"[^\w\s'?]", " ", (question or "").lower())
+    q = re.sub(r"\s+", " ", q).strip()
+    if not q:
+        return None
+
+    wants_time = bool(
+        re.search(
+            r"\b(what('?s| is)? the time|what time is it|tell me the time|current time|"
+            r"what('?s| is)? (the )?date|what day is it|today'?s date)\b",
+            q,
+        )
+    )
+    weather_m = re.search(
+        r"\b(?:weather|temperature|forecast|how hot|how cold|is it raining)\b"
+        r"(?:\s+(?:in|for|at|around)\s+([a-z][a-z\s\-']{1,40}))?",
+        q,
+    )
+    wants_weather = bool(weather_m) or bool(
+        re.search(r"\b(weather|forecast)\b", q)
+    )
+
+    if wants_time and not wants_weather:
+        now = datetime.now().astimezone()
+        tz = now.tzname() or "local"
+        clock = now.strftime("%I:%M %p").lstrip("0")
+        answer = f"It's {clock} on {now.strftime('%A')} {now.day} {now.strftime('%B %Y')} ({tz})."
+        return {"answer": answer, "nodes": [], "move_camera": False, "tool": "clock", "ok": True}
+
+    if not wants_weather:
+        return None
+
+    place = ""
+    if weather_m:
+        place = (weather_m.group(1) or "").strip(" ?")
+    if not place:
+        # Default workshop area — Chris is in NSW (Temora / Sydney-ish)
+        place = "Temora NSW"
+
+    try:
+        g_code, g_payload = http_json(
+            "https://geocoding-api.open-meteo.com/v1/search?"
+            + urllib.parse.urlencode({"name": place, "count": 1, "language": "en", "format": "json"}),
+            timeout=8.0,
+        )
+        results = (g_payload or {}).get("results") if isinstance(g_payload, dict) else None
+        if g_code != 200 or not results:
+            return {
+                "answer": f"Couldn't find “{place}” on the map, Chris — try a town name?",
+                "nodes": [],
+                "move_camera": False,
+                "tool": "weather",
+                "ok": False,
+            }
+        hit = results[0]
+        lat = hit.get("latitude")
+        lon = hit.get("longitude")
+        label = ", ".join(
+            str(x) for x in (hit.get("name"), hit.get("admin1"), hit.get("country_code")) if x
+        )
+        w_code, w_payload = http_json(
+            "https://api.open-meteo.com/v1/forecast?"
+            + urllib.parse.urlencode(
+                {
+                    "latitude": lat,
+                    "longitude": lon,
+                    "current": "temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m",
+                    "timezone": "auto",
+                }
+            ),
+            timeout=8.0,
+        )
+        if w_code != 200 or not isinstance(w_payload, dict):
+            return {
+                "answer": f"Weather service blinked for {label}. Try again in a sec.",
+                "nodes": [],
+                "move_camera": False,
+                "tool": "weather",
+                "ok": False,
+            }
+        cur = w_payload.get("current") or {}
+        temp = cur.get("temperature_2m")
+        feel = cur.get("apparent_temperature")
+        wind = cur.get("wind_speed_10m")
+        humidity = cur.get("relative_humidity_2m")
+        code = int(cur.get("weather_code") or 0)
+        sky = {
+            0: "clear",
+            1: "mainly clear",
+            2: "partly cloudy",
+            3: "overcast",
+            45: "foggy",
+            48: "foggy",
+            51: "light drizzle",
+            61: "rain",
+            63: "rain",
+            65: "heavy rain",
+            71: "snow",
+            80: "showers",
+            95: "thunderstorms",
+        }.get(code, f"code {code}")
+        bits = [f"{label}: {sky}"]
+        if temp is not None:
+            bits.append(f"{temp}°C")
+        if feel is not None and feel != temp:
+            bits.append(f"feels like {feel}°C")
+        if wind is not None:
+            bits.append(f"wind {wind} km/h")
+        if humidity is not None:
+            bits.append(f"humidity {humidity}%")
+        answer = " — ".join(bits[:2])
+        if len(bits) > 2:
+            answer += " (" + ", ".join(bits[2:]) + ")"
+        if wants_time:
+            now = datetime.now().astimezone()
+            answer += f". Local clock here: {now.strftime('%I:%M %p').lstrip('0')}."
+        return {"answer": answer, "nodes": [], "move_camera": False, "tool": "weather", "ok": True}
+    except Exception as exc:
+        return {
+            "answer": f"Weather lookup failed ({exc}).",
+            "nodes": [],
+            "move_camera": False,
+            "tool": "weather",
+            "ok": False,
+        }
+
+
 def try_tools(question: str) -> dict[str, Any] | None:
-    for fn in (try_media_tools, tool_calibrate, tool_control, tool_status):
+    for fn in (try_clock_weather, try_media_tools, tool_calibrate, tool_control, tool_status):
         result = fn(question)
         if result is not None:
             return result

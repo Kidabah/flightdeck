@@ -2,6 +2,11 @@
 
 Talk to Amy in normal English — this list is just reminders of what she can do. Chris = you; Amy = workshop co-pilot / PC navigator. Deeper Flightdeck coding stays with Cursor when needed.
 
+## Time & weather
+- “What time is it?” / “What’s the date?”
+- “What’s the weather in Temora?” / “Weather in Sydney”
+- Default place if you just say “weather” → Temora NSW
+
 ## Talk & listen (desktop app)
 
 - “Hey Amy…” / just talk after enabling the mic
