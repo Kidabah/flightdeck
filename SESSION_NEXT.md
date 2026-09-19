@@ -1,8 +1,15 @@
-## 2026-09-19 Session update (Amy Whisper STT harden)
+## 2026-09-19 Session update (Amy Whisper WAV PCM)
 
-Latest commit: _(pending)_ ? Desktop mic posts multipart `/stt` (FormData) instead of huge JSON base64; server accepts multipart + JSON. Fixes ?Failed to fetch? when an old Amy process lacked `/stt`. Restart local Amy + hard refresh / reopen `/?desktop=1`. Pi: pull + `systemctl restart flightdeck.service` (or jarvis unit).
+Latest commit: _(pending)_ ? Desktop mic captures PCM via ScriptProcessor, wraps as WAV, and posts multipart `/stt`. Server normalizes mime + detects RIFF/WAV so Whisper no longer gets invalid MediaRecorder webm. Restart local Amy + reopen `/?desktop=1`. Pi: pull + restart.
 
 ---
+
+## 2026-09-19 Session update (Amy Whisper STT harden)
+
+Latest commit: `61635b1` ? Desktop mic posts multipart `/stt` (FormData); server accepts multipart + JSON. Restart local Amy + reopen `/?desktop=1`.
+
+---
+
 ## 2026-09-19 Session update (Amy desktop Whisper mic)
 
 Latest commit: `cffe1dc` ? Real pywebview Amy app uses OpenAI Whisper STT (/?desktop=1) because WebView2 can't run Google SpeechRecognition. Nova TTS still on. `.\start-amy-desktop.ps1` opens the framed app; `--chrome` fallback remains.

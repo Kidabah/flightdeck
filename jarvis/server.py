@@ -1313,7 +1313,10 @@ class Handler(BaseHTTPRequestHandler):
                 if name in ("file", "audio", "data"):
                     payload = part.get_payload(decode=True) or b""
                     mime = part.get_content_type() or "audio/webm"
-                    return payload, mime
+                    fname = part.get_filename() or ""
+                    if fname.lower().endswith(".wav") or payload[:4] == b"RIFF":
+                        mime = "audio/wav"
+                    return payload, mime.split(";")[0].strip()
             raise ValueError("multipart audio field missing")
         body = self._read_json()
         raw_b64 = str(body.get("audio") or body.get("data") or "").strip()
@@ -1429,6 +1432,11 @@ class Handler(BaseHTTPRequestHandler):
                     ext = "ogg"
                 elif "mpeg" in mime or "mp3" in mime:
                     ext = "mp3"
+                # OpenAI is picky about Content-Type params (e.g. codecs=opus) and
+                # Edge MediaRecorder webm — client now prefers WAV; normalize mime anyway.
+                mime = (mime or "audio/webm").split(";")[0].strip() or "audio/webm"
+                if ext == "wav":
+                    mime = "audio/wav"
                 text = transcribe_openai(audio, filename=f"speech.{ext}", mime=mime)
                 self._json(200, {"ok": True, "text": text})
             except ValueError as exc:
