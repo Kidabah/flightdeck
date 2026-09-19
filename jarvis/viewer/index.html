@@ -811,9 +811,14 @@ async function speakLaura(text) {
   const blob = await r.blob();
   if (gen !== speakGen) return;
   const url = URL.createObjectURL(blob);
-  stopSpeaking();
-  // stopSpeaking bumped speakGen — restore this utterance's gen token
-  const playGen = speakGen;
+  // Clear any prior clip without bumping speakGen (that would cancel THIS utterance).
+  const prev = amyAudio;
+  amyAudio = null;
+  if (prev) {
+    try { prev.onended = null; prev.onerror = null; } catch (_) {}
+    try { prev.pause(); } catch (_) {}
+  }
+  const playGen = gen;
   amyAudio = new Audio(url);
   await new Promise((resolve) => {
     const finish = () => {
@@ -1369,26 +1374,31 @@ async function flushDesktopUtterance() {
     return;
   }
   if (!bargeIn) setStatus('thinking', 'Hearing you…');
+  let text = '';
   try {
-    const text = await transcribeDesktopBlob(blob);
-    if (!text || !wantListen || asleep) {
-      if (wantListen && !asleep && !isSpeaking) setStatus('listening', 'Listening · Whisper');
-      return;
-    }
-    // While Amy talks, only honour stop / wait / hang on — ignore everything else (incl. her own voice).
-    if (bargeIn || isSpeaking) {
-      if (isInterrupt(text) || looksLikeInterrupt(text)) handleInterrupt();
-      return;
-    }
-    bumpIdle();
-    await ask(text);
+    text = await transcribeDesktopBlob(blob);
   } catch (err) {
+    desktopMic.busy = false;
     if (!bargeIn) {
       answerEl.textContent = `Desktop mic STT failed (${err.message || err}). Typing still works.`;
       setStatus(wantListen ? 'listening' : 'idle', wantListen ? 'Listening · Whisper' : 'Mic error');
     }
+    return;
+  }
+  // Release BEFORE ask/speak so voice STOP can fire while Laura talks.
+  desktopMic.busy = false;
+  if (!text || !wantListen || asleep) {
+    if (wantListen && !asleep && !isSpeaking) setStatus('listening', 'Listening · Whisper');
+    return;
+  }
+  if (bargeIn || isSpeaking) {
+    if (isInterrupt(text) || looksLikeInterrupt(text)) handleInterrupt();
+    return;
+  }
+  bumpIdle();
+  try {
+    await ask(text);
   } finally {
-    desktopMic.busy = false;
     if (wantListen && !asleep && !isSpeaking) {
       if (statusEl.dataset.mode !== 'thinking' && statusEl.dataset.mode !== 'speaking') {
         setStatus('listening', 'Listening · Whisper');
@@ -1448,8 +1458,7 @@ function watchDesktopLevels() {
       sum += v * v;
     }
     const rms = Math.sqrt(sum / data.length);
-    // Slightly higher threshold while she talks so her own voice doesn’t trip barge-in.
-    const thresh = isSpeaking ? 0.07 : 0.04;
+    const thresh = isSpeaking ? 0.065 : 0.038;
     if (rms > thresh) {
       if (!desktopMic.speaking) desktopMic.pcm = [];
       desktopMic.speaking = true;
@@ -1457,7 +1466,7 @@ function watchDesktopLevels() {
       desktopMic.lastVoiceAt = performance.now();
     } else if (desktopMic.speaking) {
       desktopMic.silentMs += 50;
-      const need = isSpeaking ? 450 : Math.max(700, FINISH_MS - 400);
+      const need = isSpeaking ? 320 : Math.max(700, FINISH_MS - 400);
       if (desktopMic.silentMs >= need && !desktopMic.busy) {
         desktopMic.speaking = false;
         desktopMic.silentMs = 0;
@@ -1611,10 +1620,15 @@ function applyViewMode(mode) {
 
 micBtn.addEventListener('click', toggleMic);
 document.getElementById('tray-mic').addEventListener('click', toggleMic);
-if (stopBtn) stopBtn.addEventListener('click', () => {
-  unlockedAudio = true;
-  handleInterrupt();
-});
+if (stopBtn) {
+  const stopNow = (e) => {
+    e.preventDefault();
+    unlockedAudio = true;
+    handleInterrupt();
+  };
+  stopBtn.addEventListener('pointerdown', stopNow);
+  stopBtn.addEventListener('click', stopNow);
+}
 sendBtn.addEventListener('click', submitChat);
 fileBtn.addEventListener('click', () => fileInput.click());
 document.getElementById('tray-file').addEventListener('click', () => fileInput.click());

@@ -160,6 +160,26 @@ HANDS_TOOLS = [
             "parameters": {"type": "object", "properties": {}},
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "open_file_explorer",
+            "description": (
+                "Open Windows File Explorer on Chris's PC at a local folder or drive "
+                "(e.g. C:\\, D:\\, or C:\\Users\\Kidabah\\Downloads). "
+                "Use when Chris asks to open a folder, drive, or File Explorer."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Local Windows path. Defaults to C:\\ if omitted.",
+                    },
+                },
+            },
+        },
+    },
 ]
 
 TEXT_SUFFIXES = {
@@ -598,6 +618,22 @@ def list_browser_tabs() -> str:
     return "Chrome tabs:\n" + "\n".join(lines)
 
 
+def open_file_explorer(path: str = "") -> str:
+    if not hands_configured():
+        return "Amy Hands not configured (hands_base_url)."
+    code, payload = hands_request(
+        "/explorer/open",
+        method="POST",
+        body={"path": path or "C:\\"},
+        timeout=10,
+    )
+    if not isinstance(payload, dict):
+        return f"Couldn’t open Explorer: {payload}"
+    if code != 200 or not payload.get("ok"):
+        return f"Explorer open failed: {payload.get('detail') or payload}"
+    return f"Opened File Explorer at {payload.get('path') or path or 'C:\\\\'}"
+
+
 def active_tools() -> list[dict[str, Any]]:
     tools = list(WEB_TOOLS)
     if hands_configured():
@@ -622,6 +658,8 @@ def run_tool(name: str, arguments: str | dict[str, Any]) -> str:
         return open_browser_tab(str(args.get("url") or ""))
     if name == "list_browser_tabs":
         return list_browser_tabs()
+    if name == "open_file_explorer":
+        return open_file_explorer(str(args.get("path") or args.get("folder") or ""))
     return f"Unknown tool: {name}"
 
 

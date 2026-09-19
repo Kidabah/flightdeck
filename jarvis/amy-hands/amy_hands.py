@@ -15,6 +15,7 @@ import json
 import os
 import queue
 import re
+import subprocess
 import threading
 import time
 import urllib.parse
@@ -84,6 +85,34 @@ def search_files(query: str, limit: int | None = None) -> list[dict[str, Any]]:
                     if len(hits) >= limit:
                         return hits
     return hits
+
+
+def open_file_explorer(path: str | None = None) -> dict[str, Any]:
+    """Open Windows File Explorer at a local path. No arbitrary shell."""
+    raw = str(path or "C:\\").strip().strip('"').strip("'")
+    if not raw:
+        raw = "C:\\"
+    if any(ch in raw for ch in "\n\r\0;&|`$<>"):
+        return {"ok": False, "detail": "path has unsafe characters"}
+    if re.fullmatch(r"[A-Za-z]:", raw):
+        raw = raw + "\\"
+    raw = raw.replace("/", "\\")
+    if not re.match(r"^[A-Za-z]:\\", raw):
+        return {"ok": False, "detail": "only local Windows paths like C:\\… are allowed"}
+    try:
+        text = os.path.normpath(raw)
+    except Exception as exc:
+        return {"ok": False, "detail": f"bad path: {exc}"}
+    if not re.match(r"^[A-Za-z]:\\", text):
+        return {"ok": False, "detail": "refused non-local path"}
+    is_drive = bool(re.fullmatch(r"[A-Za-z]:\\", text))
+    if not is_drive and not Path(text).exists():
+        return {"ok": False, "detail": f"path not found: {text}"}
+    try:
+        subprocess.Popen(["explorer.exe", text], shell=False, close_fds=True)
+    except Exception as exc:
+        return {"ok": False, "detail": str(exc)}
+    return {"ok": True, "path": text}
 
 
 def enqueue(cmd: dict[str, Any]) -> str:
@@ -221,6 +250,11 @@ class Handler(BaseHTTPRequestHandler):
                 return
             cid = enqueue({"action": "tabs_open", "url": url})
             self._json(200, {"ok": True, "id": cid, "url": url})
+            return
+
+        if path in ("/explorer/open", "/open_explorer", "/open_file_explorer"):
+            result = open_file_explorer(str(body.get("path") or body.get("folder") or "") or None)
+            self._json(200 if result.get("ok") else 400, result)
             return
 
         if path == "/commands/result":

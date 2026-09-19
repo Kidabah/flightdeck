@@ -1,3 +1,9 @@
+## 2026-09-19 Session update (voice interrupt + Explorer)
+
+Latest commit: _(pending)_ — Fix Whisper barge-in (mic was held busy for whole ask/speak). STOP on pointerdown. Hands open_file_explorer opens local folders via explorer.exe. Restart Amy + Hands.
+
+---
+
 ## 2026-09-19 Session update (Amy Laura + STOP)
 
 Latest commit: _(pending)_ — Switch TTS back to ElevenLabs **Laura** (Starter plan). STOP hard-kills in-flight TTS; Whisper can barge-in with stop/wait. Desktop + Pi 	ts_provider: elevenlabs. Restart Amy / reopen framed app.
