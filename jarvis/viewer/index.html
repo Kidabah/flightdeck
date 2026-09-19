@@ -590,10 +590,10 @@ let nudgedIdle = false;
 let audioCtx = null;
 
 const NUDGE_LINES = [
-  "Still with me, Chris? I can wait… or I can whistle.",
-  "Taking your time, Kidabah. I'll just hum to myself.",
-  "Hellooo? Amy to Chris — I'm getting lonely over here.",
-  "If you're stuck, say wake up later. I'll nap pretty.",
+  "Getting sleepy over here, Chris… yawn.",
+  "I'm fading a bit, Kidabah. Poke me if you still need me.",
+  "Eyes getting heavy… I'll nap soon if you're quiet.",
+  "Mmm… starting to drift. Say something or I'll snooze.",
 ];
 
 let graph = null;
@@ -894,7 +894,7 @@ async function onIdleNudge() {
   if (!nudgedIdle) {
     nudgedIdle = true;
     try {
-      whistle();
+      await playSfx('yawn');
       if (!MUTE) await speak(NUDGE_LINES[Math.floor(Math.random() * NUDGE_LINES.length)]);
     } catch (_) {}
     idleTimer = setTimeout(enterSleep, IDLE_SLEEP_MS - IDLE_NUDGE_MS);
@@ -903,21 +903,52 @@ async function onIdleNudge() {
   enterSleep();
 }
 
+let sfxAudio = null;
+
+function playSfx(kind) {
+  const src = kind === 'yawn' ? '/sounds/amy-yawn.wav' : '/sounds/amy-whistle.wav';
+  return new Promise((resolve) => {
+    try {
+      try { sfxAudio?.pause(); } catch (_) {}
+      const a = new Audio(src);
+      sfxAudio = a;
+      a.volume = kind === 'yawn' ? 0.85 : 0.75;
+      const done = () => resolve(true);
+      a.addEventListener('ended', done, { once: true });
+      a.addEventListener('error', () => {
+        if (kind === 'whistle') whistleSynth();
+        resolve(false);
+      }, { once: true });
+      a.play().catch(() => {
+        if (kind === 'whistle') whistleSynth();
+        resolve(false);
+      });
+    } catch (_) {
+      if (kind === 'whistle') whistleSynth();
+      resolve(false);
+    }
+  });
+}
+
 function whistle() {
+  playSfx('whistle');
+}
+
+function whistleSynth() {
   try {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
     const ctx = audioCtx;
-    // Little tune — not a single peep.
+    // Fallback tune if the WAV can't load.
     const notes = [
-      { f: 784, d: 0.14 },  // G5
-      { f: 880, d: 0.14 },  // A5
-      { f: 988, d: 0.18 },  // B5
-      { f: 880, d: 0.12 },  // A5
-      { f: 1175, d: 0.22 }, // D6
-      { f: 988, d: 0.14 },  // B5
-      { f: 1319, d: 0.32 }, // E6
-      { f: 1175, d: 0.18 }, // D6
-      { f: 988, d: 0.28 },  // B5
+      { f: 784, d: 0.14 },
+      { f: 880, d: 0.14 },
+      { f: 988, d: 0.18 },
+      { f: 880, d: 0.12 },
+      { f: 1175, d: 0.22 },
+      { f: 988, d: 0.14 },
+      { f: 1319, d: 0.32 },
+      { f: 1175, d: 0.18 },
+      { f: 988, d: 0.28 },
     ];
     let t = ctx.currentTime + 0.02;
     for (const n of notes) {
@@ -946,6 +977,8 @@ function enterSleep() {
   isSpeaking = false;
   clearTimeout(finishTimer);
   pending = '';
+  // Soft second yawn as she actually drops off (short path if nudge was skipped).
+  if (!nudgedIdle) playSfx('yawn');
   // Stay mic-armed so "wake up amy" works, but ignore normal chat.
   setStatus('asleep', 'Sleeping — say wake up Amy');
   syncMicUi();
@@ -1066,6 +1099,10 @@ function stopSpeaking() {
       a.src = '';
       a.load();
     } catch (_) {}
+  }
+  if (sfxAudio) {
+    try { sfxAudio.pause(); } catch (_) {}
+    sfxAudio = null;
   }
   window.speechSynthesis?.cancel();
 }

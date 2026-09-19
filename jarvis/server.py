@@ -2203,6 +2203,10 @@ class Handler(BaseHTTPRequestHandler):
             ctype = "video/mp4"
         elif target.suffix == ".webm":
             ctype = "video/webm"
+        elif target.suffix == ".wav":
+            ctype = "audio/wav"
+        elif target.suffix == ".mp3":
+            ctype = "audio/mpeg"
         elif target.suffix == ".png":
             ctype = "image/png"
         elif target.suffix in (".jpg", ".jpeg"):
@@ -2210,7 +2214,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
-        if target.suffix in (".mp4", ".webm"):
+        if target.suffix in (".mp4", ".webm", ".wav", ".mp3"):
             self.send_header("Accept-Ranges", "bytes")
             self.send_header("Cache-Control", "public, max-age=3600")
         self._cors()

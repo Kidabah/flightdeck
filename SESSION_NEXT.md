@@ -1,4 +1,8 @@
-## 2026-09-19 Session update (Explorer behind Amy)
+## 2026-09-19 Session update (Amy whistle + yawn SFX)
+
+Latest commit: _(pending)_ — Real `amy-whistle.wav` / `amy-yawn.wav` in `jarvis/viewer/sounds/`. Whistle/sing plays the melody; ~3 min idle yawns then sleepy nudge; sleep at ~6 min. Reopen Amy / hard refresh. Server serves `.wav`.
+
+---# 2026-09-19 Session update (Explorer behind Amy)
 
 Latest commit: _(pending)_ — Opening a folder/file drops Amy's always-on-top and focuses Explorer so it isn't hidden behind her. Say **come back** to float again. Restart Hands + Amy.
 
