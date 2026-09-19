@@ -677,6 +677,8 @@ function normalizeAmyCmd(t) {
     .replace(/\bemmy\s+go\b/g, 'amy go')
     .replace(/\blodge\b/g, 'large')
     .replace(/\blaunch\b/g, 'large')
+    // "smol" is how Whisper/memes spell small — never send that to the LLM as chat
+    .replace(/\bsmol+\b/g, 'small')
     .replace(/\bsmole\b/g, 'small')
     .replace(/\bsmalls\b/g, 'small')
     .replace(/\s+/g, ' ')
@@ -688,9 +690,10 @@ function isGoSmallPhrase(t) {
   const s = normalizeAmyCmd(t);
   if (!s) return false;
   // minimise = hide window (separate); go small = compact UI
-  return /^(amy[, ]+)?(please[, ]+)?(go small|get small|go mini|shrink|compact( mode)?|focus mode)(,?\s*please)?$/i.test(s)
-    || /^(can you|could you) (please )?(go small|shrink)\b/i.test(s)
-    || /\b(go|get)\s+small\b/i.test(s);
+  return /^(amy[, ]+)?(please[, ]+)?(go small|get small|go mini|shrink|compact( mode)?|focus mode|make yourself small|make the window small)(,?\s*please)?$/i.test(s)
+    || /^(can you|could you) (please )?(go small|shrink|get small)\b/i.test(s)
+    || /\b(go|get|be)\s+small\b/i.test(s)
+    || /\bsmall\s+(mode|window|please)\b/i.test(s);
 }
 
 function isGoBigPhrase(t) {
