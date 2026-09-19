@@ -232,7 +232,7 @@
       color: var(--accent);
     }
 
-    /* Compact / "go small" — centred face + talk dock, mic stays live */
+    /* Compact / "go small" — one centred column; tools wrap so nothing clips */
     body.compact #graph,
     body.compact #stars,
     body.compact #vignette,
@@ -247,35 +247,69 @@
       flex-direction: column;
       align-items: center;
       justify-content: flex-start;
-      padding: 10px 12px 0;
+      overflow-x: hidden;
+      padding: 8px 10px 0;
+    }
+    body.compact #hud,
+    body.compact #dock {
+      position: relative;
+      top: auto; right: auto; left: auto; bottom: auto;
+      transform: none;
+      inset: auto;
+      width: 100%;
+      max-width: 340px;
+      margin-left: auto;
+      margin-right: auto;
+      box-sizing: border-box;
     }
     body.compact #hud {
-      position: relative;
-      top: auto; right: auto; left: auto;
-      width: min(320px, 100%);
-      margin: 0 auto;
       align-items: center;
     }
     body.compact .face-card {
       width: 100%;
-      padding: 18px 14px 12px;
+      padding: 14px 10px 10px;
+      justify-items: center;
     }
     body.compact #dock {
-      position: relative;
-      left: auto; right: auto; bottom: auto;
-      transform: none;
-      inset: auto;
-      width: min(360px, 100%);
-      max-width: none;
-      margin: 12px auto 0;
-      padding-bottom: 10px;
-      border-radius: 18px 18px 0 0;
+      margin-top: 8px;
+      padding: 0 2px 8px;
+      border-radius: 0;
     }
     body.compact .face-wrap,
-    body.compact .face { width: min(200px, 52vw); height: min(200px, 52vw); }
-    body.compact #answer { max-height: 22vh; overflow: auto; text-align: center; }
+    body.compact .face {
+      width: min(188px, 48vw);
+      height: min(188px, 48vw);
+    }
+    body.compact .face video {
+      object-fit: cover;
+      object-position: center 18%;
+      transform: none;
+    }
+    body.compact #answer {
+      max-height: 18vh;
+      overflow: auto;
+      text-align: center;
+      font-size: 0.88rem;
+    }
+    body.compact .row {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
+      align-items: stretch;
+    }
+    body.compact .row #chat-input {
+      grid-column: 1 / -1;
+      width: 100%;
+      min-width: 0;
+    }
+    body.compact .row button.tool {
+      width: 100%;
+      min-width: 0;
+      padding: 10px 4px;
+      font-size: 0.68rem;
+      letter-spacing: 0.04em;
+    }
     body.compact #tray { justify-content: center; }
-    body.compact .row { justify-content: center; }
 
     /* Note panel — LEFT side, clear of HUD */
     #side {

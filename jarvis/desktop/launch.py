@@ -239,7 +239,7 @@ def main() -> int:
                 return False
             w = webview.windows[0]
             try:
-                w.resize(400, 680)
+                w.resize(420, 720)
                 return True
             except Exception as exc:
                 print(f"[amy-desktop] go_small failed: {exc}", file=sys.stderr)
