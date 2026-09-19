@@ -265,6 +265,45 @@ HANDS_TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "minimize_window",
+            "description": "Minimise a visible Windows window whose title contains the query (e.g. Spotify).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Part of the window title, e.g. Spotify"},
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "minimize_all_windows",
+            "description": (
+                "Minimise all visible windows on Chris's PC (show-desktop style). "
+                "Keeps Amy / Cursor / system shell protected. Prefer this over closing windows."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "restore_window",
+            "description": "Restore / bring to front a window whose title contains the query.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Part of the window title"},
+                },
+                "required": ["query"],
+            },
+        },
+    },
 ]
 
 TEXT_SUFFIXES = {
@@ -781,6 +820,33 @@ def close_pc_window(query: str) -> str:
     )
 
 
+def minimize_pc_window(query: str) -> str:
+    return _hands_action(
+        "/window/minimize",
+        {"query": query},
+        ok_msg="Minimised window: {title}",
+    )
+
+
+def minimize_all_pc_windows() -> str:
+    if not hands_configured():
+        return "Amy Hands not configured (hands_base_url)."
+    code, payload = hands_request("/window/minimize_all", method="POST", body={}, timeout=15)
+    if not isinstance(payload, dict):
+        return f"Minimise-all failed: {payload}"
+    if code != 200 or not payload.get("ok"):
+        return f"Minimise-all failed: {payload.get('detail') or payload}"
+    return f"Minimised {payload.get('count', 0)} window(s)."
+
+
+def restore_pc_window(query: str) -> str:
+    return _hands_action(
+        "/window/restore",
+        {"query": query},
+        ok_msg="Restored window: {title}",
+    )
+
+
 def active_tools() -> list[dict[str, Any]]:
     tools = list(WEB_TOOLS)
     if hands_configured():
@@ -823,6 +889,12 @@ def run_tool(name: str, arguments: str | dict[str, Any]) -> str:
         return media_control(str(args.get("action") or args.get("command") or "play_pause"))
     if name == "close_window":
         return close_pc_window(str(args.get("query") or args.get("title") or ""))
+    if name == "minimize_window":
+        return minimize_pc_window(str(args.get("query") or args.get("title") or ""))
+    if name == "minimize_all_windows":
+        return minimize_all_pc_windows()
+    if name == "restore_window":
+        return restore_pc_window(str(args.get("query") or args.get("title") or ""))
     return f"Unknown tool: {name}"
 
 

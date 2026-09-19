@@ -32,6 +32,9 @@ Hands can also (no arbitrary shell):
 | Open Spotify and play | `launch_app` + `play` |
 | Pause / next / previous | `media_control` |
 | Close the Spotify window | `close_window` |
+| Minimise Spotify | `minimize_window` |
+| Minimise everything | `minimize_all_windows` |
+| Bring Spotify back | `restore_window` |
 
 **Random album** → Cindy Vinyl (`/api/random-album`), not Spotify Hands.
 

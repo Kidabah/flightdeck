@@ -14,6 +14,9 @@ user32 = ctypes.windll.user32
 kernel32 = ctypes.windll.kernel32
 
 WM_CLOSE = 0x0010
+SW_MINIMIZE = 6
+SW_RESTORE = 9
+SW_SHOWMINNOACTIVE = 7
 KEYEVENTF_EXTENDEDKEY = 0x0001
 KEYEVENTF_KEYUP = 0x0002
 VK_MEDIA = {
@@ -87,9 +90,10 @@ DEFAULT_APPS: dict[str, dict[str, Any]] = {
     },
 }
 
-# Refuse closing these window-title patterns.
+# Refuse closing / bulk-minimising these window-title patterns.
 PROTECTED_TITLE = re.compile(
-    r"(program manager|windows input experience|amy\s*-\s*flightdeck|amy hands)",
+    r"(program manager|windows input experience|amy\s*-\s*flightdeck|amy hands|"
+    r"cursor|windows shell experience|search host|start)",
     re.I,
 )
 
@@ -274,7 +278,7 @@ def media_control(action: str = "play_pause") -> dict[str, Any]:
     return {"ok": True, "action": key_name}
 
 
-def close_window(query: str) -> dict[str, Any]:
+def _find_windows(query: str) -> dict[str, Any]:
     q = str(query or "").strip().lower()
     if len(q) < 2:
         return {"ok": False, "detail": "window title query too short"}
@@ -304,14 +308,80 @@ def close_window(query: str) -> dict[str, Any]:
     user32.EnumWindows(enum_proc, 0)
     if not matches:
         return {"ok": False, "detail": f"no visible window matched “{query}”"}
-    # Prefer shortest title match (more specific), then first.
     matches.sort(key=lambda t: len(t[1]))
-    hwnd, title = matches[0]
+    return {"ok": True, "matches": matches}
+
+
+def close_window(query: str) -> dict[str, Any]:
+    found = _find_windows(query)
+    if not found.get("ok"):
+        return found
+    hwnd, title = found["matches"][0]
     try:
         user32.PostMessageW(hwnd, WM_CLOSE, 0, 0)
     except Exception as exc:
         return {"ok": False, "detail": str(exc)}
-    return {"ok": True, "title": title, "hwnd": hwnd}
+    return {"ok": True, "title": title, "hwnd": hwnd, "action": "close"}
+
+
+def minimize_window(query: str) -> dict[str, Any]:
+    found = _find_windows(query)
+    if not found.get("ok"):
+        return found
+    hwnd, title = found["matches"][0]
+    try:
+        user32.ShowWindow(hwnd, SW_MINIMIZE)
+    except Exception as exc:
+        return {"ok": False, "detail": str(exc)}
+    return {"ok": True, "title": title, "hwnd": hwnd, "action": "minimize"}
+
+
+def minimize_all_windows() -> dict[str, Any]:
+    """Minimise every visible titled window except protected ones (Amy stays up)."""
+    matches: list[tuple[int, str]] = []
+
+    @ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
+    def enum_proc(hwnd, _lparam):  # noqa: N803
+        if not user32.IsWindowVisible(hwnd):
+            return True
+        # Skip already-minimised
+        if user32.IsIconic(hwnd):
+            return True
+        length = user32.GetWindowTextLengthW(hwnd)
+        if length <= 0:
+            return True
+        buf = ctypes.create_unicode_buffer(length + 1)
+        user32.GetWindowTextW(hwnd, buf, length + 1)
+        title = buf.value or ""
+        if not title:
+            return True
+        if PROTECTED_TITLE.search(title):
+            return True
+        matches.append((int(hwnd), title))
+        return True
+
+    user32.EnumWindows(enum_proc, 0)
+    done: list[str] = []
+    for hwnd, title in matches:
+        try:
+            user32.ShowWindow(hwnd, SW_SHOWMINNOACTIVE)
+            done.append(title)
+        except Exception:
+            continue
+    return {"ok": True, "action": "minimize_all", "count": len(done), "titles": done[:30]}
+
+
+def restore_window(query: str) -> dict[str, Any]:
+    found = _find_windows(query)
+    if not found.get("ok"):
+        return found
+    hwnd, title = found["matches"][0]
+    try:
+        user32.ShowWindow(hwnd, SW_RESTORE)
+        user32.SetForegroundWindow(hwnd)
+    except Exception as exc:
+        return {"ok": False, "detail": str(exc)}
+    return {"ok": True, "title": title, "hwnd": hwnd, "action": "restore"}
 
 
 def list_apps(cfg: dict[str, Any] | None = None) -> dict[str, Any]:

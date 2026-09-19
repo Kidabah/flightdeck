@@ -59,9 +59,12 @@ try:
         launch_app as _launch_app,
         list_apps as _list_apps,
         media_control as _media_control,
+        minimize_all_windows as _minimize_all_windows,
+        minimize_window as _minimize_window,
         open_file as _open_file,
         open_file_explorer as _open_file_explorer,
         open_file_with as _open_file_with,
+        restore_window as _restore_window,
     )
 except ImportError:  # pragma: no cover
     from jarvis.amy_hands.desktop_actions import (  # type: ignore
@@ -69,9 +72,12 @@ except ImportError:  # pragma: no cover
         launch_app as _launch_app,
         list_apps as _list_apps,
         media_control as _media_control,
+        minimize_all_windows as _minimize_all_windows,
+        minimize_window as _minimize_window,
         open_file as _open_file,
         open_file_explorer as _open_file_explorer,
         open_file_with as _open_file_with,
+        restore_window as _restore_window,
     )
 
 
@@ -290,6 +296,21 @@ class Handler(BaseHTTPRequestHandler):
 
         if path in ("/window/close", "/close_window"):
             result = _close_window(str(body.get("query") or body.get("title") or ""))
+            self._json(200 if result.get("ok") else 400, result)
+            return
+
+        if path in ("/window/minimize", "/minimize_window"):
+            result = _minimize_window(str(body.get("query") or body.get("title") or ""))
+            self._json(200 if result.get("ok") else 400, result)
+            return
+
+        if path in ("/window/minimize_all", "/minimize_all", "/minimize_all_windows"):
+            result = _minimize_all_windows()
+            self._json(200 if result.get("ok") else 400, result)
+            return
+
+        if path in ("/window/restore", "/restore_window"):
+            result = _restore_window(str(body.get("query") or body.get("title") or ""))
             self._json(200 if result.get("ok") else 400, result)
             return
 
