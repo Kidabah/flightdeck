@@ -856,10 +856,22 @@ function isWakePhrase(t) {
 }
 
 function isWhistlePhrase(t) {
-  const s = String(t || '').trim().toLowerCase().replace(/[.,!?]+$/g, '');
-  if (!s) return false;
-  return /^(amy[, ]+)?(please[, ]+)?(whistle|sing|give me a whistle|do a whistle|whistle for me|sing for me)(,?\s*please)?$/i.test(s)
-    || /^(can you|could you|will you) (please )?(whistle|sing)\b/i.test(s);
+  let s = String(t || '').trim().toLowerCase()
+    .replace(/['"`]/g, '')
+    .replace(/[.,!?]+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!s || s.length > 120) return false;
+  // Real questions about the whistle → leave for chat (humour OK)
+  if (/\b(what|why|how|when|where|who|lost|missing|broke|broken|mean|means|hear|heard)\b/.test(s)
+      && !/^(amy[, ]+)?(please[, ]+)?(whistle|sing)\b/.test(s)) {
+    return false;
+  }
+  if (/\b(whistle|whistling)\b/.test(s)) return true;
+  if (/^(amy[, ]+)?(please[, ]+)?sing(\s+for me)?(\s+please)?$/.test(s)) return true;
+  if (/\b(sing for me|give me a (song|tune)|sing a (song|tune))\b/.test(s)) return true;
+  if (/\b(can you|could you|will you|would you)\b.*\b(please\s+)?(whistle|sing)\b/.test(s)) return true;
+  return false;
 }
 
 function isBedtimePhrase(t) {
@@ -1058,9 +1070,11 @@ async function onIdleNudge() {
 
 let sfxAudio = null;
 let sfxUnlocked = false;
+let sfxSource = null;
+const sfxBuffers = {};
 const SFX = {
-  whistle: '/sounds/amy-whistle.wav?v=16bit5s',
-  yawn: '/sounds/amy-yawn.wav?v=16bit',
+  whistle: '/sounds/amy-whistle.wav?v=webaudio1',
+  yawn: '/sounds/amy-yawn.wav?v=webaudio1',
 };
 
 function unlockSfx() {
@@ -1069,49 +1083,75 @@ function unlockSfx() {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
     if (audioCtx.state === 'suspended') audioCtx.resume();
   } catch (_) {}
-  // Warm the browser cache so the first whistle isn't a miss
-  ['whistle', 'yawn'].forEach((k) => {
-    try {
-      const a = new Audio(SFX[k]);
-      a.preload = 'auto';
-      a.load();
-    } catch (_) {}
-  });
+  // Prefetch + decode into AudioBuffer (WebView2 is flaky with HTMLAudioElement)
+  ['whistle', 'yawn'].forEach((k) => { loadSfxBuffer(k).catch(() => {}); });
+}
+
+async function loadSfxBuffer(kind) {
+  if (sfxBuffers[kind]) return sfxBuffers[kind];
+  const url = SFX[kind] || SFX.whistle;
+  audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') await audioCtx.resume();
+  const res = await fetch(url, { cache: 'force-cache' });
+  if (!res.ok) throw new Error(`SFX HTTP ${res.status}`);
+  const ab = await res.arrayBuffer();
+  const buf = await audioCtx.decodeAudioData(ab.slice(0));
+  sfxBuffers[kind] = buf;
+  return buf;
 }
 
 function playSfx(kind) {
-  const src = SFX[kind] || SFX.whistle;
   unlockSfx();
+  return playSfxWebAudio(kind).catch(() => playSfxHtmlAudio(kind)).catch(() => {
+    if (kind === 'whistle') whistleSynth();
+    return false;
+  });
+}
+
+async function playSfxWebAudio(kind) {
+  const buf = await loadSfxBuffer(kind);
+  audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') await audioCtx.resume();
+  try { sfxSource?.stop?.(); } catch (_) {}
+  try { sfxAudio?.pause(); } catch (_) {}
+  const src = audioCtx.createBufferSource();
+  const gain = audioCtx.createGain();
+  gain.gain.value = kind === 'yawn' ? 0.95 : 0.92;
+  src.buffer = buf;
+  src.connect(gain);
+  gain.connect(audioCtx.destination);
+  sfxSource = src;
+  src.start(0);
   return new Promise((resolve) => {
+    const done = () => {
+      if (sfxSource === src) sfxSource = null;
+      resolve(true);
+    };
+    src.onended = done;
+    window.setTimeout(done, Math.ceil(buf.duration * 1000) + 150);
+  });
+}
+
+function playSfxHtmlAudio(kind) {
+  const srcUrl = SFX[kind] || SFX.whistle;
+  return new Promise((resolve, reject) => {
     try {
       try { sfxAudio?.pause(); } catch (_) {}
-      const a = new Audio(src);
+      const a = new Audio(srcUrl);
       sfxAudio = a;
       a.volume = kind === 'yawn' ? 0.9 : 0.85;
-      const done = () => {
+      const fail = (err) => reject(err || new Error('html audio fail'));
+      a.addEventListener('ended', () => {
         if (sfxAudio === a) sfxAudio = null;
         resolve(true);
-      };
-      a.addEventListener('ended', done, { once: true });
-      a.addEventListener('error', () => {
-        if (kind === 'whistle') whistleSynth();
-        resolve(false);
       }, { once: true });
-      const tryPlay = () => {
-        a.play().then(() => {}).catch(() => {
-          if (kind === 'whistle') whistleSynth();
-          resolve(false);
-        });
-      };
-      if (a.readyState >= 2) tryPlay();
-      else a.addEventListener('canplaythrough', tryPlay, { once: true });
-      // Safety if canplaythrough never fires
+      a.addEventListener('error', () => fail(), { once: true });
+      a.play().then(() => {}).catch(fail);
       window.setTimeout(() => {
-        if (sfxAudio === a && a.paused) tryPlay();
-      }, 400);
-    } catch (_) {
-      if (kind === 'whistle') whistleSynth();
-      resolve(false);
+        if (sfxAudio === a && a.paused) fail();
+      }, 800);
+    } catch (err) {
+      reject(err);
     }
   });
 }
@@ -1126,7 +1166,7 @@ function whistleSynth() {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
     if (audioCtx.state === 'suspended') audioCtx.resume();
     const ctx = audioCtx;
-    // Fallback tune if the WAV can't load.
+    // Fallback tune if the WAV can't load — loud enough to notice.
     const notes = [
       { f: 784, d: 0.14 },
       { f: 880, d: 0.14 },
@@ -1145,7 +1185,7 @@ function whistleSynth() {
       osc.type = 'sine';
       osc.frequency.setValueAtTime(n.f, t);
       gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.exponentialRampToValueAtTime(0.09, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.28, t + 0.02);
       gain.gain.exponentialRampToValueAtTime(0.0001, t + n.d);
       osc.connect(gain);
       gain.connect(ctx.destination);
