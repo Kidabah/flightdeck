@@ -175,18 +175,22 @@ def _open_chrome_app(url: str) -> bool:
 
 
 def _install_auto_media_permissions(window) -> None:
-    """Auto-allow mic/camera prompts in WebView2 for http://127.0.0.1:4700."""
+    """Auto-allow mic/camera for localhost — must run on the WinForms UI thread."""
 
-    def worker() -> None:
-        for _ in range(120):  # ~6s
-            try:
-                form = getattr(window, "native", None)
-                browser = getattr(form, "browser", None) if form is not None else None
-                wv = getattr(browser, "webview", None) if browser is not None else None
-                core = getattr(wv, "CoreWebView2", None) if wv is not None else None
+    def attach() -> None:
+        try:
+            form = getattr(window, "native", None)
+            browser = getattr(form, "browser", None) if form is not None else None
+            wv = getattr(browser, "webview", None) if browser is not None else None
+            if wv is None:
+                return
+
+            def hook() -> None:
+                core = getattr(wv, "CoreWebView2", None)
                 if core is None:
-                    time.sleep(0.05)
-                    continue
+                    return
+                if getattr(window, "_amy_perm_hooked", False):
+                    return
 
                 def on_permission(_sender, args) -> None:  # noqa: ANN001
                     try:
@@ -195,34 +199,51 @@ def _install_auto_media_permissions(window) -> None:
                         local = ("127.0.0.1" in uri) or ("localhost" in uri) or (not uri)
                         media = any(
                             token in kind
-                            for token in ("Microphone", "Camera", "Media", "Audio", "Video")
+                            for token in ("Microphone", "Camera", "Media")
                         )
-                        if local and media:
-                            try:
-                                # Enum value Allow == 1
-                                args.State = 1
-                            except Exception:
-                                pass
-                            try:
-                                args.Handled = True
-                            except Exception:
-                                pass
-                            try:
-                                args.SavesInProfile = True
-                            except Exception:
-                                pass
-                            print(f"[amy-desktop] auto-allowed {kind} for {uri or 'local'}")
-                    except Exception as exc:
-                        print(f"[amy-desktop] permission handler error: {exc}", file=sys.stderr)
+                        if not (local and media):
+                            return
+                        args.State = 1  # Allow
+                        args.Handled = True
+                        try:
+                            args.SavesInProfile = True
+                        except Exception:
+                            pass
+                    except Exception:
+                        pass
 
                 core.PermissionRequested += on_permission
+                window._amy_perm_hooked = True  # type: ignore[attr-defined]
                 print("[amy-desktop] WebView2 mic/camera auto-allow ready")
-                return
-            except Exception:
-                time.sleep(0.05)
-        print("[amy-desktop] warning: could not hook WebView2 permissions", file=sys.stderr)
 
-    threading.Thread(target=worker, daemon=True, name="amy-perm").start()
+            # Never touch CoreWebView2 from a random thread — that whitescreens WebView2.
+            try:
+                from System import Action  # type: ignore
+
+                wv.BeginInvoke(Action(hook))
+            except Exception:
+                hook()
+        except Exception as exc:
+            print(f"[amy-desktop] permission hook skipped: {exc}", file=sys.stderr)
+
+    try:
+        window.events.loaded += lambda: attach()
+    except Exception:
+        # Fallback: try once after a short delay on GUI start callback path
+        def delayed() -> None:
+            time.sleep(1.0)
+            try:
+                form = getattr(window, "native", None)
+                if form is not None:
+                    from System import Action  # type: ignore
+
+                    form.BeginInvoke(Action(attach))
+                else:
+                    attach()
+            except Exception:
+                attach()
+
+        threading.Thread(target=delayed, daemon=True, name="amy-perm").start()
 
 
 def main() -> int:
@@ -356,21 +377,17 @@ def main() -> int:
         js_api=api,
         on_top=True,
     )
+    # Hook before start so events.loaded fires on the UI path.
+    _install_auto_media_permissions(window)
     print(f"[amy-desktop] opening webview {AMY_URL}")
     print("[amy-desktop] mic uses OpenAI Whisper (Google speech is broken in WebView2)")
     print("[amy-desktop] always on top — say 'minimise' to drop, 'come back' to restore")
     print("[amy-desktop] mic/camera prompts auto-allowed for localhost")
-
-    def _after_gui() -> None:
-        target = window if window is not None else (webview.windows[0] if webview.windows else None)
-        if target is not None:
-            _install_auto_media_permissions(target)
-
     try:
-        webview.start(_after_gui, gui="edgechromium")
+        webview.start(gui="edgechromium")
     except Exception as exc:
         print(f"[amy-desktop] edgechromium failed ({exc}); default gui")
-        webview.start(_after_gui)
+        webview.start()
     finally:
         stop_children()
     print("[amy-desktop] window closed")
