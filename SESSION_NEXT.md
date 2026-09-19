@@ -1,6 +1,6 @@
 ## 2026-09-19 Session update (Amy Whisper WAV PCM)
 
-Latest commit: _(pending)_ ? Desktop mic captures PCM via ScriptProcessor, wraps as WAV, and posts multipart `/stt`. Server normalizes mime + detects RIFF/WAV so Whisper no longer gets invalid MediaRecorder webm. Restart local Amy + reopen `/?desktop=1`. Pi: pull + restart.
+Latest commit: 37b62ef ? Desktop mic captures PCM via ScriptProcessor, wraps as WAV, and posts multipart `/stt`. Server normalizes mime + detects RIFF/WAV so Whisper no longer gets invalid MediaRecorder webm. Restart local Amy + reopen `/?desktop=1`. Pi: pull + restart.
 
 ---
 
