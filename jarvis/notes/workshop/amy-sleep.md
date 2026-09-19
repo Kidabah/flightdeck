@@ -11,6 +11,9 @@ Ask her to **whistle** or **sing** anytime (voice or type) and she plays a real 
 SFX lives in `jarvis/viewer/sounds/`:
 - `amy-whistle.wav` — on-demand whistle/sing
 - `amy-yawn.wav` — idle sleepy nudge + bedtime
+- `amy-sleep.gif` — optional lights-out overlay (CSS iris + Zzz if missing)
+
+Sleep dims the galaxy and plays a lights-out animation on her face.
 
 While she's talking: say **stop** / **wait** / **hang on**, type it, or hit **STOP**.
 

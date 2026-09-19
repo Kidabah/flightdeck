@@ -248,6 +248,73 @@
       color: #475569; text-shadow: none;
     }
     .face-card:has(.face-wrap[data-mode="asleep"]) .face-state { color: #334155; }
+
+    /* Lights-out: CSS always; optional GIF at /sounds/amy-sleep.gif */
+    #lights-out {
+      position: absolute; inset: 0; z-index: 8;
+      pointer-events: none; opacity: 0;
+      transition: opacity 0.9s ease;
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden; border-radius: 18px;
+    }
+    body.asleep #lights-out { opacity: 1; }
+    #lights-out .shade {
+      position: absolute; inset: 0;
+      background:
+        radial-gradient(circle at 50% 42%, rgba(2, 6, 23, 0.15) 0%, rgba(2, 6, 23, 0.72) 52%, rgba(0, 0, 0, 0.92) 100%);
+      animation: lights-dim 1.4s ease forwards;
+    }
+    #lights-out .iris {
+      position: absolute; inset: -20%;
+      border-radius: 50%;
+      box-shadow: inset 0 0 0 0 rgba(0, 0, 0, 0.92);
+      animation: lights-iris 1.35s ease forwards;
+    }
+    #lights-out img.sleep-gif {
+      position: relative; z-index: 2;
+      max-width: 72%; max-height: 72%;
+      object-fit: contain;
+      filter: drop-shadow(0 0 12px rgba(34, 211, 238, 0.25));
+      display: none;
+    }
+    #lights-out.has-gif img.sleep-gif { display: block; }
+    #lights-out.has-gif .zzz-wrap { display: none; }
+    #lights-out .zzz-wrap {
+      position: relative; z-index: 2;
+      width: 100%; height: 100%;
+      pointer-events: none;
+    }
+    #lights-out .zzz {
+      position: absolute;
+      font-family: Orbitron, sans-serif;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: rgba(103, 232, 248, 0.55);
+      text-shadow: 0 0 10px rgba(34, 211, 238, 0.35);
+      animation: zzz-drift 2.8s ease-in-out infinite;
+    }
+    #lights-out .zzz.z1 { top: 18%; right: 22%; font-size: 1.1rem; animation-delay: 0s; }
+    #lights-out .zzz.z2 { top: 10%; right: 12%; font-size: 0.85rem; animation-delay: 0.45s; opacity: 0.7; }
+    #lights-out .zzz.z3 { top: 28%; right: 8%; font-size: 0.7rem; animation-delay: 0.9s; opacity: 0.5; }
+    body.asleep #stars { opacity: 0.28; filter: brightness(0.45); transition: opacity 1s ease, filter 1s ease; }
+    body.asleep #graph { opacity: 0.18; transition: opacity 1s ease; }
+    body.asleep #brand { opacity: 0.4; transition: opacity 1s ease; }
+    body.asleep #topbar { opacity: 0.35; transition: opacity 1s ease; }
+    body.asleep #dock { filter: brightness(0.72); transition: filter 1s ease; }
+    @keyframes lights-dim {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes lights-iris {
+      from { box-shadow: inset 0 0 0 0 rgba(0, 0, 0, 0.9); }
+      to { box-shadow: inset 0 0 0 120px rgba(0, 0, 0, 0.88); }
+    }
+    @keyframes zzz-drift {
+      0% { transform: translate(0, 8px) scale(0.85); opacity: 0; }
+      20% { opacity: 0.75; }
+      70% { opacity: 0.55; }
+      100% { transform: translate(-10px, -28px) scale(1.15); opacity: 0; }
+    }
     @keyframes jarvis-pulse {
       0%,100% { transform: scale(1); opacity: 0.85; }
       50% { transform: scale(1.03); opacity: 1; }
@@ -495,6 +562,16 @@
             <source src="/amy-face.webm" type="video/webm" />
             <source src="/amy-face.mp4" type="video/mp4" />
           </video>
+          <div id="lights-out" aria-hidden="true">
+            <div class="shade"></div>
+            <div class="iris"></div>
+            <img class="sleep-gif" id="lights-out-gif" alt="" decoding="async" />
+            <div class="zzz-wrap" aria-hidden="true">
+              <span class="zzz z1">Z</span>
+              <span class="zzz z2">z</span>
+              <span class="zzz z3">z</span>
+            </div>
+          </div>
         </div>
       </div>
       <div class="face-name">AMY</div>
@@ -1000,9 +1077,25 @@ function enterSleep() {
   pending = '';
   // Soft second yawn as she actually drops off (short path if nudge was skipped).
   if (!nudgedIdle) playSfx('yawn');
+  document.body.classList.add('asleep');
+  armSleepGif();
   // Stay mic-armed so "wake up amy" works, but ignore normal chat.
   setStatus('asleep', 'Sleeping — say wake up Amy');
   syncMicUi();
+}
+
+function armSleepGif() {
+  const layer = document.getElementById('lights-out');
+  const img = document.getElementById('lights-out-gif');
+  if (!layer || !img) return;
+  // Drop a file at jarvis/viewer/sounds/amy-sleep.gif to replace the CSS zzz.
+  const src = `/sounds/amy-sleep.gif?v=${Date.now()}`;
+  img.onload = () => layer.classList.add('has-gif');
+  img.onerror = () => {
+    layer.classList.remove('has-gif');
+    img.removeAttribute('src');
+  };
+  img.src = src;
 }
 
 function wakeAmy(reason) {
@@ -1012,6 +1105,13 @@ function wakeAmy(reason) {
   }
   asleep = false;
   nudgedIdle = false;
+  document.body.classList.remove('asleep');
+  const layer = document.getElementById('lights-out');
+  const img = document.getElementById('lights-out-gif');
+  if (layer) layer.classList.remove('has-gif');
+  if (img) {
+    try { img.removeAttribute('src'); } catch (_) {}
+  }
   setStatus(wantListen ? 'listening' : 'idle', wantListen ? 'Listening' : 'Ready');
   bumpIdle();
   if (wantListen && recognition && !listening && !useWhisperMic) {

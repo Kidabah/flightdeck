@@ -1,4 +1,8 @@
-# 2026-09-19 Session update (Amy bedtime yawn)
+## 2026-09-19 Session update (Amy lights-out sleep)
+
+Latest commit: _(pending)_ — Sleep/bedtime plays CSS lights-out (iris dim + floating Zzz) and dims the galaxy. Optional GIF: drop `jarvis/viewer/sounds/amy-sleep.gif` to replace Zzz. Reopen Amy.
+
+--- 2026-09-19 Session update (Amy bedtime yawn)
 
 Latest commit: ``ff9969c`` — Say **bedtime** / **goodnight** / **night night** / **go to sleep** → Laura goodnight + yawn SFX + sleep. Wake as usual. Reopen Amy.
 
