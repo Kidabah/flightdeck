@@ -252,10 +252,45 @@ def main() -> int:
             w = webview.windows[0]
             try:
                 w.resize(1400, 900)
-                w.on_top = False
+                w.on_top = True
                 return True
             except Exception as exc:
                 print(f"[amy-desktop] go_big failed: {exc}", file=sys.stderr)
+                return False
+
+        def minimize_window(self) -> bool:
+            if not webview.windows:
+                return False
+            w = webview.windows[0]
+            try:
+                w.on_top = False
+                w.minimize()
+                return True
+            except Exception as exc:
+                print(f"[amy-desktop] minimize failed: {exc}", file=sys.stderr)
+                return False
+
+        def restore_window(self) -> bool:
+            if not webview.windows:
+                return False
+            w = webview.windows[0]
+            try:
+                w.restore()
+                w.show()
+                w.on_top = True
+                return True
+            except Exception as exc:
+                print(f"[amy-desktop] restore failed: {exc}", file=sys.stderr)
+                return False
+
+        def set_on_top(self, enabled: bool = True) -> bool:
+            if not webview.windows:
+                return False
+            try:
+                webview.windows[0].on_top = bool(enabled)
+                return True
+            except Exception as exc:
+                print(f"[amy-desktop] on_top failed: {exc}", file=sys.stderr)
                 return False
 
     api = AmyApi()
@@ -267,11 +302,11 @@ def main() -> int:
         min_size=(360, 480),
         confirm_close=False,
         js_api=api,
-        on_top=False,
+        on_top=True,
     )
     print(f"[amy-desktop] opening webview {AMY_URL}")
     print("[amy-desktop] mic uses OpenAI Whisper (Google speech is broken in WebView2)")
-    print("[amy-desktop] tip: say 'go small' / 'go large' — compact stays on top")
+    print("[amy-desktop] always on top — say 'minimise' to drop, 'come back' to restore")
     try:
         webview.start(gui="edgechromium")
     except Exception as exc:

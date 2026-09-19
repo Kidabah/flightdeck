@@ -246,7 +246,8 @@
       align-items: center;
       justify-content: flex-start;
       overflow-x: hidden;
-      padding: 2px 10px 0;
+      overflow-y: auto;
+      padding: 8px 10px 0;
     }
     body.compact #hud,
     body.compact #dock {
@@ -259,6 +260,7 @@
       margin-left: auto;
       margin-right: auto;
       box-sizing: border-box;
+      overflow: visible;
     }
     body.compact #hud {
       align-items: center;
@@ -266,8 +268,13 @@
     }
     body.compact .face-card {
       width: 100%;
-      padding: 6px 10px 8px;
+      /* HUD rings sit outside the face (~28–40px) — keep them inside the card */
+      padding: 36px 10px 10px;
       justify-items: center;
+      overflow: visible;
+    }
+    body.compact .face-wrap {
+      margin: 0 auto;
     }
     body.compact .modes,
     body.compact .organs {
@@ -680,8 +687,9 @@ function normalizeAmyCmd(t) {
 function isGoSmallPhrase(t) {
   const s = normalizeAmyCmd(t);
   if (!s) return false;
-  return /^(amy[, ]+)?(please[, ]+)?(go small|get small|go mini|shrink|compact( mode)?|mini(mise|mize)?( (the )?window)?|focus mode)(,?\s*please)?$/i.test(s)
-    || /^(can you|could you) (please )?(go small|shrink|minimise|minimize)\b/i.test(s)
+  // minimise = hide window (separate); go small = compact UI
+  return /^(amy[, ]+)?(please[, ]+)?(go small|get small|go mini|shrink|compact( mode)?|focus mode)(,?\s*please)?$/i.test(s)
+    || /^(can you|could you) (please )?(go small|shrink)\b/i.test(s)
     || /\b(go|get)\s+small\b/i.test(s);
 }
 
@@ -693,20 +701,37 @@ function isGoBigPhrase(t) {
     || /\b(go|get)\s+(big|large)\b/i.test(s);
 }
 
+function isMinimizePhrase(t) {
+  const s = normalizeAmyCmd(t);
+  if (!s) return false;
+  return /^(amy[, ]+)?(please[, ]+)?(minimise|minimize|minimise yourself|minimize yourself|hide( yourself)?|get out of (the )?way|go to (the )?tray)(,?\s*please)?$/i.test(s)
+    || /^(can you|could you) (please )?(minimise|minimize|hide)\b/i.test(s)
+    || /\b(minimise|minimize)( (the )?(window|yourself))?\b/i.test(s);
+}
+
+function isRestorePhrase(t) {
+  const s = normalizeAmyCmd(t);
+  if (!s) return false;
+  return /^(amy[, ]+)?(please[, ]+)?(come back|restore|unminimise|unminimize|show yourself|bring yourself back|wake up window)(,?\s*please)?$/i.test(s)
+    || /^(can you|could you) (please )?(come back|restore|show)\b/i.test(s);
+}
+
+async function callAmyDesktop(fn, ...args) {
+  try {
+    if (window.pywebview?.api && typeof window.pywebview.api[fn] === 'function') {
+      return await window.pywebview.api[fn](...args);
+    }
+  } catch (_) {}
+  return false;
+}
+
 async function setCompactMode(on) {
   compactMode = !!on;
   document.body.classList.toggle('compact', compactMode);
   const focusBtn = document.getElementById('focus-btn');
   if (focusBtn) focusBtn.classList.toggle('active', compactMode);
-  try {
-    if (window.pywebview?.api) {
-      if (compactMode && typeof window.pywebview.api.go_small === 'function') {
-        await window.pywebview.api.go_small();
-      } else if (!compactMode && typeof window.pywebview.api.go_big === 'function') {
-        await window.pywebview.api.go_big();
-      }
-    }
-  } catch (_) {}
+  if (compactMode) await callAmyDesktop('go_small');
+  else await callAmyDesktop('go_big');
   // Mic keeps running — compact is UI only.
   if (wantListen) {
     setStatus('listening', useWhisperMic ? 'Listening · Whisper' : 'Listening');
@@ -1156,6 +1181,18 @@ async function ask(question) {
   if (isGoBigPhrase(q) && !pendingFiles.length) {
     await setCompactMode(false);
     answerEl.textContent = 'Back to full size.';
+    setStatus(wantListen ? 'listening' : 'idle', wantListen ? (useWhisperMic ? 'Listening · Whisper' : 'Listening') : 'Ready');
+    return;
+  }
+  if (isMinimizePhrase(q) && !pendingFiles.length) {
+    await callAmyDesktop('minimize_window');
+    answerEl.textContent = 'Minimising — say come back when you want me.';
+    setStatus(wantListen ? 'listening' : 'idle', wantListen ? (useWhisperMic ? 'Listening · Whisper' : 'Listening') : 'Ready');
+    return;
+  }
+  if (isRestorePhrase(q) && !pendingFiles.length) {
+    await callAmyDesktop('restore_window');
+    answerEl.textContent = 'Back — staying on top.';
     setStatus(wantListen ? 'listening' : 'idle', wantListen ? (useWhisperMic ? 'Listening · Whisper' : 'Listening') : 'Ready');
     return;
   }
