@@ -524,7 +524,7 @@ function handleInterrupt() {
   isSpeaking = false;
   micMutedUntil = Date.now() + 350;
   bumpIdle();
-  answerEl.textContent = answerEl.textContent ? `${answerEl.textContent}\n\n(stopped)` : '(stopped)';
+  answerEl.textContent = '(stopped)';
   if (wantListen) {
     setStatus('listening', useWhisperMic ? 'Listening · Whisper — interrupted' : 'Listening — interrupted');
     syncMicUi();
@@ -947,9 +947,8 @@ async function ask(question) {
   bumpIdle();
   stopSpeaking();
   duckMic();
-  inputEl.value = '';
-  const youLine = `You: ${q}`;
-  answerEl.textContent = `${youLine}\n\n…`;
+  inputEl.value = q;
+  answerEl.textContent = '…';
   setStatus('thinking', 'Thinking');
   try { chatAbort?.abort(); } catch (_) {}
   chatAbort = new AbortController();
@@ -1009,7 +1008,8 @@ async function ask(question) {
       renderDrops();
     }
     if (signal.aborted) return;
-    answerEl.textContent = `${youLine}\n\n${payload.answer || ''}`;
+    inputEl.value = '';
+    answerEl.textContent = payload.answer || '';
     applySources(payload);
     await speak(payload.answer || '');
   } catch (err) {
@@ -1017,7 +1017,8 @@ async function ask(question) {
       unduckMic();
       return;
     }
-    answerEl.textContent = `${youLine}\n\n${String(err.message || err)}`;
+    inputEl.value = '';
+    answerEl.textContent = String(err.message || err);
     setStatus('idle', 'Error');
     await speak(String(err.message || err));
   } finally {
