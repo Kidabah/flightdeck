@@ -114,6 +114,15 @@ DEFAULT_APPS: dict[str, dict[str, Any]] = {
         ],
         "uri": "outlookmail:",
     },
+    "thunderbird": {
+        "label": "Thunderbird",
+        "process": ["thunderbird.exe"],
+        "exe": [
+            str(Path(os.environ.get("PROGRAMFILES", r"C:\Program Files")) / "Mozilla Thunderbird" / "thunderbird.exe"),
+            str(Path(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)")) / "Mozilla Thunderbird" / "thunderbird.exe"),
+            str(Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Mozilla Thunderbird" / "thunderbird.exe"),
+        ],
+    },
     "mail": {
         "label": "Mail",
         "uri": "mailto:",
@@ -515,29 +524,24 @@ def delete_path(path: str, *, confirm: bool = False, cfg: dict[str, Any] | None 
 
 
 def open_email(provider: str = "auto", *, cfg: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Open Outlook, Windows Mail, or Gmail in Chrome."""
+    """Open Thunderbird (Chris's mail), Outlook, Gmail, or Windows Mail."""
     key = re.sub(r"\s+", " ", str(provider or "auto").strip().lower())
     order: list[str]
-    if key in ("outlook", "desktop outlook"):
+    if key in ("thunderbird", "tb", "mozilla"):
+        order = ["thunderbird"]
+    elif key in ("outlook", "desktop outlook"):
         order = ["outlook"]
     elif key in ("mail", "windows mail"):
         order = ["mail"]
     elif key in ("gmail", "google mail", "google"):
         order = ["gmail", "chrome"]
     else:
-        order = ["outlook", "gmail", "mail"]
+        # Chris uses Thunderbird day-to-day
+        order = ["thunderbird", "outlook", "gmail", "mail"]
 
     last_err = "no email app found"
     for name in order:
         if name == "gmail":
-            # Prefer Chrome tab for Gmail
-            chrome = resolve_app("chrome", cfg)
-            if chrome.get("ok"):
-                try:
-                    _start_uri("https://mail.google.com/")
-                    return {"ok": True, "app": "Gmail", "via": "https://mail.google.com/", "reveal": True}
-                except Exception as exc:
-                    last_err = str(exc)
             try:
                 _start_uri("https://mail.google.com/")
                 return {"ok": True, "app": "Gmail", "via": "https://mail.google.com/", "reveal": True}
@@ -553,19 +557,43 @@ def open_email(provider: str = "auto", *, cfg: dict[str, Any] | None = None) -> 
 
 
 def empty_email_spam(*, confirm: bool = False, provider: str = "auto", cfg: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Empty Outlook Junk, or open Gmail Spam for Chris to empty."""
+    """Empty junk/spam. Thunderbird: open app + Junk guidance. Outlook: COM clear. Gmail: open Spam."""
     if not confirm:
         return {
             "ok": False,
             "needs_confirm": True,
             "detail": (
                 "Emptying spam needs your OK — say “yes empty spam” / “approve empty spam”. "
-                "Outlook Junk can be cleared automatically; Gmail opens the Spam folder for you."
+                "Thunderbird will open so you can Empty Junk; Outlook can clear Junk automatically."
             ),
         }
 
     key = re.sub(r"\s+", " ", str(provider or "auto").strip().lower())
-    # Try Outlook COM first when requested or auto
+
+    # Thunderbird first for Chris (no reliable empty-junk CLI — open + instruct)
+    if key in ("auto", "thunderbird", "tb", "mozilla"):
+        hit = launch_app("thunderbird", cfg=cfg)
+        if hit.get("ok"):
+            # Try bringing Thunderbird forward
+            try:
+                time.sleep(0.8)
+                restore_window("Thunderbird")
+            except Exception:
+                pass
+            return {
+                "ok": True,
+                "app": "Thunderbird",
+                "action": "open_junk_hint",
+                "detail": (
+                    "Opened Thunderbird — click Junk, then Empty Junk "
+                    "(or right-click Junk → Empty Junk)."
+                ),
+                "reveal": True,
+            }
+        if key in ("thunderbird", "tb", "mozilla"):
+            return {"ok": False, "detail": hit.get("detail") or "Thunderbird not found"}
+
+    # Outlook COM when asked or as fallback
     if key in ("auto", "outlook", "desktop outlook"):
         try:
             import win32com.client  # type: ignore
@@ -574,7 +602,6 @@ def empty_email_spam(*, confirm: bool = False, provider: str = "auto", cfg: dict
             ns = outlook.GetNamespace("MAPI")
             junk = ns.GetDefaultFolder(23)  # olFolderJunk
             count = int(junk.Items.Count)
-            # Delete newest-first-ish by repeatedly removing item 1
             deleted = 0
             while junk.Items.Count > 0:
                 junk.Items.Item(1).Delete()
@@ -592,7 +619,7 @@ def empty_email_spam(*, confirm: bool = False, provider: str = "auto", cfg: dict
             if key == "outlook":
                 return {"ok": False, "detail": f"Outlook spam clear failed: {exc}"}
 
-    # Gmail: open spam folder (Chrome can't click Empty without extension automation)
+    # Gmail spam folder
     try:
         _start_uri("https://mail.google.com/mail/u/0/#spam")
         return {

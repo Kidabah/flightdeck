@@ -482,13 +482,13 @@ HANDS_TOOLS = [
         "type": "function",
         "function": {
             "name": "open_email",
-            "description": "Open email on Chris's PC (Outlook if installed, else Gmail in browser, else Mail).",
+            "description": "Open email on Chris's PC. Default is Thunderbird (his mail app). Also supports outlook, gmail, mail.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "provider": {
                         "type": "string",
-                        "description": "auto | outlook | gmail | mail",
+                        "description": "auto (Thunderbird first) | thunderbird | outlook | gmail | mail",
                     },
                 },
             },
@@ -501,13 +501,13 @@ HANDS_TOOLS = [
             "description": (
                 "Empty email spam/junk. ALWAYS call first with confirm=false. "
                 "Only confirm=true after Chris says yes/approve empty spam. "
-                "Outlook Junk can be cleared; Gmail opens the Spam folder for him to Empty."
+                "Thunderbird opens for Empty Junk; Outlook can clear Junk automatically; Gmail opens Spam."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "confirm": {"type": "boolean", "description": "True only after explicit approval"},
-                    "provider": {"type": "string", "description": "auto | outlook | gmail"},
+                    "provider": {"type": "string", "description": "auto | thunderbird | outlook | gmail"},
                 },
             },
         },
@@ -1274,8 +1274,8 @@ def empty_pc_email_spam(*, confirm: bool = False, provider: str = "auto") -> str
         return str(payload.get("detail") or "Need your OK to empty spam.")
     if code != 200 or not payload.get("ok"):
         return f"Empty spam failed: {payload.get('detail') or payload}"
-    if payload.get("action") == "open_spam":
-        return str(payload.get("detail") or "Opened Gmail Spam.")
+    if payload.get("action") in ("open_spam", "open_junk_hint"):
+        return str(payload.get("detail") or "Opened spam/junk.")
     deleted = payload.get("deleted")
     return f"Emptied {payload.get('app') or 'email'} spam ({deleted} item(s))."
 

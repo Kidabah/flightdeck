@@ -57,7 +57,8 @@ Talk to Amy in normal English — this list is just reminders of what she can do
 - “Make a folder called Invoices on my Desktop”
 - “Copy that file to Downloads” / “Move it to Documents”
 - “Delete that folder” → she asks first; say **yes delete** / **approve**
-- “Open my email” / “Empty spam” → spam clear needs **yes empty spam**
+- “Open my email” → **Thunderbird** (Chris’s mail)
+- “Empty spam” → needs **yes empty spam**; opens Thunderbird so you can Empty Junk
 
 ### Chrome tabs (extension loaded)
 - “List my Chrome tabs”

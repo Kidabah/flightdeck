@@ -1,4 +1,8 @@
-## 2026-09-19 Session update (Amy PC file + email tools)
+## 2026-09-19 Session update (Amy Thunderbird mail)
+
+Latest commit: _(pending)_ — Email defaults to **Thunderbird** (Chris's app). Empty spam opens Thunderbird for Empty Junk after approval. Restart Hands + Amy.
+
+---# 2026-09-19 Session update (Amy PC file + email tools)
 
 Latest commit: _(pending)_ — Hands can create folders, copy/move files, delete with explicit approval, open email, empty spam with approval (Outlook Junk auto; Gmail opens Spam). Roots only. Restart Hands + Amy. Say **yes delete** / **yes empty spam** to approve.
 

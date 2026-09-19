@@ -41,8 +41,8 @@ Hands can also (no arbitrary shell):
 | Make a folder on Desktop | `create_folder` |
 | Copy / move a file | `copy_path` / `move_path` |
 | Delete (asks first) | `delete_path` + confirm |
-| Open email | `open_email` |
-| Empty spam (asks first) | `empty_email_spam` + confirm |
+| Open email | `open_email` (Thunderbird first) |
+| Empty spam (asks first) | `empty_email_spam` + confirm (Thunderbird → Empty Junk) |
 
 File ops stay inside configured **roots** (Desktop / Documents / Downloads / flightdeck by default).
 
