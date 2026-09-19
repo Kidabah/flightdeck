@@ -25,6 +25,8 @@ Talk to Amy in normal English — this list is just reminders of what she can do
 - **Always on top** until you say **minimise** (then **come back**)
 - Your words show in the Talk box; her reply is in the answer bubble
 - If Spotify is loud, Whisper can invent Korean/gibberish — she’ll ignore that; pause music or mute her mic first
+- **“Whistle”** / **“sing”** — real whistle melody
+- **“Bedtime”** / **“goodnight”** / **“night night”** — yawn + sleep (wake with **wake up Amy**)
 
 ## See
 
