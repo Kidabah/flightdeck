@@ -1,5 +1,6 @@
 const HANDS = "http://127.0.0.1:4701";
 const POLL_ALARM = "amy-hands-poll";
+let tickTimer = 0;
 
 async function poll() {
   try {
@@ -54,26 +55,34 @@ async function poll() {
   }
 }
 
-function armAlarm() {
-  chrome.alarms.create(POLL_ALARM, { periodInMinutes: 0.025 }); // ~1.5s (min Chrome allows ~1 min on some builds; 0.025≈1.5s where supported)
+function armFastTicks() {
+  if (tickTimer) return;
+  // Runs while the worker is awake; dies when Chrome sleeps it (normal).
+  tickTimer = setInterval(poll, 800);
 }
 
-chrome.runtime.onInstalled.addListener(() => {
-  armAlarm();
-  poll();
-});
-chrome.runtime.onStartup.addListener(() => {
-  armAlarm();
-  poll();
-});
-chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === POLL_ALARM) poll();
-});
-// Also poke on click so you can wake it from the toolbar.
-chrome.action.onClicked.addListener(() => {
-  armAlarm();
-  poll();
-});
+function armAlarm() {
+  // Wakes a sleeping MV3 worker. Chrome may clamp period; 1 min is the safe floor.
+  chrome.alarms.create(POLL_ALARM, { periodInMinutes: 1 });
+  // Also schedule a near-term nudge when supported.
+  chrome.alarms.create(`${POLL_ALARM}-nudge`, { delayInMinutes: 0.05 });
+}
 
-armAlarm();
-poll();
+function wake() {
+  armAlarm();
+  armFastTicks();
+  poll();
+}
+
+chrome.runtime.onInstalled.addListener(wake);
+chrome.runtime.onStartup.addListener(wake);
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (!String(alarm.name || "").startsWith(POLL_ALARM)) return;
+  armFastTicks();
+  poll();
+  // Chain short nudges while allowed — keeps responsiveness better than 1/min only.
+  chrome.alarms.create(`${POLL_ALARM}-nudge`, { delayInMinutes: 0.05 });
+});
+chrome.action.onClicked.addListener(wake);
+
+wake();
