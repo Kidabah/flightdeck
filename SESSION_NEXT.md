@@ -1,6 +1,6 @@
-## 2026-09-19 Session update (Amy bedtime yawn)
+# 2026-09-19 Session update (Amy bedtime yawn)
 
-Latest commit: _(pending)_ — Say **bedtime** / **goodnight** / **night night** / **go to sleep** → Laura goodnight + yawn SFX + sleep. Wake as usual. Reopen Amy.
+Latest commit: ``ff9969c`` — Say **bedtime** / **goodnight** / **night night** / **go to sleep** → Laura goodnight + yawn SFX + sleep. Wake as usual. Reopen Amy.
 
 --- 2026-09-19 Session update (Amy whistle + yawn SFX)
 
