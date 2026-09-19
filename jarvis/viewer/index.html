@@ -947,6 +947,7 @@ async function ask(question) {
   bumpIdle();
   stopSpeaking();
   duckMic();
+  inputEl.value = '';
   const youLine = `You: ${q}`;
   answerEl.textContent = `${youLine}\n\n…`;
   setStatus('thinking', 'Thinking');
@@ -1324,7 +1325,6 @@ async function flushDesktopUtterance() {
   try {
     const text = await transcribeDesktopBlob(blob);
     if (text && wantListen && !asleep) {
-      inputEl.value = text;
       bumpIdle();
       await ask(text);
     } else if (wantListen && !asleep) {
