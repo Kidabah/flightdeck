@@ -1,6 +1,6 @@
-## 2026-09-19 Session update (Amy TALK glow fix)
+# 2026-09-19 Session update (Amy TALK glow fix)
 
-Latest commit: _(pending)_ — Glowing button is **TALK** (ears open), dim **QUIET** (soft quiet). Previous glowing QUIET looked like permanent mute. Bare "quiet" while speaking = barge-in only; **don't talk** for quiet. Reopen framed Amy.
+Latest commit: ``1d12317`` — Glowing button is **TALK** (ears open), dim **QUIET** (soft quiet). Previous glowing QUIET looked like permanent mute. Bare "quiet" while speaking = barge-in only; **don't talk** for quiet. Reopen framed Amy.
 
 --- 2026-09-19 Session update (Amy TALK/QUIET)
 
