@@ -66,6 +66,10 @@ Funny humour welcome when it fits; never cringe, never corporate, never a butler
 
 Call him Chris or Kidabah (mix it up). Never call him sir. You are Amy — always.
 
+ALWAYS answer in English unless Chris explicitly asks for another language.
+If his message looks like Whisper garbage (random Korean/Japanese/Chinese, streamer
+sign-offs, or nonsense names), say you didn't catch that — don't reply in that language.
+
 Answer in one witty beat plus the facts. Don't recite notes verbatim when they're
 on screen. Prefer workshop notes for Flightdeck/printer facts.
 Chris can drop files on you — read them and use what's in them.
@@ -1553,8 +1557,62 @@ def tool_control(question: str) -> dict[str, Any] | None:
     }
 
 
+def try_media_tools(question: str) -> dict[str, Any] | None:
+    """Fast path for Spotify / media — skips LLM when the ask is obvious."""
+    if not hands_configured():
+        return None
+    q = re.sub(r"[^\w\s]", " ", (question or "").lower())
+    q = re.sub(r"\s+", " ", q).strip()
+    if not q:
+        return None
+    # Whisper sometimes invents "spotty" / "spot if i" etc.
+    q = (
+        q.replace("spotty", "spotify")
+        .replace("spot if y", "spotify")
+        .replace("spotifyy", "spotify")
+        .replace("spot if i", "spotify")
+    )
+
+    play = bool(
+        re.search(
+            r"\b((open|launch|start|play)\s+(spotify|music|some music|a song)|"
+            r"spotify\s+(and\s+)?play|play\s+spotify|put\s+on\s+(some\s+)?music|"
+            r"music\s+on)\b",
+            q,
+        )
+    )
+    if play:
+        msg = launch_pc_app("spotify", play=True)
+        return {"answer": msg, "nodes": [], "move_camera": False, "tool": "spotify_play", "ok": True}
+
+    pause = bool(re.search(r"\b(pause|stop)\s+(the\s+)?(music|spotify|track|song)\b|\bpause\s+spotify\b", q))
+    if pause or re.fullmatch(r"(pause|pause music|pause that)", q):
+        msg = media_control("play_pause")
+        return {"answer": msg, "nodes": [], "move_camera": False, "tool": "media", "ok": True}
+
+    if re.search(r"\b(next( track| song)?|skip( (this|the)? (track|song))?)\b", q):
+        msg = media_control("next")
+        return {"answer": msg, "nodes": [], "move_camera": False, "tool": "media", "ok": True}
+
+    if re.search(r"\b(previous|prev|last)\s+(track|song)\b|\bgo\s+back\s+(a\s+)?(track|song)\b", q):
+        msg = media_control("previous")
+        return {"answer": msg, "nodes": [], "move_camera": False, "tool": "media", "ok": True}
+
+    if re.search(r"\b(turn|volume)\s+(it\s+)?(down|up)\b|\b(louder|quieter)\b", q):
+        action = "volume_up" if re.search(r"\b(up|louder)\b", q) else "volume_down"
+        msg = media_control(action, app="spotify")
+        return {"answer": msg, "nodes": [], "move_camera": False, "tool": "media", "ok": True}
+
+    # "mute spotify" / "mute the music" — NOT mic (viewer handles mic mute)
+    if re.search(r"\bmute\s+(spotify|the\s+music|music|that)\b|\bspotify\s+mute\b", q):
+        msg = media_control("mute", app="spotify")
+        return {"answer": msg, "nodes": [], "move_camera": False, "tool": "media", "ok": True}
+
+    return None
+
+
 def try_tools(question: str) -> dict[str, Any] | None:
-    for fn in (tool_calibrate, tool_control, tool_status):
+    for fn in (try_media_tools, tool_calibrate, tool_control, tool_status):
         result = fn(question)
         if result is not None:
             return result

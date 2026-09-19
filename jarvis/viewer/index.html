@@ -731,6 +731,41 @@ function isRestorePhrase(t) {
     || /^(can you|could you) (please )?(come back|restore|show)\b/i.test(s);
 }
 
+function isMuteMicPhrase(t) {
+  const s = normalizeAmyCmd(t);
+  if (!s) return false;
+  // Bare "mute" = Spotify (server). Mic mute needs mic/listen wording.
+  return /^(amy[, ]+)?(please[, ]+)?(mute( your| the)? (mic|microphone)|stop listening|mic off|microphone off|go deaf|deaf mode)(,?\s*please)?$/i.test(s)
+    || /\bmute\s+(your\s+)?(mic|microphone)\b/i.test(s)
+    || /\b(stop listening|mic off|go deaf)\b/i.test(s);
+}
+
+function isUnmuteMicPhrase(t) {
+  const s = normalizeAmyCmd(t);
+  if (!s) return false;
+  return /^(amy[, ]+)?(please[, ]+)?(unmute( your| the)?( mic| microphone)?|start listening|listen again|mic on|microphone on|hear me)(,?\s*please)?$/i.test(s)
+    || /\bunmute\s+(your\s+)?(mic|microphone)\b/i.test(s)
+    || /\b(start listening|mic on|hear me)\b/i.test(s);
+}
+
+function isPlayMusicPhrase(t) {
+  const s = normalizeAmyCmd(t)
+    .replace(/\bspotty\b/g, 'spotify')
+    .replace(/\bspot if y\b/g, 'spotify');
+  if (!s) return false;
+  return /\b((open|launch|start|play)\s+(spotify|music|some music)|spotify\s+(and\s+)?play|play\s+spotify|put\s+on\s+(some\s+)?music|music\s+on)\b/i.test(s);
+}
+
+/** Whisper + Spotify bleed often invents Hangul / CJK streamer sign-offs. */
+function looksLikeWhisperGarbage(t) {
+  const s = String(t || '').trim();
+  if (!s) return true;
+  const cjk = (s.match(/[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/g) || []).join('').length;
+  if (cjk >= 2 && cjk >= s.replace(/\s/g, '').length * 0.35) return true;
+  if (/시청해주셔서|다음에 또 만나요|천만에요|ありがとう|谢谢/.test(s)) return true;
+  return false;
+}
+
 async function callAmyDesktop(fn, ...args) {
   try {
     if (window.pywebview?.api && typeof window.pywebview.api[fn] === 'function') {
@@ -1211,6 +1246,22 @@ async function ask(question) {
     setStatus(wantListen ? 'listening' : 'idle', wantListen ? (useWhisperMic ? 'Listening · Whisper' : 'Listening') : 'Ready');
     return;
   }
+  if (looksLikeWhisperGarbage(q) && !pendingFiles.length) {
+    answerEl.textContent = "Didn't catch that — Spotify might've bled into the mic. Try again, or mute me first.";
+    setStatus(wantListen ? 'listening' : 'idle', wantListen ? (useWhisperMic ? 'Listening · Whisper' : 'Listening') : 'Ready');
+    return;
+  }
+  if (isMuteMicPhrase(q) && !pendingFiles.length) {
+    muteMic();
+    answerEl.textContent = 'Mic muted. Say unmute or hit MIC when you want me.';
+    return;
+  }
+  if (isUnmuteMicPhrase(q) && !pendingFiles.length) {
+    await startMic();
+    answerEl.textContent = 'Listening again.';
+    return;
+  }
+  // Play music goes through /chat try_tools (Spotify + play) — fall through.
   bumpIdle();
   stopSpeaking();
   duckMic();
@@ -1605,6 +1656,11 @@ async function flushDesktopUtterance() {
   // Release BEFORE ask/speak so voice STOP can fire while Laura talks.
   desktopMic.busy = false;
   if (!text || !wantListen || asleep) {
+    if (wantListen && !asleep && !isSpeaking) setStatus('listening', 'Listening · Whisper');
+    return;
+  }
+  if (looksLikeWhisperGarbage(text)) {
+    answerEl.textContent = "Ignored mic noise (Whisper heard gibberish). Music playing? Mute me or pause Spotify.";
     if (wantListen && !asleep && !isSpeaking) setStatus('listening', 'Listening · Whisper');
     return;
   }
