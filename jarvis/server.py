@@ -236,15 +236,21 @@ HANDS_TOOLS = [
         "function": {
             "name": "media_control",
             "description": (
-                "Send a Windows media key: play_pause, next, previous, or stop. "
-                "Use for Spotify / system media. For random albums use Cindy Vinyl, not this."
+                "Send a Windows media key: play_pause, next, previous, stop, "
+                "volume_up, volume_down, or mute. "
+                "Use steps (1–20) for how many volume taps. "
+                "For random albums use Cindy Vinyl, not this."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "action": {
                         "type": "string",
-                        "description": "play_pause | next | previous | stop",
+                        "description": "play_pause | next | previous | stop | volume_up | volume_down | mute",
+                    },
+                    "steps": {
+                        "type": "integer",
+                        "description": "How many volume key taps (default ~2 for up/down).",
                     },
                 },
                 "required": ["action"],
@@ -804,12 +810,22 @@ def launch_pc_app(name: str, play: bool = False) -> str:
     return msg
 
 
-def media_control(action: str) -> str:
-    return _hands_action(
-        "/media",
-        {"action": action or "play_pause"},
-        ok_msg="Media: {action}",
-    )
+def media_control(action: str, steps: int = 1) -> str:
+    if not hands_configured():
+        return "Amy Hands not configured (hands_base_url)."
+    body: dict[str, Any] = {"action": action or "play_pause"}
+    if steps and int(steps) > 0:
+        body["steps"] = int(steps)
+    code, payload = hands_request("/media", method="POST", body=body, timeout=10)
+    if not isinstance(payload, dict):
+        return f"Media failed: {payload}"
+    if code != 200 or not payload.get("ok"):
+        return f"Media failed: {payload.get('detail') or payload}"
+    act = payload.get("action") or action
+    n = payload.get("steps")
+    if n and act in ("volume_up", "volume_down"):
+        return f"Media: {act} ×{n}"
+    return f"Media: {act}"
 
 
 def close_pc_window(query: str) -> str:
@@ -886,7 +902,15 @@ def run_tool(name: str, arguments: str | dict[str, Any]) -> str:
             play=bool(args.get("play") or args.get("and_play")),
         )
     if name == "media_control":
-        return media_control(str(args.get("action") or args.get("command") or "play_pause"))
+        steps = args.get("steps") or args.get("count") or 1
+        try:
+            steps_i = int(steps)
+        except (TypeError, ValueError):
+            steps_i = 1
+        return media_control(
+            str(args.get("action") or args.get("command") or "play_pause"),
+            steps=steps_i,
+        )
     if name == "close_window":
         return close_pc_window(str(args.get("query") or args.get("title") or ""))
     if name == "minimize_window":

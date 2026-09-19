@@ -290,7 +290,11 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if path in ("/media", "/media/control"):
-            result = _media_control(str(body.get("action") or body.get("command") or "play_pause"))
+            steps = body.get("steps") or body.get("count") or 1
+            result = _media_control(
+                str(body.get("action") or body.get("command") or "play_pause"),
+                steps=steps,
+            )
             self._json(200 if result.get("ok") else 400, result)
             return
 

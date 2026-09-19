@@ -27,6 +27,15 @@ VK_MEDIA = {
     "previous": 0xB1,
     "prev": 0xB1,
     "stop": 0xB2,
+    "volume_up": 0xAF,
+    "vol_up": 0xAF,
+    "louder": 0xAF,
+    "volume_down": 0xAE,
+    "vol_down": 0xAE,
+    "quieter": 0xAE,
+    "mute": 0xAD,
+    "unmute": 0xAD,
+    "volume_mute": 0xAD,
 }
 
 # Built-in allowlist. Config can add/override via "apps".
@@ -264,18 +273,47 @@ def open_file_with(path: str, app: str, *, cfg: dict[str, Any] | None = None) ->
         return {"ok": False, "detail": str(exc)}
 
 
-def media_control(action: str = "play_pause") -> dict[str, Any]:
+def media_control(action: str = "play_pause", steps: int = 1) -> dict[str, Any]:
     key_name = str(action or "play_pause").strip().lower().replace("-", "_").replace(" ", "_")
+    # Friendly aliases
+    aliases = {
+        "up": "volume_up",
+        "down": "volume_down",
+        "volumeup": "volume_up",
+        "volumedown": "volume_down",
+        "increase": "volume_up",
+        "decrease": "volume_down",
+        "lower": "volume_down",
+        "raise": "volume_up",
+        "turn_up": "volume_up",
+        "turn_down": "volume_down",
+    }
+    key_name = aliases.get(key_name, key_name)
     vk = VK_MEDIA.get(key_name)
     if vk is None:
-        return {"ok": False, "detail": f"unknown media action “{action}”. Use play_pause/next/previous/stop."}
+        return {
+            "ok": False,
+            "detail": (
+                f"unknown media action “{action}”. "
+                "Use play_pause/next/previous/stop/volume_up/volume_down/mute."
+            ),
+        }
     try:
-        user32.keybd_event(vk, 0, KEYEVENTF_EXTENDEDKEY, 0)
-        time.sleep(0.05)
-        user32.keybd_event(vk, 0, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, 0)
+        n = max(1, min(int(steps or 1), 20))
+    except (TypeError, ValueError):
+        n = 1
+    # Volume taps: a few keypresses feel like a real nudge
+    if key_name in ("volume_up", "volume_down") and n == 1:
+        n = 2
+    try:
+        for _ in range(n):
+            user32.keybd_event(vk, 0, KEYEVENTF_EXTENDEDKEY, 0)
+            time.sleep(0.03)
+            user32.keybd_event(vk, 0, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, 0)
+            time.sleep(0.04)
     except Exception as exc:
         return {"ok": False, "detail": str(exc)}
-    return {"ok": True, "action": key_name}
+    return {"ok": True, "action": key_name, "steps": n}
 
 
 def _find_windows(query: str) -> dict[str, Any]:
