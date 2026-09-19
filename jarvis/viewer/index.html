@@ -471,8 +471,9 @@ function duckMic() {
   finishTimer = null;
   pending = '';
   isSpeaking = true;
-  // Keep recognition hot for barge-in ("stop" / "hang on").
-  if (wantListen && recognition) {
+  // Chrome barge-in only — WebView Whisper path must not touch SpeechRecognition
+  // (it spams "network" and used to force-unmute / re-arm the mic).
+  if (wantListen && recognition && !useWhisperMic) {
     try { recognition.start(); } catch (_) {}
   }
 }
@@ -482,11 +483,13 @@ function unduckMic() {
   // Let speaker echo die before normal listening resumes.
   micMutedUntil = Date.now() + 900;
   if (wantListen) {
-    setStatus('listening', 'Listening');
-    setTimeout(() => {
-      if (!wantListen || isSpeaking || !recognition) return;
-      try { recognition.start(); } catch (_) {}
-    }, 950);
+    setStatus('listening', useWhisperMic ? 'Listening · Whisper' : 'Listening');
+    if (!useWhisperMic) {
+      setTimeout(() => {
+        if (!wantListen || isSpeaking || !recognition || useWhisperMic) return;
+        try { recognition.start(); } catch (_) {}
+      }, 950);
+    }
   } else if (statusEl.dataset.mode === 'speaking' || statusEl.dataset.mode === 'thinking') {
     setStatus('idle', 'Ready');
   }
@@ -523,12 +526,14 @@ function handleInterrupt() {
   bumpIdle();
   answerEl.textContent = answerEl.textContent ? `${answerEl.textContent}\n\n(stopped)` : '(stopped)';
   if (wantListen) {
-    setStatus('listening', 'Listening — interrupted');
+    setStatus('listening', useWhisperMic ? 'Listening · Whisper — interrupted' : 'Listening — interrupted');
     syncMicUi();
-    setTimeout(() => {
-      if (!wantListen || isSpeaking || !recognition) return;
-      try { recognition.start(); } catch (_) {}
-    }, 200);
+    if (!useWhisperMic) {
+      setTimeout(() => {
+        if (!wantListen || isSpeaking || !recognition || useWhisperMic) return;
+        try { recognition.start(); } catch (_) {}
+      }, 200);
+    }
   } else {
     setStatus('idle', 'Interrupted');
   }
@@ -637,7 +642,7 @@ function wakeAmy(reason) {
   nudgedIdle = false;
   setStatus(wantListen ? 'listening' : 'idle', wantListen ? 'Listening' : 'Ready');
   bumpIdle();
-  if (wantListen && recognition && !listening) {
+  if (wantListen && recognition && !listening && !useWhisperMic) {
     try { recognition.start(); } catch (_) {}
   }
   if (reason === 'voice' || reason === 'click') {
@@ -942,7 +947,8 @@ async function ask(question) {
   bumpIdle();
   stopSpeaking();
   duckMic();
-  answerEl.textContent = '…';
+  const youLine = `You: ${q}`;
+  answerEl.textContent = `${youLine}\n\n…`;
   setStatus('thinking', 'Thinking');
   try { chatAbort?.abort(); } catch (_) {}
   chatAbort = new AbortController();
@@ -1002,7 +1008,7 @@ async function ask(question) {
       renderDrops();
     }
     if (signal.aborted) return;
-    answerEl.textContent = payload.answer || '';
+    answerEl.textContent = `${youLine}\n\n${payload.answer || ''}`;
     applySources(payload);
     await speak(payload.answer || '');
   } catch (err) {
@@ -1010,9 +1016,9 @@ async function ask(question) {
       unduckMic();
       return;
     }
-    answerEl.textContent = String(err.message || err);
+    answerEl.textContent = `${youLine}\n\n${String(err.message || err)}`;
     setStatus('idle', 'Error');
-    await speak(answerEl.textContent);
+    await speak(String(err.message || err));
   } finally {
     chatAbort = null;
   }
@@ -1103,20 +1109,28 @@ function armRecognition() {
       return;
     }
     if (err === 'network' || err === 'audio-capture') {
-      // WebView2 hits this constantly — flip to Whisper and keep going.
+      // WebView2 hits this constantly — flip to Whisper, but NEVER force-unmute.
       useWhisperMic = true;
-      wantListen = true;
+      try { recognition?.stop(); } catch (_) {}
+      recognition = null;
+      if (!wantListen) {
+        syncMicUi();
+        return;
+      }
       syncMicUi();
-      answerEl.textContent = 'Switching mic to Whisper for this app window…';
       setStatus('listening', 'Listening · Whisper');
-      startDesktopMic().then((ok) => {
-        if (!ok) {
-          wantListen = false;
-          syncMicUi();
-          setStatus('idle', 'Mic error');
-          answerEl.textContent = `Mic hiccup (${err}). Whisper fallback failed — type, or use Chrome.`;
-        }
-      });
+      // Only (re)arm if desktop capture isn't already live.
+      if (!desktopMic.stream) {
+        answerEl.textContent = 'Switching mic to Whisper for this app window…';
+        startDesktopMic().then((ok) => {
+          if (!ok) {
+            wantListen = false;
+            syncMicUi();
+            setStatus('idle', 'Mic error');
+            answerEl.textContent = `Mic hiccup (${err}). Whisper fallback failed — type, or use Chrome.`;
+          }
+        });
+      }
       return;
     }
     wantListen = false;
@@ -1198,8 +1212,11 @@ function muteMic() {
   clearTimeout(finishTimer);
   finishTimer = null;
   pending = '';
+  desktopMic.busy = false;
+  desktopMic.speaking = false;
   stopDesktopMic();
   if (recognition) {
+    try { recognition.abort?.(); } catch (_) {}
     try { recognition.stop(); } catch (_) {}
   }
   listening = false;
@@ -1307,7 +1324,7 @@ async function flushDesktopUtterance() {
   try {
     const text = await transcribeDesktopBlob(blob);
     if (text && wantListen && !asleep) {
-      inputEl.value = '';
+      inputEl.value = text;
       bumpIdle();
       await ask(text);
     } else if (wantListen && !asleep) {
@@ -1361,6 +1378,13 @@ function watchDesktopLevels() {
   const tick = () => {
     if (!wantListen || !desktopMic.analyser) {
       desktopMic.raf = 0;
+      return;
+    }
+    // Ignore speaker bleed / echo while Amy talks or mic is in cooldown.
+    if (isSpeaking || micIsDeaf() || desktopMic.busy) {
+      desktopMic.speaking = false;
+      desktopMic.silentMs = 0;
+      desktopMic.raf = window.setTimeout(tick, 50);
       return;
     }
     desktopMic.analyser.getByteTimeDomainData(data);
@@ -1687,6 +1711,12 @@ try {
   brandSub.textContent = 'ready (galaxy error)';
 }
 armRecognition();
+if (DESKTOP_APP || useWhisperMic) {
+  // Don't keep a zombie SpeechRecognition in WebView — it only causes network spam.
+  try { recognition?.abort?.(); } catch (_) {}
+  try { recognition?.stop?.(); } catch (_) {}
+  recognition = null;
+}
 bootGreeting();
 bumpIdle();
 document.getElementById('amy-face-wrap')?.addEventListener('click', () => {

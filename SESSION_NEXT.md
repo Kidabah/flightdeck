@@ -1,3 +1,9 @@
+﻿## 2026-09-19 Session update (Amy mute + transcript + second listen)
+
+Latest commit: _(pending)_ — Mute sticks (WebView SpeechRecognition no longer force-unmutes). Desktop mic ignores echo while she talks so the next utterance still fires. Shows `You: …` in the answer box + transcript in the input. Restart local Amy / reopen `/?desktop=1`. Pi: pull + restart.
+
+---
+
 ## 2026-09-19 Session update (Amy Whisper WAV PCM)
 
 Latest commit: 37b62ef ? Desktop mic captures PCM via ScriptProcessor, wraps as WAV, and posts multipart `/stt`. Server normalizes mime + detects RIFF/WAV so Whisper no longer gets invalid MediaRecorder webm. Restart local Amy + reopen `/?desktop=1`. Pi: pull + restart.
