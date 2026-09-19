@@ -668,8 +668,17 @@ function isWhistlePhrase(t) {
 function normalizeAmyCmd(t) {
   let s = String(t || '').trim().toLowerCase().replace(/[.,!?]+$/g, '');
   if (!s) return '';
-  // Whisper often mangles "Amy go …" — common garble → clean phrase
+  // Whisper loves mangling "Amy go small/large" into nonsense names
   s = s
+    .replace(/\bigor\s+smol+\b/g, 'amy go small')
+    .replace(/\bigor\s+small\b/g, 'amy go small')
+    .replace(/\beager\s+smol+\b/g, 'amy go small')
+    .replace(/\bi\s*go\s+(smol+|small)\b/g, 'amy go small')
+    .replace(/\bamigo\s+(smol+|small)\b/g, 'amy go small')
+    .replace(/\bamiga\s+(smol+|small|lodge|large)\b/g, (_, w) => {
+      const map = { smol: 'small', smole: 'small', lodge: 'large' };
+      return `amy go ${map[w] || w}`;
+    })
     .replace(/\bamiga\b/g, 'amy go')
     .replace(/\ba\s*me\s*go\b/g, 'amy go')
     .replace(/\bany\s*go\b/g, 'amy go')
@@ -677,7 +686,6 @@ function normalizeAmyCmd(t) {
     .replace(/\bemmy\s+go\b/g, 'amy go')
     .replace(/\blodge\b/g, 'large')
     .replace(/\blaunch\b/g, 'large')
-    // "smol" is how Whisper/memes spell small — never send that to the LLM as chat
     .replace(/\bsmol+\b/g, 'small')
     .replace(/\bsmole\b/g, 'small')
     .replace(/\bsmalls\b/g, 'small')
@@ -687,13 +695,17 @@ function normalizeAmyCmd(t) {
 }
 
 function isGoSmallPhrase(t) {
+  const raw = String(t || '').trim().toLowerCase();
   const s = normalizeAmyCmd(t);
+  if (!s && !raw) return false;
+  // Direct Whisper disasters before / after normalize
+  if (/\bigor\s+smol/.test(raw) || /\bi\s*go\s*r?\s*smol/.test(raw)) return true;
   if (!s) return false;
-  // minimise = hide window (separate); go small = compact UI
   return /^(amy[, ]+)?(please[, ]+)?(go small|get small|go mini|shrink|compact( mode)?|focus mode|make yourself small|make the window small)(,?\s*please)?$/i.test(s)
     || /^(can you|could you) (please )?(go small|shrink|get small)\b/i.test(s)
     || /\b(go|get|be)\s+small\b/i.test(s)
-    || /\bsmall\s+(mode|window|please)\b/i.test(s);
+    || /\bsmall\s+(mode|window|please)\b/i.test(s)
+    || /^amy go small$/i.test(s);
 }
 
 function isGoBigPhrase(t) {
