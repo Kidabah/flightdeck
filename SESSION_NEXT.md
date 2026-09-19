@@ -1,4 +1,9 @@
-﻿## 2026-09-19 Session update (Amy compact centre v2)
+﻿## 2026-09-19 Session update (Amy go-large + compact polish)
+
+Latest commit: `719fd94` — Whisper “amiga lodge” → go large; compact shows RING/EYES again, less top pad, ears uncropped, always-on-top while small. Reopen framed Amy.
+
+---
+## 2026-09-19 Session update (Amy compact centre v2)
 
 Latest commit: `1dc3894` — Compact mode: matched hud/dock widths, 4-col tool grid so FILE/MIC/STOP/ASK no longer clip, face video object-position nudge, go-small window 420x720. Reopen framed Amy. UI + launch.py.
 
@@ -2774,4 +2779,5 @@ Older local/static change:
 - Static cache bumped to `app.js?v=645`; frontend refresh only.
 
 ---
+
 
