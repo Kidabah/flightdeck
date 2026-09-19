@@ -1,6 +1,6 @@
 ﻿## 2026-09-19 Session update (Amy mute + transcript + second listen)
 
-Latest commit: _(pending)_ — Mute sticks (WebView SpeechRecognition no longer force-unmutes). Desktop mic ignores echo while she talks so the next utterance still fires. Shows `You: …` in the answer box + transcript in the input. Restart local Amy / reopen `/?desktop=1`. Pi: pull + restart.
+Latest commit: `2ad6f0f` — Mute sticks (WebView SpeechRecognition no longer force-unmutes). Desktop mic ignores echo while she talks so the next utterance still fires. Shows `You: …` in the answer box + transcript in the input. Restart local Amy / reopen `/?desktop=1`. Pi: pull + restart.
 
 ---
 
