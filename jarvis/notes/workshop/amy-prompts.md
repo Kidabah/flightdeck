@@ -16,9 +16,11 @@ Talk to Amy in normal English — this list is just reminders of what she can do
 
 - “Hey Amy…” / just talk after enabling the mic
 - **STOP** button, or say **stop** / **wait** / **hang on** while she talks
-- **TALK** / **QUIET** button — or say **don’t talk** / **quiet** / **talk** (soft quiet keeps Whisper armed so “talk” works)
+- **TALK** (glowing) = ears open; **QUIET** (dim) = soft quiet — say **talk** / **don’t talk**
+- Soft quiet keeps Whisper armed so voice “talk” works
+- Bare **“quiet”** / **“stop”** while she speaks = barge-in (stops talking), not permanent quiet
 - Bare **“mute”** (no “yourself/mic”) ducks **Spotify**, not Amy’s ears
-- Old synonyms still work: mute yourself / unmute / stop listening / listen again
+- Old synonyms: mute yourself / unmute / stop listening / listen again
 - **“Go small”** / **FOCUS** — compact face + chat; mic stays on. **“Go big”** / **go large** to expand
 - **Always on top** until you say **minimise** (then **come back**)
 - Your words show in the Talk box; her reply is in the answer bubble

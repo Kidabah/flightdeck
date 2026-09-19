@@ -534,7 +534,7 @@
       <input id="chat-input" type="text" placeholder="Talk to Amy… (or drop files)" autocomplete="off" />
       <input id="file-input" type="file" multiple hidden accept="image/*,.txt,.md,.json,.csv,.py,.js,.ts,.html,.css,.log,.gcode,.xml,.yml,.yaml,.svg" />
       <button class="tool" id="file-btn" type="button" title="Attach files">FILE</button>
-      <button class="tool" id="mic-btn" type="button" title="Talk — open Amy's ears">TALK</button>
+      <button class="tool" id="mic-btn" type="button" title="Quiet — click or say talk to open ears">QUIET</button>
       <button class="tool" id="stop-btn" type="button" title="Stop Amy talking">STOP</button>
       <button class="tool" id="send-btn" type="button">ASK</button>
     </div>
@@ -800,12 +800,13 @@ function isRestorePhrase(t) {
 function isMuteMicPhrase(t) {
   const s = normalizeAmyCmd(t);
   if (!s) return false;
-  // Bare "mute" alone = Spotify (server). "Don't talk" / "quiet" / mic wording = Amy's ears off.
-  return /^(amy[, ]+)?(please[, ]+)?(don'?t talk|do not talk|be quiet|go quiet|quiet( mode)?|hush|mute( your| the)? (mic|microphone|ears)|mute yourself|mute you|mute amy|stop listening|mic off|microphone off|go deaf|deaf mode)(,?\s*please)?$/i.test(s)
-    || /^(can you|could you) (please )?(be quiet|go quiet|mute (yourself|your mic|your microphone|amy)|don'?t talk)\b/i.test(s)
+  // Ears off. Bare "quiet"/"hush" = stop talking (interrupt), NOT permanent quiet.
+  // Bare "mute" alone = Spotify (server).
+  return /^(amy[, ]+)?(please[, ]+)?(don'?t talk|do not talk|go quiet|quiet mode|mute( your| the)? (mic|microphone|ears)|mute yourself|mute you|mute amy|stop listening|mic off|microphone off|go deaf|deaf mode)(,?\s*please)?$/i.test(s)
+    || /^(can you|could you) (please )?(go quiet|mute (yourself|your mic|your microphone|amy)|don'?t talk)\b/i.test(s)
     || /\bmute\s+(your\s+)?(mic|microphone|ears|yourself)\b/i.test(s)
     || /\bmute\s+(you|amy)\b/i.test(s)
-    || /\b(don'?t talk|do not talk|stop listening|mic off|go deaf|be quiet|go quiet)\b/i.test(s);
+    || /\b(don'?t talk|do not talk|stop listening|mic off|go deaf|quiet mode|go quiet)\b/i.test(s);
 }
 
 function isUnmuteMicPhrase(t) {
@@ -1594,12 +1595,17 @@ function armRecognition() {
 function syncMicUi() {
   const on = !!wantListen;
   micBtn.classList.toggle('active', on);
-  micBtn.textContent = on ? 'QUIET' : 'TALK';
-  micBtn.title = on ? "Don't talk — ignore me until you say talk" : "Talk — open Amy's ears";
+  // State label: glowing TALK = ears open. Dim QUIET = soft quiet (say "talk" to return).
+  // (Old "glowing QUIET" looked like she'd been silenced.)
+  micBtn.textContent = on ? 'TALK' : 'QUIET';
+  micBtn.title = on
+    ? "Ears open — click or say don't talk for quiet"
+    : 'Quiet — click or say talk to open ears';
   const tray = document.getElementById('tray-mic');
   if (tray) {
     tray.classList.toggle('active', on);
-    tray.title = on ? "Don't talk / quiet" : 'Talk';
+    tray.textContent = on ? '🎙' : '🔇';
+    tray.title = on ? "Ears open — click for quiet" : 'Quiet — click to talk';
   }
 }
 
@@ -1786,7 +1792,8 @@ async function flushDesktopUtterance() {
     return;
   }
   if (bargeIn || isSpeaking) {
-    if (isMuteMicPhrase(text)) {
+    // While she talks: "quiet"/"stop" = barge-in only. Permanent quiet needs "don't talk".
+    if (/\b(don'?t talk|do not talk|mute yourself|stop listening|go quiet|quiet mode)\b/i.test(text)) {
       handleInterrupt();
       muteMic();
       answerEl.textContent = 'Quiet — say talk or hit TALK when you want me.';

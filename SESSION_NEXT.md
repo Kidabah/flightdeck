@@ -1,4 +1,8 @@
-# 2026-09-19 Session update (Amy TALK/QUIET)
+## 2026-09-19 Session update (Amy TALK glow fix)
+
+Latest commit: _(pending)_ — Glowing button is **TALK** (ears open), dim **QUIET** (soft quiet). Previous glowing QUIET looked like permanent mute. Bare "quiet" while speaking = barge-in only; **don't talk** for quiet. Reopen framed Amy.
+
+--- 2026-09-19 Session update (Amy TALK/QUIET)
 
 Latest commit: ``3cf8521`` — Mic control renamed **TALK** / **QUIET** (say **talk** / **don't talk**). Soft quiet keeps Whisper armed so voice "talk" actually works (old mute killed the mic, so unmute could never be heard). Hard refresh / reopen framed Amy. UI in `jarvis/viewer/index.html`.
 
