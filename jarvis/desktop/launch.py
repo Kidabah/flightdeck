@@ -106,7 +106,8 @@ def start_hands(env: dict[str, str]) -> None:
     if _http_ok(HANDS_HEALTH):
         print("[amy-desktop] Amy Hands already running on :4701 - reusing")
         return
-    _spawn(hands_script(), "Amy Hands", visible=True, env=env)
+    # Background — no console window (logs go nowhere; health is on :4701)
+    _spawn(hands_script(), "Amy Hands", visible=False, env=env)
 
 
 def start_amy(env: dict[str, str]) -> None:
@@ -120,7 +121,6 @@ def start_amy(env: dict[str, str]) -> None:
         build = root / "build.py"
         if build.exists():
             subprocess.check_call([_python(), str(build)], cwd=str(root), env=env)
-    # Amy brain can stay in background; Hands gets the visible window.
     _spawn(server_script(), "Amy brain", visible=False, env=env)
 
 
