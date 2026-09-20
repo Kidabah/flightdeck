@@ -1,6 +1,6 @@
 ## 2026-09-20 Session update (no Edit bar + sleep stays full-bleed)
 
-Latest commit: _(pending)_ — Removed white **Edit** menu (clipboard still Ctrl/right-click). Sleep exits FOCUS so lights-out is full window. **TALK** while asleep opens ears only — no wake. Reopen Amy desktop.
+Latest commit: `c49fea7` — Removed white **Edit** menu (clipboard still Ctrl/right-click). Sleep exits FOCUS so lights-out is full window. **TALK** while asleep opens ears only — no wake. Reopen Amy desktop.
 
 ---# 2026-09-20 Session update (ASK no longer wakes for snore rib)
 
