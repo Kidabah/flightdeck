@@ -26,7 +26,7 @@ Talk to Amy in normal English — this list is just reminders of what she can do
 - Your words show in the Talk box; her reply is in the answer bubble
 - If Spotify is loud, Whisper can invent Korean/gibberish — she’ll ignore that; pause music or mute her mic first
 - **“Whistle”** / **“sing”** — real whistle melody
-- **“Bedtime”** / **“goodnight”** / **“night night”** — yawn + sleep (wake with **wake up Amy**)
+- **“Bedtime”** / **“goodnight”** / **“night night”** — yawn + sleep + snore loop (wake with **wake up Amy**; rib with **you sound like a bear** / **stop snoring** to hush)
 
 ## Phone
 - Open Amy in Safari/Chrome via Tailscale HTTPS (`flightdeck…:4700`) — chat + mic work on a narrow layout

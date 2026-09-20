@@ -895,6 +895,16 @@ function isWakePhrase(t) {
     || /^(i'?m back|ok amy|okay amy)$/i.test(s);
 }
 
+function isSnoreRibPhrase(t) {
+  const s = String(t || '').trim().toLowerCase().replace(/[.,!?]+$/g, '');
+  if (!s || s.length > 120) return false;
+  if (/\b(snor(e|ing|es)|bear|cave|chainsaw|tractor|diesel|foghorn|lawn\s*mower|sawing\s*(wood|logs)?)\b/.test(s)) return true;
+  if (/\byou sound like\b/.test(s)) return true;
+  if (/^(shh+|hush|quiet( down)?|pipe down|keep it down|stop that|stop snoring)(\s+amy)?$/.test(s)) return true;
+  if (/\b(can you|could you|please)\b.*\b(stop|quiet|hush)\b/.test(s)) return true;
+  return false;
+}
+
 function isWhistlePhrase(t) {
   let s = String(t || '').trim().toLowerCase()
     .replace(/['"`]/g, '')
@@ -1264,10 +1274,16 @@ async function onIdleNudge() {
 let sfxAudio = null;
 let sfxUnlocked = false;
 let sfxSource = null;
+let snoreSource = null;
+let snoreGain = null;
+let snoring = false;
+let snoreHushed = false;
+let snoreStartTimer = null;
 const sfxBuffers = {};
 const SFX = {
   whistle: '/sounds/amy-whistle.wav?v=webaudio1',
   yawn: '/sounds/amy-yawn.wav?v=webaudio1',
+  snore: '/sounds/amy-snore.wav?v=tunetank1',
 };
 
 function unlockSfx() {
@@ -1277,7 +1293,7 @@ function unlockSfx() {
     if (audioCtx.state === 'suspended') audioCtx.resume();
   } catch (_) {}
   // Prefetch + decode into AudioBuffer (WebView2 is flaky with HTMLAudioElement)
-  ['whistle', 'yawn'].forEach((k) => { loadSfxBuffer(k).catch(() => {}); });
+  ['whistle', 'yawn', 'snore'].forEach((k) => { loadSfxBuffer(k).catch(() => {}); });
 }
 
 async function loadSfxBuffer(kind) {
@@ -1354,6 +1370,94 @@ function whistle() {
   playSfx('whistle');
 }
 
+function stopSnoring() {
+  if (snoreStartTimer) {
+    clearTimeout(snoreStartTimer);
+    snoreStartTimer = null;
+  }
+  try { snoreSource?.stop?.(); } catch (_) {}
+  snoreSource = null;
+  snoreGain = null;
+  snoring = false;
+}
+
+async function startSnoring() {
+  if (!asleep || snoreHushed || snoring) return;
+  unlockSfx();
+  try {
+    const buf = await loadSfxBuffer('snore');
+    if (!asleep || snoreHushed || snoring) return;
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') await audioCtx.resume();
+    stopSnoring();
+    const src = audioCtx.createBufferSource();
+    const gain = audioCtx.createGain();
+    gain.gain.value = 0.48;
+    src.buffer = buf;
+    src.loop = true;
+    src.connect(gain);
+    gain.connect(audioCtx.destination);
+    src.start(0);
+    snoreSource = src;
+    snoreGain = gain;
+    snoring = true;
+  } catch (_) {
+    // Synth fallback — soft looping rumbles
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
+      const ctx = audioCtx;
+      const gain = ctx.createGain();
+      gain.gain.value = 0.0001;
+      gain.connect(ctx.destination);
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = 72;
+      osc.connect(gain);
+      osc.start();
+      // Pulse the gain forever while snoring
+      const pulse = () => {
+        if (!asleep || snoreHushed) return;
+        const t = ctx.currentTime;
+        gain.gain.cancelScheduledValues(t);
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.exponentialRampToValueAtTime(0.12, t + 0.35);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 1.1);
+        snoreStartTimer = window.setTimeout(pulse, 1800);
+      };
+      snoreSource = osc;
+      snoreGain = gain;
+      snoring = true;
+      pulse();
+    } catch (__) {}
+  }
+}
+
+function hushSnoring() {
+  if (!asleep) return false;
+  stopSnoring();
+  snoreHushed = true;
+  const lines = [
+    '...mmph. Fine. Quiet.',
+    '…bear in a cave. Rude. Okay, hush.',
+    'Zzz— wait. Fine. No more sawmill.',
+  ];
+  answerEl.textContent = lines[Math.floor(Math.random() * lines.length)];
+  setStatus('asleep', 'Sleeping — (quiet now)');
+  syncMicUi();
+  return true;
+}
+
+function scheduleSnoring() {
+  stopSnoring();
+  snoreHushed = false;
+  // Let the yawn finish before the sawmill starts
+  snoreStartTimer = window.setTimeout(() => {
+    snoreStartTimer = null;
+    startSnoring();
+  }, 1600);
+}
+
 function whistleSynth() {
   try {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
@@ -1402,12 +1506,13 @@ function enterSleep() {
   if (!nudgedIdle) playSfx('yawn');
   document.body.classList.add('asleep');
   armSleepGif();
+  scheduleSnoring();
   // Keep Whisper ears open for "wake up Amy" (soft quiet or full listen).
   if (useWhisperMic) {
     if (!wantListen) wakeListen = true;
     if (desktopMic.stream && desktopMic.audioCtx && !desktopMic.raf) watchDesktopLevels();
   }
-  // Stay mic-armed so "wake up amy" works, but ignore normal chat.
+  // Stay mic-armed so "wake up amy" / snore ribs work, but ignore normal chat.
   setStatus('asleep', 'Sleeping — say wake up Amy');
   syncMicUi();
 }
@@ -1431,6 +1536,8 @@ function wakeAmy(reason) {
     bumpIdle();
     return;
   }
+  stopSnoring();
+  snoreHushed = false;
   asleep = false;
   nudgedIdle = false;
   document.body.classList.remove('asleep');
@@ -1777,6 +1884,10 @@ function applySources(payload) {
 
 async function ask(question) {
   if (asleep) {
+    if (isSnoreRibPhrase(question)) {
+      hushSnoring();
+      return;
+    }
     wakeAmy('force');
   }
   const q = String(question || '').trim();
@@ -2058,6 +2169,7 @@ function armRecognition() {
     if (!chunk) return;
     if (asleep) {
       if (isWakePhrase(chunk)) wakeAmy('voice');
+      else if (isSnoreRibPhrase(chunk)) hushSnoring();
       return;
     }
     if (isWakePhrase(chunk)) {
@@ -2284,8 +2396,10 @@ async function flushDesktopUtterance() {
   if (sleepWake) {
     if (isWakePhrase(text)) {
       wakeAmy('voice');
+    } else if (isSnoreRibPhrase(text)) {
+      hushSnoring();
     } else {
-      setStatus('asleep', 'Sleeping — say wake up Amy');
+      setStatus('asleep', snoreHushed ? 'Sleeping — (quiet now)' : 'Sleeping — say wake up Amy');
     }
     return;
   }

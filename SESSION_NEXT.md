@@ -1,4 +1,8 @@
-## 2026-09-20 Session update (casual mode workshop gate)
+## 2026-09-20 Session update (Amy snoring)
+
+Latest commit: _(pending)_ — Sleep starts a looping snore (`amy-snore.wav` Tunetank clip, 16-bit). Rib her (**you sound like a bear** / **stop snoring** / **quiet**) → hush, stays asleep. Wake as usual. Reopen Amy; say **bedtime**.
+
+---# 2026-09-20 Session update (casual mode workshop gate)
 
 Latest commit: `0d9749e` — In **CASUAL**, clear printer/Flightdeck asks get a wink + “hit PRINT / say 3D print mode” instead of answering. Notes + FD tools only in print mode. Restart Amy.
 
