@@ -1,4 +1,8 @@
-## 2026-09-20 Session update (Amy copy/paste)
+## 2026-09-20 Session update (Amy talk_mode persist + chip)
+
+Latest commit: _(pending)_ — Persist casual/print `talk_mode` in config.json; **CASUAL/PRINT** chip above status (click to toggle). Survives restart. Reopen Amy.
+
+---# 2026-09-20 Session update (Amy copy/paste)
 
 Latest commit: `85880a8` — Native clipboard bridge (Ctrl+C/V/X, Edit menu, right-click) so Chris can copy between Cursor and Amy. **Must fully relaunch Amy desktop** (not just refresh) so launch.py loads.
 

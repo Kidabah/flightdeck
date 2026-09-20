@@ -50,6 +50,22 @@
       font-size: 0.72rem; color: var(--accent);
     }
     #brand span { font-size: 0.82rem; color: var(--muted); }
+    #mode-chip {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      margin: 0 auto 2px; width: fit-content;
+      border: 1px solid var(--line); background: rgba(2, 12, 28, 0.92);
+      color: var(--muted); border-radius: 999px; padding: 4px 12px;
+      font-family: Orbitron, sans-serif; font-size: 0.62rem; letter-spacing: 0.14em;
+      cursor: pointer; user-select: none;
+    }
+    #mode-chip:hover { border-color: var(--accent); color: var(--accent); }
+    #mode-chip[data-mode="print"] {
+      color: #fbbf24; border-color: rgba(251, 191, 36, 0.45);
+      background: rgba(120, 53, 15, 0.28); box-shadow: 0 0 14px rgba(251, 191, 36, 0.18);
+    }
+    #mode-chip[data-mode="casual"] {
+      color: var(--accent); border-color: rgba(34, 211, 238, 0.4);
+    }
 
     #topbar {
       position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
@@ -672,6 +688,7 @@
   <div id="dock">
     <div id="drop-overlay">DROP FILES FOR AMY</div>
     <div id="secure-hint">Mic needs HTTPS. Open <a id="https-link" href="#">the secure Amy URL</a> — Chrome treats plain HTTP like speakers-only.</div>
+    <button type="button" id="mode-chip" data-mode="casual" title="Click to switch casual ↔ print mode">CASUAL</button>
     <div id="status-line" data-mode="idle">Ready</div>
     <div id="answer"></div>
     <div id="drops" aria-live="polite"></div>
@@ -715,6 +732,8 @@ const IS_SECURE = window.isSecureContext;
 const statusEl = document.getElementById('status-line');
 const answerEl = document.getElementById('answer');
 const inputEl = document.getElementById('chat-input');
+const modeChip = document.getElementById('mode-chip');
+let talkMode = 'casual';
 const micBtn = document.getElementById('mic-btn');
 const stopBtn = document.getElementById('stop-btn');
 const sendBtn = document.getElementById('send-btn');
@@ -1022,6 +1041,38 @@ async function callAmyDesktop(fn, ...args) {
     }
   } catch (_) {}
   return false;
+}
+
+function setTalkModeUI(mode, noteCount) {
+  talkMode = (String(mode || 'casual').toLowerCase() === 'print') ? 'print' : 'casual';
+  if (modeChip) {
+    modeChip.dataset.mode = talkMode;
+    modeChip.textContent = talkMode === 'print' ? 'PRINT' : 'CASUAL';
+    modeChip.title = talkMode === 'print'
+      ? 'Print / workshop mode — click for casual'
+      : 'Casual mode — click for 3D print mode';
+  }
+  if (brandSub && noteCount != null) {
+    brandSub.textContent = `${noteCount} notes · ${talkMode === 'print' ? 'print' : 'casual'}`;
+  } else if (brandSub && /\d+\s+notes/.test(brandSub.textContent || '')) {
+    brandSub.textContent = brandSub.textContent.replace(/·\s*\w+$/, `· ${talkMode === 'print' ? 'print' : 'casual'}`);
+  }
+}
+
+async function toggleTalkModeChip() {
+  try {
+    const r = await fetch('/api/talk_mode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ talk_mode: 'toggle' }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || 'mode switch failed');
+    setTalkModeUI(data.talk_mode);
+    if (data.answer) answerEl.textContent = data.answer;
+  } catch (err) {
+    answerEl.textContent = String(err.message || err);
+  }
 }
 
 async function readSystemClipboard() {
@@ -1851,6 +1902,7 @@ async function ask(question) {
     if (signal.aborted) return;
     inputEl.value = '';
     answerEl.textContent = payload.answer || '';
+    if (payload.talk_mode) setTalkModeUI(payload.talk_mode);
     applySources(payload);
     await maybeDropOnTopForReveal(payload.answer || '');
     await speak(payload.answer || '');
@@ -2590,6 +2642,10 @@ if (stopBtn) {
   stopBtn.addEventListener('click', stopNow);
 }
 sendBtn.addEventListener('click', submitChat);
+modeChip?.addEventListener('click', () => {
+  unlockedAudio = true;
+  toggleTalkModeChip();
+});
 fileBtn.addEventListener('click', () => fileInput.click());
 document.getElementById('tray-file').addEventListener('click', () => fileInput.click());
 fileInput.addEventListener('change', () => {
@@ -2750,7 +2806,7 @@ async function bootGreeting() {
   try {
     const r = await fetch('/api/hello');
     const data = await r.json();
-    brandSub.textContent = `${data.note_count || 0} notes · workshop`;
+    setTalkModeUI(data.talk_mode || 'casual', data.note_count || 0);
     modelChip.textContent = prettyModel(data.model || 'MODEL');
     ttsMode = (data.tts === 'laura' || data.tts === 'openai') ? data.tts : 'browser';
     ttsVoiceLabel = data.tts_voice || (ttsMode === 'openai' ? 'Nova' : 'Laura');

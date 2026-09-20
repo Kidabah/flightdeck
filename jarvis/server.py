@@ -606,6 +606,30 @@ def active_persona() -> str:
     return PERSONA_PRINT if (RUNTIME.get("talk_mode") or "casual") == "print" else PERSONA_CASUAL
 
 
+def normalize_talk_mode(mode: str | None) -> str:
+    m = str(mode or "casual").strip().lower().replace("_", " ").replace("-", " ")
+    if m in ("print", "workshop", "flightdeck", "3d", "3d print", "3dprint", "printer"):
+        return "print"
+    return "casual"
+
+
+def set_talk_mode(mode: str) -> str:
+    """Set talk mode in memory and persist to config.json so restarts keep it."""
+    mode = normalize_talk_mode(mode)
+    RUNTIME["talk_mode"] = mode
+    try:
+        if CONFIG_PATH.exists():
+            on_disk = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+        else:
+            on_disk = dict(RUNTIME.get("config") or {})
+        on_disk["talk_mode"] = mode
+        CONFIG_PATH.write_text(json.dumps(on_disk, indent=2) + "\n", encoding="utf-8")
+        RUNTIME["config"] = on_disk
+    except Exception as exc:
+        print(f"[amy] talk_mode persist failed: {exc}", file=sys.stderr)
+    return mode
+
+
 def workshop_intent(question: str) -> bool:
     if (RUNTIME.get("talk_mode") or "casual") == "print":
         return True
@@ -626,6 +650,7 @@ def load_config() -> dict[str, Any]:
             CONFIG_PATH.write_text(example.read_text(encoding="utf-8"), encoding="utf-8")
     data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     RUNTIME["config"] = data
+    RUNTIME["talk_mode"] = normalize_talk_mode(data.get("talk_mode"))
     return data
 
 
@@ -2031,7 +2056,7 @@ def try_talk_mode(question: str) -> dict[str, Any] | None:
         )
     )
     if to_print and not to_casual:
-        RUNTIME["talk_mode"] = "print"
+        set_talk_mode("print")
         return {
             "answer": "3D print mode on — printers, Flightdeck, workshop brain. Say normal mode when you want chill Amy back.",
             "nodes": [],
@@ -2041,7 +2066,7 @@ def try_talk_mode(question: str) -> dict[str, Any] | None:
             "talk_mode": "print",
         }
     if to_casual:
-        RUNTIME["talk_mode"] = "casual"
+        set_talk_mode("casual")
         return {
             "answer": "Normal mode — just chatting like a person. Say 3D print mode if you want workshop Amy.",
             "nodes": [],
@@ -2174,6 +2199,7 @@ def try_tools(question: str) -> dict[str, Any] | None:
     for fn in (try_talk_mode, try_clock_weather, try_media_tools, tool_calibrate, tool_control, tool_status):
         result = fn(question)
         if result is not None:
+            result.setdefault("talk_mode", RUNTIME.get("talk_mode") or "casual")
             return result
     return None
 
@@ -2215,7 +2241,12 @@ def chat_from_notes(question: str, attachments: list[dict[str, Any]] | None = No
             CHAT_HISTORY.append({"role": "user", "content": question})
             CHAT_HISTORY.append({"role": "assistant", "content": answer})
             del CHAT_HISTORY[:-HISTORY_LIMIT]
-        return {"answer": answer, "nodes": [], "move_camera": False}
+        return {
+            "answer": answer,
+            "nodes": [],
+            "move_camera": False,
+            "talk_mode": RUNTIME.get("talk_mode") or "casual",
+        }
 
     top = score_notes(question, notes, limit=6) if use_workshop else []
     if not top:
@@ -2430,11 +2461,23 @@ class Handler(BaseHTTPRequestHandler):
                     "tts_voice": tts_hello_payload()[1],
                     "name": "Amy",
                     "tod": tod,
+                    "talk_mode": RUNTIME.get("talk_mode") or "casual",
                 },
             )
             return
         if path == "/api/health":
-            self._json(200, {"ok": True, "notes": len(RUNTIME["index"] or []), "name": "Amy"})
+            self._json(
+                200,
+                {
+                    "ok": True,
+                    "notes": len(RUNTIME["index"] or []),
+                    "name": "Amy",
+                    "talk_mode": RUNTIME.get("talk_mode") or "casual",
+                },
+            )
+            return
+        if path == "/api/talk_mode":
+            self._json(200, {"ok": True, "talk_mode": RUNTIME.get("talk_mode") or "casual"})
             return
 
         # Static viewer only — never serve project root.
@@ -2528,6 +2571,30 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         try:
+            if path == "/api/talk_mode":
+                raw = str(body.get("talk_mode") or body.get("mode") or "").strip().lower()
+                if raw in ("toggle", "flip", "switch"):
+                    cur = RUNTIME.get("talk_mode") or "casual"
+                    mode = set_talk_mode("casual" if cur == "print" else "print")
+                elif raw:
+                    mode = set_talk_mode(raw)
+                else:
+                    mode = RUNTIME.get("talk_mode") or "casual"
+                label = "print" if mode == "print" else "casual"
+                self._json(
+                    200,
+                    {
+                        "ok": True,
+                        "talk_mode": mode,
+                        "answer": (
+                            "3D print mode on — printers, Flightdeck, workshop brain."
+                            if mode == "print"
+                            else "Normal mode — just chatting like a person."
+                        ),
+                        "label": label,
+                    },
+                )
+                return
             if path == "/chat":
                 question = str(body.get("question") or body.get("message") or "").strip()
                 raw_atts = body.get("attachments") or []
@@ -2640,7 +2707,7 @@ def main() -> None:
     server = ThreadingHTTPServer((bind, port), Handler)
     print(f"Amy listening on http://{bind}:{port} - viewer only from {VIEWER}")
     print(f"Config: {CONFIG_PATH}")
-    print(f"Notes indexed: {len(RUNTIME['index'])} | model={cfg.get('model')}")
+    print(f"Notes indexed: {len(RUNTIME['index'])} | model={cfg.get('model')} | talk_mode={RUNTIME.get('talk_mode')}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
