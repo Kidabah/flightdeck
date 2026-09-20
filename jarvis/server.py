@@ -2387,10 +2387,22 @@ def remember(text: str) -> dict[str, Any]:
     }
 
 
-def see(question: str, image_b64: str, media_type: str = "image/jpeg") -> dict[str, Any]:
+def see(question: str, image_b64: str, media_type: str = "image/jpeg", *, vision_mode: str = "eyes") -> dict[str, Any]:
+    if (vision_mode or "").strip().lower() == "watch":
+        view = (
+            "You are looking at a live webcam frame of Chris (WATCH mode). "
+            "Describe what you actually see — face, clothing, room behind him. "
+            "If the frame is black, blocked, or empty, say you can't see him yet."
+        )
+    else:
+        view = (
+            "You are looking at a live screen capture from Chris's desk (EYES mode). "
+            "Answer specifically about what is visible on screen."
+        )
     system = (
         active_persona()
-        + "\nYou are looking at a live screen capture from Chris's desk. Answer specifically about what is visible."
+        + "\n"
+        + view
         + " If the frame is too small or blurry to judge, say so plainly rather than guessing."
     )
     answer = openai_reply(
@@ -2715,9 +2727,10 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             if path == "/see":
-                question = str(body.get("question") or "What am I looking at?").strip()
+                question = str(body.get("question") or body.get("message") or "What am I looking at?").strip()
                 image_b64 = str(body.get("image") or "").strip()
                 media_type = str(body.get("media_type") or "image/jpeg")
+                vision_mode = str(body.get("vision_mode") or "eyes").strip().lower() or "eyes"
                 if not image_b64:
                     self._json(400, {"detail": "image required"})
                     return
@@ -2725,10 +2738,10 @@ class Handler(BaseHTTPRequestHandler):
                 if "," in image_b64 and image_b64.startswith("data:"):
                     header, image_b64 = image_b64.split(",", 1)
                     if "image/" in header:
-                        media_type = header.split(";")[0].split(":")[1]
+                        media_type = header.split(";")[0].replace("data:", "") or media_type
                 # Validate base64 early.
                 base64.b64decode(image_b64[:64] + "==", validate=False)
-                self._json(200, see(question, image_b64, media_type))
+                self._json(200, see(question, image_b64, media_type, vision_mode=vision_mode))
                 return
 
             if path == "/tts":

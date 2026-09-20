@@ -2017,13 +2017,24 @@ async function ask(question) {
         };
         document.body.appendChild(script);
       }
-    } else if (shareStream && shareStream.active && /\b(this|screen|looking|see|think of)\b/i.test(q)) {
+    } else if (wantsVisionFrame(q)) {
       const frame = await captureShareFrame();
-      if (!frame) throw new Error('Screen share ended');
+      if (!frame) {
+        throw new Error(
+          visionMode === 'watch'
+            ? "Camera's on but I couldn't grab a frame yet — give it a sec and ask again."
+            : "Screen share's on but I couldn't grab a frame — try asking again."
+        );
+      }
       const r = await fetch('/see', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: q, image: frame, media_type: 'image/jpeg' }),
+        body: JSON.stringify({
+          question: q,
+          image: frame,
+          media_type: 'image/jpeg',
+          vision_mode: visionMode || 'eyes',
+        }),
         signal,
       });
       payload = await r.json();
@@ -2070,25 +2081,57 @@ async function ask(question) {
   }
 }
 
+function wantsVisionFrame(q) {
+  if (!shareStream || !shareStream.active) return false;
+  const s = String(q || '').toLowerCase();
+  if (!s) return false;
+  if (visionMode === 'watch') {
+    // Webcam — any ask about seeing / looking at Chris (not bare "me" — that hits "tell me…")
+    return /\b(see|look|looking|watch(ing)?|camera|webcam|face|selfie|visible|wearing|appearance)\b/i.test(s)
+      || /\b(how do i look|what do (you|i) look|can you see|do you see|look at me|see me|my face|my shirt|my room)\b/i.test(s);
+  }
+  // Screen share (EYES)
+  return /\b(this|screen|desktop|monitor|window|looking|look|see|think of|what('s| is) on)\b/i.test(s);
+}
+
 async function captureShareFrame() {
   if (!shareStream || !shareStream.active) return null;
   if (!shareVideo) {
     shareVideo = document.createElement('video');
     shareVideo.muted = true;
     shareVideo.playsInline = true;
-    shareVideo.srcObject = shareStream;
-    await shareVideo.play();
+    shareVideo.setAttribute('playsinline', 'true');
   }
-  const w = shareVideo.videoWidth || 1280;
-  const h = shareVideo.videoHeight || 720;
+  if (shareVideo.srcObject !== shareStream) {
+    shareVideo.srcObject = shareStream;
+  }
+  try { await shareVideo.play(); } catch (_) {}
+  // Webcam often reports 0×0 until a couple frames land
+  for (let i = 0; i < 30; i++) {
+    if (shareVideo.videoWidth > 16 && shareVideo.videoHeight > 16) break;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  const w = shareVideo.videoWidth;
+  const h = shareVideo.videoHeight;
   if (!w || !h) return null;
   const canvas = document.createElement('canvas');
   const maxW = 1280;
   const scale = Math.min(1, maxW / w);
-  canvas.width = Math.round(w * scale);
-  canvas.height = Math.round(h * scale);
-  canvas.getContext('2d').drawImage(shareVideo, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
+  canvas.width = Math.max(1, Math.round(w * scale));
+  canvas.height = Math.max(1, Math.round(h * scale));
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  ctx.drawImage(shareVideo, 0, 0, canvas.width, canvas.height);
+  // Reject totally black frames (common before first real webcam paint)
+  try {
+    const sample = ctx.getImageData(0, 0, Math.min(32, canvas.width), Math.min(32, canvas.height)).data;
+    let lit = 0;
+    for (let i = 0; i < sample.length; i += 16) {
+      if (sample[i] + sample[i + 1] + sample[i + 2] > 24) lit += 1;
+    }
+    if (lit < 2) return null;
+  } catch (_) {}
+  return canvas.toDataURL('image/jpeg', 0.72).split(',')[1];
 }
 
 function bypassWord(t) {
