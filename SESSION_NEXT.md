@@ -1,6 +1,6 @@
 ## 2026-09-20 Session update (sleep no longer resizes out of FOCUS)
 
-Latest commit: _(pending)_ — Sleep no longer calls go_big (that crashed Focus). Stays small; sleep chrome calmed; input stays focusable. Reopen Amy.
+Latest commit: `1153d89` — Sleep no longer calls go_big (that crashed Focus). Stays small; sleep chrome calmed; input stays focusable. Reopen Amy.
 
 ---# 2026-09-20 Session update (no Edit bar + sleep stays full-bleed)
 
