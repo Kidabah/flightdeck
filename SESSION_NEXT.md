@@ -1,6 +1,6 @@
 ## 2026-09-20 Session update (snore hush stays asleep)
 
-Latest commit: _(pending)_ — Snore ribs no longer wake + LLM. Stay asleep, hush only. Broader phrases + any short interjection while snoring. Reopen Amy / hard refresh.
+Latest commit: `477ec92` — Snore ribs no longer wake + LLM. Stay asleep, hush only. Broader phrases + any short interjection while snoring. Reopen Amy / hard refresh.
 
 ---# 2026-09-20 Session update (Amy snoring)
 
