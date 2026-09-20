@@ -1,4 +1,8 @@
-## 2026-09-20 Session update (sleep no longer resizes out of FOCUS)
+## 2026-09-20 Session update (sleep chrome stays SLEEPING)
+
+Latest commit: _(pending)_ — Soft-quiet/mute no longer overwrites sleep UI to STANDBY / Quiet — say talk. Good Night + SLEEPING stay until wake. Hard refresh / reopen Amy.
+
+---# 2026-09-20 Session update (sleep no longer resizes out of FOCUS)
 
 Latest commit: `1153d89` — Sleep no longer calls go_big (that crashed Focus). Stays small; sleep chrome calmed; input stays focusable. Reopen Amy.
 

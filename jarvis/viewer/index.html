@@ -1596,6 +1596,11 @@ if (!IS_SECURE) {
 }
 
 function setStatus(mode, text) {
+  // While asleep, keep SLEEPING chrome — soft-quiet / mute must not flip to STANDBY.
+  if (asleep && mode !== 'asleep') {
+    mode = 'asleep';
+    text = snoreHushed ? 'Sleeping — (quiet now)' : 'Sleeping — say wake up Amy';
+  }
   statusEl.dataset.mode = mode;
   statusEl.textContent = text;
   amyFace.dataset.mode = mode;
@@ -2284,6 +2289,10 @@ function muteMic() {
   }
   listening = false;
   syncMicUi();
+  if (asleep) {
+    setStatus('asleep', snoreHushed ? 'Sleeping — (quiet now)' : 'Sleeping — say wake up Amy');
+    return;
+  }
   if (!isSpeaking && statusEl.dataset.mode !== 'thinking') {
     setStatus('idle', wakeListen ? 'Quiet — say talk' : 'Quiet');
   }
