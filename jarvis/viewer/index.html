@@ -897,11 +897,24 @@ function isWakePhrase(t) {
 
 function isSnoreRibPhrase(t) {
   const s = String(t || '').trim().toLowerCase().replace(/[.,!?]+$/g, '');
-  if (!s || s.length > 120) return false;
+  if (!s || s.length > 140) return false;
   if (/\b(snor(e|ing|es)|bear|cave|chainsaw|tractor|diesel|foghorn|lawn\s*mower|sawing\s*(wood|logs)?)\b/.test(s)) return true;
-  if (/\byou sound like\b/.test(s)) return true;
+  if (/\b(growl|growly|loud|noisy|noise|roar|roaring|rumble|rumbling|grumble)\b/.test(s)) return true;
+  if (/\byou sound (like|so|very|a bit|kinda|kind of)\b/.test(s)) return true;
+  if (/\b(keep it down|too loud|less growly|pipe down)\b/.test(s)) return true;
   if (/^(shh+|hush|quiet( down)?|pipe down|keep it down|stop that|stop snoring)(\s+amy)?$/.test(s)) return true;
   if (/\b(can you|could you|please)\b.*\b(stop|quiet|hush)\b/.test(s)) return true;
+  return false;
+}
+
+/** While she's snoring, any short non-wake interjection counts as a rib. */
+function shouldHushSnore(t) {
+  if (!asleep) return false;
+  if (isWakePhrase(t)) return false;
+  if (looksLikeWhisperGarbage(t)) return false;
+  if (isSnoreRibPhrase(t)) return true;
+  const s = String(t || '').trim();
+  if (snoring && s.length > 0 && s.length <= 120) return true;
   return false;
 }
 
@@ -1883,14 +1896,20 @@ function applySources(payload) {
 }
 
 async function ask(question) {
+  const q0 = String(question || '').trim();
   if (asleep) {
-    if (isSnoreRibPhrase(question)) {
+    if (isWakePhrase(q0)) {
+      wakeAmy('voice');
+      return;
+    }
+    if (shouldHushSnore(q0)) {
       hushSnoring();
       return;
     }
+    // Real new question while asleep → wake, then answer below
     wakeAmy('force');
   }
-  const q = String(question || '').trim();
+  const q = q0;
   if (!q) return;
   if (looksLikeInterrupt(q) || isInterrupt(q)) {
     handleInterrupt();
@@ -2169,7 +2188,7 @@ function armRecognition() {
     if (!chunk) return;
     if (asleep) {
       if (isWakePhrase(chunk)) wakeAmy('voice');
-      else if (isSnoreRibPhrase(chunk)) hushSnoring();
+      else if (shouldHushSnore(chunk)) hushSnoring();
       return;
     }
     if (isWakePhrase(chunk)) {
@@ -2396,7 +2415,7 @@ async function flushDesktopUtterance() {
   if (sleepWake) {
     if (isWakePhrase(text)) {
       wakeAmy('voice');
-    } else if (isSnoreRibPhrase(text)) {
+    } else if (shouldHushSnore(text)) {
       hushSnoring();
     } else {
       setStatus('asleep', snoreHushed ? 'Sleeping — (quiet now)' : 'Sleeping — say wake up Amy');

@@ -1,4 +1,8 @@
-## 2026-09-20 Session update (Amy snoring)
+## 2026-09-20 Session update (snore hush stays asleep)
+
+Latest commit: _(pending)_ — Snore ribs no longer wake + LLM. Stay asleep, hush only. Broader phrases + any short interjection while snoring. Reopen Amy / hard refresh.
+
+---# 2026-09-20 Session update (Amy snoring)
 
 Latest commit: 98e0b01 — Sleep starts a looping snore (`amy-snore.wav` Tunetank clip, 16-bit). Rib her (**you sound like a bear** / **stop snoring** / **quiet**) → hush, stays asleep. Wake as usual. Reopen Amy; say **bedtime**.
 
