@@ -1,123 +1,124 @@
-﻿## 2026-09-21 Session update (ghost snore hush)
+## 2026-09-21 Session update (ghost snore hush)
 
-Latest commit: _(pending)_ â€” Zombie Amy windows were still asleep + snoring after relaunches. Killed orphans; snore pauses when window hidden; close kills audio; single-instance lock so a second launch can't leave another sawmill. **Relaunch Amy** if you want her back.
+Latest commit: `3c36a3e` - Zombie Amy windows were still asleep + snoring after relaunches. Killed orphans; snore pauses when window hidden; close kills audio; single-instance lock so a second launch cannot leave another sawmill. **Relaunch Amy** if you want her back.
+
+---
+
+## 2026-09-20 Session update (WATCH actually sees you)
+
+Latest commit: `07ac868` — CAMERA LIVE wasn’t enough: frames only went on narrow keywords, and capture could send a blank frame. Broader WATCH triggers, wait for real webcam pixels, reject black frames, webcam-specific `/see` prompt. **Relaunch Amy** (or hard refresh); turn WATCH on, wait a beat, ask **can you see me**.
 
 ---
 
 
-Latest commit: `07ac868` â€” CAMERA LIVE wasnâ€™t enough: frames only went on narrow keywords, and capture could send a blank frame. Broader WATCH triggers, wait for real webcam pixels, reject black frames, webcam-specific `/see` prompt. **Relaunch Amy** (or hard refresh); turn WATCH on, wait a beat, ask **can you see me**.
-
----
-
-
-Latest commit: `3c263ef` â€” Soft-quiet/mute no longer overwrites sleep UI to STANDBY / Quiet â€” say talk. Good Night + SLEEPING stay until wake. Hard refresh / reopen Amy.
+Latest commit: `3c263ef` — Soft-quiet/mute no longer overwrites sleep UI to STANDBY / Quiet — say talk. Good Night + SLEEPING stay until wake. Hard refresh / reopen Amy.
 
 ---# 2026-09-20 Session update (sleep no longer resizes out of FOCUS)
 
-Latest commit: `1153d89` â€” Sleep no longer calls go_big (that crashed Focus). Stays small; sleep chrome calmed; input stays focusable. Reopen Amy.
+Latest commit: `1153d89` — Sleep no longer calls go_big (that crashed Focus). Stays small; sleep chrome calmed; input stays focusable. Reopen Amy.
 
 ---# 2026-09-20 Session update (no Edit bar + sleep stays full-bleed)
 
-Latest commit: `c49fea7` â€” Removed white **Edit** menu (clipboard still Ctrl/right-click). Sleep exits FOCUS so lights-out is full window. **TALK** while asleep opens ears only â€” no wake. Reopen Amy desktop.
+Latest commit: `c49fea7` — Removed white **Edit** menu (clipboard still Ctrl/right-click). Sleep exits FOCUS so lights-out is full window. **TALK** while asleep opens ears only — no wake. Reopen Amy desktop.
 
 ---# 2026-09-20 Session update (ASK no longer wakes for snore rib)
 
-Latest commit: `d90d1d1` â€” Bug: ASK button force-woke before ask(), so snore ribs hit the LLM. Sleep is sealed; ASK/voice only hush unless **wake up Amy**. Reopen Amy.
+Latest commit: `d90d1d1` — Bug: ASK button force-woke before ask(), so snore ribs hit the LLM. Sleep is sealed; ASK/voice only hush unless **wake up Amy**. Reopen Amy.
 
 ---# 2026-09-20 Session update (snore hush stays asleep)
 
-Latest commit: `477ec92` â€” Snore ribs no longer wake + LLM. Stay asleep, hush only. Broader phrases + any short interjection while snoring. Reopen Amy / hard refresh.
+Latest commit: `477ec92` — Snore ribs no longer wake + LLM. Stay asleep, hush only. Broader phrases + any short interjection while snoring. Reopen Amy / hard refresh.
 
 ---# 2026-09-20 Session update (Amy snoring)
 
-Latest commit: 98e0b01 â€” Sleep starts a looping snore (`amy-snore.wav` Tunetank clip, 16-bit). Rib her (**you sound like a bear** / **stop snoring** / **quiet**) â†’ hush, stays asleep. Wake as usual. Reopen Amy; say **bedtime**.
+Latest commit: 98e0b01 — Sleep starts a looping snore (`amy-snore.wav` Tunetank clip, 16-bit). Rib her (**you sound like a bear** / **stop snoring** / **quiet**) → hush, stays asleep. Wake as usual. Reopen Amy; say **bedtime**.
 
 ---# 2026-09-20 Session update (casual mode workshop gate)
 
-Latest commit: `0d9749e` â€” In **CASUAL**, clear printer/Flightdeck asks get a wink + â€œhit PRINT / say 3D print modeâ€ instead of answering. Notes + FD tools only in print mode. Restart Amy.
+Latest commit: `0d9749e` — In **CASUAL**, clear printer/Flightdeck asks get a wink + “hit PRINT / say 3D print mode” instead of answering. Notes + FD tools only in print mode. Restart Amy.
 
 ---# 2026-09-20 Session update (Amy talk_mode persist + chip)
 
-Latest commit: `5c13a06` â€” Persist casual/print `talk_mode` in config.json; **CASUAL/PRINT** chip above status (click to toggle). Survives restart. Reopen Amy.
+Latest commit: `5c13a06` — Persist casual/print `talk_mode` in config.json; **CASUAL/PRINT** chip above status (click to toggle). Survives restart. Reopen Amy.
 
 ---# 2026-09-20 Session update (Amy copy/paste)
 
-Latest commit: `85880a8` â€” Native clipboard bridge (Ctrl+C/V/X, Edit menu, right-click) so Chris can copy between Cursor and Amy. **Must fully relaunch Amy desktop** (not just refresh) so launch.py loads.
+Latest commit: `85880a8` — Native clipboard bridge (Ctrl+C/V/X, Edit menu, right-click) so Chris can copy between Cursor and Amy. **Must fully relaunch Amy desktop** (not just refresh) so launch.py loads.
 
 ---# 2026-09-19 Session update (Amy whistle actually plays)
 
-Latest commit: `8b670fc` â€” Whistle was hitting the LLM (text "Fweeeet!") instead of SFX. Looser phrase match; play WAV via Web Audio decodeAudioData (HTML Audio fallback + louder synth); persona told not to fake whistles. Reopen Amy; say **whistle** â€” expect `â™ª` + sound, not banter.
+Latest commit: `8b670fc` — Whistle was hitting the LLM (text "Fweeeet!") instead of SFX. Looser phrase match; play WAV via Web Audio decodeAudioData (HTML Audio fallback + louder synth); persona told not to fake whistles. Reopen Amy; say **whistle** — expect `♪` + sound, not banter.
 
 ---# 2026-09-19 Session update (Amy whistle 16-bit)
 
-Latest commit: `05508aa` â€” Whistle/yawn were 24-bit WAVs (WebView2 often silent). Converted to 16-bit, trimmed whistle to ~5s, hardened SFX play + preload. Reopen Amy; say **whistle**.
+Latest commit: `05508aa` — Whistle/yawn were 24-bit WAVs (WebView2 often silent). Converted to 16-bit, trimmed whistle to ~5s, hardened SFX play + preload. Reopen Amy; say **whistle**.
 
 ---# 2026-09-19 Session update (Amy sleep wake + STT)
 
-Latest commit: _(pending)_ â€” Fix: while asleep Whisper discarded all audio so wake phrases never landed. Sleep now still listens for wake. Whisper forced `language=en` + AU/Amy prompt; mic VAD a bit more sensitive + AGC. Reopen Amy; say **wake up Amy** if she's sleeping. Glowing **TALK** = ears open.
+Latest commit: _(pending)_ — Fix: while asleep Whisper discarded all audio so wake phrases never landed. Sleep now still listens for wake. Whisper forced `language=en` + AU/Amy prompt; mic VAD a bit more sensitive + AGC. Reopen Amy; say **wake up Amy** if she's sleeping. Glowing **TALK** = ears open.
 
 ---# 2026-09-19 Session update (Amy Thunderbird mail)
 
-Latest commit: _(pending)_ â€” Email defaults to **Thunderbird** (Chris's app). Empty spam opens Thunderbird for Empty Junk after approval. Restart Hands + Amy.
+Latest commit: _(pending)_ — Email defaults to **Thunderbird** (Chris's app). Empty spam opens Thunderbird for Empty Junk after approval. Restart Hands + Amy.
 
 ---# 2026-09-19 Session update (Amy PC file + email tools)
 
-Latest commit: _(pending)_ â€” Hands can create folders, copy/move files, delete with explicit approval, open email, empty spam with approval (Outlook Junk auto; Gmail opens Spam). Roots only. Restart Hands + Amy. Say **yes delete** / **yes empty spam** to approve.
+Latest commit: _(pending)_ — Hands can create folders, copy/move files, delete with explicit approval, open email, empty spam with approval (Outlook Junk auto; Gmail opens Spam). Roots only. Restart Hands + Amy. Say **yes delete** / **yes empty spam** to approve.
 
 ---# 2026-09-19 Session update (Amy mobile layout)
 
-Latest commit: _(pending)_ â€” Narrow/phone browser gets a compact chat layout (no galaxy). Open Tailscale HTTPS `:4700` on phone for talk. Hands + framed desktop Amy stay PC-only. Hard refresh on phone.
+Latest commit: _(pending)_ — Narrow/phone browser gets a compact chat layout (no galaxy). Open Tailscale HTTPS `:4700` on phone for talk. Hands + framed desktop Amy stay PC-only. Hard refresh on phone.
 
 ---# 2026-09-19 Session update (sleep GIF brighter whites)
 
-Latest commit: _(pending)_ â€” Boosted `Good Night` / Z whites on `amy-sleep.gif`; removed CSS shade over the GIF so text pops. Reopen Amy / say bedtime.
+Latest commit: _(pending)_ — Boosted `Good Night` / Z whites on `amy-sleep.gif`; removed CSS shade over the GIF so text pops. Reopen Amy / say bedtime.
 
 ---# 2026-09-19 Session update (Amy sleep GIF)
 
-Latest commit: _(pending)_ â€” Wired Tenor goodnight GIF as `amy-sleep.gif`: trimmed bright intro, dark sleep+Z loop only, darkened + cyan night tint. Bedtime/sleep uses it automatically. Reopen Amy.
+Latest commit: _(pending)_ — Wired Tenor goodnight GIF as `amy-sleep.gif`: trimmed bright intro, dark sleep+Z loop only, darkened + cyan night tint. Bedtime/sleep uses it automatically. Reopen Amy.
 
 ---# 2026-09-19 Session update (Amy lights-out sleep)
 
-Latest commit: _(pending)_ â€” Sleep/bedtime plays CSS lights-out (iris dim + floating Zzz) and dims the galaxy. Optional GIF: drop `jarvis/viewer/sounds/amy-sleep.gif` to replace Zzz. Reopen Amy.
+Latest commit: _(pending)_ — Sleep/bedtime plays CSS lights-out (iris dim + floating Zzz) and dims the galaxy. Optional GIF: drop `jarvis/viewer/sounds/amy-sleep.gif` to replace Zzz. Reopen Amy.
 
 --- 2026-09-19 Session update (Amy bedtime yawn)
 
-Latest commit: ``ff9969c`` â€” Say **bedtime** / **goodnight** / **night night** / **go to sleep** â†’ Laura goodnight + yawn SFX + sleep. Wake as usual. Reopen Amy.
+Latest commit: ``ff9969c`` — Say **bedtime** / **goodnight** / **night night** / **go to sleep** → Laura goodnight + yawn SFX + sleep. Wake as usual. Reopen Amy.
 
 --- 2026-09-19 Session update (Amy whistle + yawn SFX)
 
-Latest commit: ``11eb282`` â€” Real `amy-whistle.wav` / `amy-yawn.wav` in `jarvis/viewer/sounds/`. Whistle/sing plays the melody; ~3 min idle yawns then sleepy nudge; sleep at ~6 min. Reopen Amy / hard refresh. Server serves `.wav`.
+Latest commit: ``11eb282`` — Real `amy-whistle.wav` / `amy-yawn.wav` in `jarvis/viewer/sounds/`. Whistle/sing plays the melody; ~3 min idle yawns then sleepy nudge; sleep at ~6 min. Reopen Amy / hard refresh. Server serves `.wav`.
 
 ---# 2026-09-19 Session update (Explorer behind Amy)
 
-Latest commit: _(pending)_ â€” Opening a folder/file drops Amy's always-on-top and focuses Explorer so it isn't hidden behind her. Say **come back** to float again. Restart Hands + Amy.
+Latest commit: _(pending)_ — Opening a folder/file drops Amy's always-on-top and focuses Explorer so it isn't hidden behind her. Say **come back** to float again. Restart Hands + Amy.
 
 --- 2026-09-19 Session update (Amy TALK glow fix)
 
-Latest commit: ``1d12317`` â€” Glowing button is **TALK** (ears open), dim **QUIET** (soft quiet). Previous glowing QUIET looked like permanent mute. Bare "quiet" while speaking = barge-in only; **don't talk** for quiet. Reopen framed Amy.
+Latest commit: ``1d12317`` — Glowing button is **TALK** (ears open), dim **QUIET** (soft quiet). Previous glowing QUIET looked like permanent mute. Bare "quiet" while speaking = barge-in only; **don't talk** for quiet. Reopen framed Amy.
 
 --- 2026-09-19 Session update (Amy TALK/QUIET)
 
-Latest commit: ``3cf8521`` â€” Mic control renamed **TALK** / **QUIET** (say **talk** / **don't talk**). Soft quiet keeps Whisper armed so voice "talk" actually works (old mute killed the mic, so unmute could never be heard). Hard refresh / reopen framed Amy. UI in `jarvis/viewer/index.html`.
+Latest commit: ``3cf8521`` — Mic control renamed **TALK** / **QUIET** (say **talk** / **don't talk**). Soft quiet keeps Whisper armed so voice "talk" actually works (old mute killed the mic, so unmute could never be heard). Hard refresh / reopen framed Amy. UI in `jarvis/viewer/index.html`.
 
 ---
 ## 2026-09-19 Session update (Amy casual mode + Temora weather)
 
-Latest commit: `d14034e` â€” Amy defaults to **casual** (normal-person chat, no printer flavour). Say **3D print mode** / **print mode** / **workshop mode** for workshop Amy; **normal mode** / **casual mode** to switch back. Fixed Temora weather: default was `Temora NSW` which Open-Meteo returns zero hits for ("can't find on the map"); also handles "weather like in â€¦". Hardcoded AU towns + AU-prefer geocode. Restart Amy (Pi + local). UI cache-bust N/A (server persona).
+Latest commit: `d14034e` — Amy defaults to **casual** (normal-person chat, no printer flavour). Say **3D print mode** / **print mode** / **workshop mode** for workshop Amy; **normal mode** / **casual mode** to switch back. Fixed Temora weather: default was `Temora NSW` which Open-Meteo returns zero hits for ("can't find on the map"); also handles "weather like in …". Hardcoded AU towns + AU-prefer geocode. Restart Amy (Pi + local). UI cache-bust N/A (server persona).
 
 ---# 2026-09-19 Session update (Amy always on top)
 
-Latest commit: `6bb5407` â€” Amy stays on top by default; say minimise to drop, come back to restore. go large keeps on top. Compact ring clip padding included. Reopen framed Amy.
+Latest commit: `6bb5407` — Amy stays on top by default; say minimise to drop, come back to restore. go large keeps on top. Compact ring clip padding included. Reopen framed Amy.
 
 ---
 ## 2026-09-19 Session update (Amy go-large + compact polish)
 
-Latest commit: `719fd94` â€” Whisper â€œamiga lodgeâ€ â†’ go large; compact shows RING/EYES again, less top pad, ears uncropped, always-on-top while small. Reopen framed Amy.
+Latest commit: `719fd94` — Whisper “amiga lodge” → go large; compact shows RING/EYES again, less top pad, ears uncropped, always-on-top while small. Reopen framed Amy.
 
 ---
 ## 2026-09-19 Session update (Amy compact centre v2)
 
-Latest commit: `1dc3894` â€” Compact mode: matched hud/dock widths, 4-col tool grid so FILE/MIC/STOP/ASK no longer clip, face video object-position nudge, go-small window 420x720. Reopen framed Amy. UI + launch.py.
+Latest commit: `1dc3894` — Compact mode: matched hud/dock widths, 4-col tool grid so FILE/MIC/STOP/ASK no longer clip, face video object-position nudge, go-small window 420x720. Reopen framed Amy. UI + launch.py.
 
 ---
 ## 2026-09-19 Session update (Amy compact centre)
@@ -134,25 +135,25 @@ Latest commit: _(pending)_ ? Added jarvis/notes/workshop/amy-prompts.md smart-pr
 
 ## 2026-09-19 Session update (Hands desktop + media)
 
-Latest commit: _(pending)_ Ã¢â‚¬â€ Amy Hands: launch allowlisted apps (Spotify+play), media play/pause/next/prev/stop, open file / open-with, close window. Random albums stay on Cindy Vinyl. Restart Hands on PC + Amy on Pi.
+Latest commit: _(pending)_ â€” Amy Hands: launch allowlisted apps (Spotify+play), media play/pause/next/prev/stop, open file / open-with, close window. Random albums stay on Cindy Vinyl. Restart Hands on PC + Amy on Pi.
 
 ---
 
 ## 2026-09-19 Session update (voice interrupt + Explorer)
 
-Latest commit: _(pending)_ Ã¢â‚¬â€ Fix Whisper barge-in (mic was held busy for whole ask/speak). STOP on pointerdown. Hands open_file_explorer opens local folders via explorer.exe. Restart Amy + Hands.
+Latest commit: _(pending)_ â€” Fix Whisper barge-in (mic was held busy for whole ask/speak). STOP on pointerdown. Hands open_file_explorer opens local folders via explorer.exe. Restart Amy + Hands.
 
 ---
 
 ## 2026-09-19 Session update (Amy Laura + STOP)
 
-Latest commit: _(pending)_ Ã¢â‚¬â€ Switch TTS back to ElevenLabs **Laura** (Starter plan). STOP hard-kills in-flight TTS; Whisper can barge-in with stop/wait. Desktop + Pi 	ts_provider: elevenlabs. Restart Amy / reopen framed app.
+Latest commit: _(pending)_ â€” Switch TTS back to ElevenLabs **Laura** (Starter plan). STOP hard-kills in-flight TTS; Whisper can barge-in with stop/wait. Desktop + Pi 	ts_provider: elevenlabs. Restart Amy / reopen framed app.
 
 ---
 
-Ã¯Â»Â¿## 2026-09-19 Session update (Amy mute + transcript + second listen)
+ï»¿## 2026-09-19 Session update (Amy mute + transcript + second listen)
 
-Latest commit: `2ad6f0f` Ã¢â‚¬â€ Mute sticks (WebView SpeechRecognition no longer force-unmutes). Desktop mic ignores echo while she talks so the next utterance still fires. Shows `You: Ã¢â‚¬Â¦` in the answer box + transcript in the input. Restart local Amy / reopen `/?desktop=1`. Pi: pull + restart.
+Latest commit: `2ad6f0f` â€” Mute sticks (WebView SpeechRecognition no longer force-unmutes). Desktop mic ignores echo while she talks so the next utterance still fires. Shows `You: â€¦` in the answer box + transcript in the input. Restart local Amy / reopen `/?desktop=1`. Pi: pull + restart.
 
 ---
 
@@ -175,13 +176,13 @@ Latest commit: `cffe1dc` ? Real pywebview Amy app uses OpenAI Whisper STT (/?des
 ---
 ## 2026-09-19 Session update (Amy OpenAI Nova TTS)
 
-Latest commit: `0f2db71` Ã¢â‚¬â€ `tts_provider: openai` + voice **nova** for tonight (ElevenLabs free quota exhausted). Falls back to Laura when provider is elevenlabs again. Desktop AppData config updated; restart local Amy / hard refresh.
+Latest commit: `0f2db71` â€” `tts_provider: openai` + voice **nova** for tonight (ElevenLabs free quota exhausted). Falls back to Laura when provider is elevenlabs again. Desktop AppData config updated; restart local Amy / hard refresh.
 
 ---
 
 ## 2026-09-19 Session update (Amy desktop wrap)
 
-Latest commit: `9ccd8c1` Ã¢â‚¬â€ Windows desktop wrap under `jarvis/desktop/`: WebView2 window + local `server.py` on `127.0.0.1:4700` + Hands on `:4701`. AppData config (`%APPDATA%\Amy\config.json`). Dev: `jarvis/desktop/start-amy-desktop.ps1`. Build: `build-windows.ps1` Ã¢â€ â€™ `dist/Amy/Amy.exe`. Pi browser Amy unchanged (`AMY_BIND` / `AMY_CONFIG` / `AMY_ROOT` hooks).
+Latest commit: `9ccd8c1` â€” Windows desktop wrap under `jarvis/desktop/`: WebView2 window + local `server.py` on `127.0.0.1:4700` + Hands on `:4701`. AppData config (`%APPDATA%\Amy\config.json`). Dev: `jarvis/desktop/start-amy-desktop.ps1`. Build: `build-windows.ps1` â†’ `dist/Amy/Amy.exe`. Pi browser Amy unchanged (`AMY_BIND` / `AMY_CONFIG` / `AMY_ROOT` hooks).
 
 Hard refresh not required for Pi unless pulling `server.py` bind/env changes. Restart Amy on Pi after pull. Desktop: paste API keys into AppData config; load Chrome extension for tabs.
 
@@ -189,7 +190,7 @@ Hard refresh not required for Pi unless pulling `server.py` bind/env changes. Re
 
 ## 2026-09-19 Session update (Amy whistle tune + stop + Hands)
 
-Latest commit: `0b85e12` Ã¢â‚¬â€ Amy whistles a **multi-note tune** (ask Ã¢â‚¬Å“whistleÃ¢â‚¬Â). **STOP** button + Escape + better barge-in (interim Ã¢â‚¬Å“stopÃ¢â‚¬Â). Hands clears stale tab cmds; tab tools tell you if Chrome extension isnÃ¢â‚¬â„¢t loaded. Run `jarvis/amy-hands/start-amy-hands.ps1` then Load unpacked `chrome-extension`.
+Latest commit: `0b85e12` â€” Amy whistles a **multi-note tune** (ask â€œwhistleâ€). **STOP** button + Escape + better barge-in (interim â€œstopâ€). Hands clears stale tab cmds; tab tools tell you if Chrome extension isnâ€™t loaded. Run `jarvis/amy-hands/start-amy-hands.ps1` then Load unpacked `chrome-extension`.
 
 Hard refresh Amy. Restart Amy on Pi (backend). Hands restarted on PC.
 
@@ -197,7 +198,7 @@ Hard refresh Amy. Restart Amy on Pi (backend). Hands restarted on PC.
 
 ## 2026-09-19 Session update (Amy on-demand whistle)
 
-Latest commit: `dced8f8` Ã¢â‚¬â€ Say or type **whistle** / **sing** (or Ã¢â‚¬Å“whistle for meÃ¢â‚¬Â) and Amy plays the idle whistle tone immediately Ã¢â‚¬â€ no 3Ã¢â‚¬â€˜minute wait.
+Latest commit: `dced8f8` â€” Say or type **whistle** / **sing** (or â€œwhistle for meâ€) and Amy plays the idle whistle tone immediately â€” no 3â€‘minute wait.
 
 Hard refresh Amy (`Cache-Control: no-store` on viewer). No backend restart required.
 
@@ -205,7 +206,7 @@ Hard refresh Amy (`Cache-Control: no-store` on viewer). No backend restart requi
 
 ## 2026-09-18 Session update (Amy Hands search fix)
 
-Latest commit: `39d0f46` Ã¢â‚¬â€ Fixed `NameError: re is not defined` in Amy Hands `/search`. PC agent restarted; folder search works again.
+Latest commit: `39d0f46` â€” Fixed `NameError: re is not defined` in Amy Hands `/search`. PC agent restarted; folder search works again.
 
 No Pi restart needed (Hands runs on PC). Chrome tabs still need the unpacked extension loaded.
 
@@ -213,7 +214,7 @@ No Pi restart needed (Hands runs on PC). Chrome tabs still need the unpacked ext
 
 ## 2026-09-18 Session update (Amy sleep + Hands)
 
-Latest commit: `0cbc1b4` Ã¢â‚¬â€ Sleep mode (dark circle, Ã¢â‚¬Å“wake up AmyÃ¢â‚¬Â), idle whistle/nudge ~3m then sleep ~6m. New **Amy Hands** PC companion (`jarvis/amy-hands`) for folder search + Chrome tab focus/open via extension. Set `hands_base_url` on Pi to the PC Tailscale IP `:4701`.
+Latest commit: `0cbc1b4` â€” Sleep mode (dark circle, â€œwake up Amyâ€), idle whistle/nudge ~3m then sleep ~6m. New **Amy Hands** PC companion (`jarvis/amy-hands`) for folder search + Chrome tab focus/open via extension. Set `hands_base_url` on Pi to the PC Tailscale IP `:4701`.
 
 Hard refresh Amy. On PC: `python jarvis/amy-hands/amy_hands.py` + load unpacked Chrome extension.
 
@@ -221,7 +222,7 @@ Hard refresh Amy. On PC: `python jarvis/amy-hands/amy_hands.py` + load unpacked 
 
 ## 2026-09-18 Session update (Amy files + internet)
 
-Latest commit: _(pending)_ Ã¢â‚¬â€ Amy accepts drag/drop or FILE attach (text + images), and can `web_search` / `fetch_url` via Luna tool calls. Uploads land in `jarvis/uploads/` (gitignored).
+Latest commit: _(pending)_ â€” Amy accepts drag/drop or FILE attach (text + images), and can `web_search` / `fetch_url` via Luna tool calls. Uploads land in `jarvis/uploads/` (gitignored).
 
 Hard refresh `https://flightdeck.tail7de73e.ts.net:4700`. `systemctl --user restart jarvis`.
 
@@ -229,7 +230,7 @@ Hard refresh `https://flightdeck.tail7de73e.ts.net:4700`. `systemctl --user rest
 
 ## 2026-09-18 Session update (Amy mic duck / no self-replies)
 
-Latest commit: _(pending)_ Ã¢â‚¬â€ Mic ducks while Amy thinks/talks + 900ms echo cooldown so Laura isnÃ¢â‚¬â„¢t heard as Chris. Stops the self-answer loop.
+Latest commit: _(pending)_ â€” Mic ducks while Amy thinks/talks + 900ms echo cooldown so Laura isnâ€™t heard as Chris. Stops the self-answer loop.
 
 Hard refresh `https://flightdeck.tail7de73e.ts.net:4700`.
 
@@ -237,7 +238,7 @@ Hard refresh `https://flightdeck.tail7de73e.ts.net:4700`.
 
 ## 2026-09-18 Session update (Amy no intro)
 
-Latest commit: _(pending)_ Ã¢â‚¬â€ Removed boot greeting text/speech (Ã¢â‚¬Å“Amy online on LunaÃ¢â‚¬Â¦Ã¢â‚¬Â). First click still unlocks audio only.
+Latest commit: _(pending)_ â€” Removed boot greeting text/speech (â€œAmy online on Lunaâ€¦â€). First click still unlocks audio only.
 
 Hard refresh `https://flightdeck.tail7de73e.ts.net:4700`.
 
@@ -245,7 +246,7 @@ Hard refresh `https://flightdeck.tail7de73e.ts.net:4700`.
 
 ## 2026-09-18 Session update (Amy Laura voice / ElevenLabs)
 
-Latest commit: _(pending)_ Ã¢â‚¬â€ Amy can speak as ElevenLabs **Laura** (`FGY2WhTYpPnrIDTdsKH5`) via `/tts`. Needs `elevenlabs_api_key` in `jarvis/config.json` (`deploy/set-elevenlabs-key.py`). Falls back to browser TTS until keyed.
+Latest commit: _(pending)_ â€” Amy can speak as ElevenLabs **Laura** (`FGY2WhTYpPnrIDTdsKH5`) via `/tts`. Needs `elevenlabs_api_key` in `jarvis/config.json` (`deploy/set-elevenlabs-key.py`). Falls back to browser TTS until keyed.
 
 Hard refresh `https://flightdeck.tail7de73e.ts.net:4700`. `systemctl --user restart jarvis`.
 
@@ -253,7 +254,7 @@ Hard refresh `https://flightdeck.tail7de73e.ts.net:4700`. `systemctl --user rest
 
 ## 2026-09-18 Session update (Amy sexier TTS)
 
-Latest commit: _(pending)_ Ã¢â‚¬â€ Amy voice: lower pitch (0.82), slower rate (0.92), prefer warm Samantha/Moira/Hazel-style system voices over bright chipmunk energy. Browser TTS ceiling still applies.
+Latest commit: _(pending)_ â€” Amy voice: lower pitch (0.82), slower rate (0.92), prefer warm Samantha/Moira/Hazel-style system voices over bright chipmunk energy. Browser TTS ceiling still applies.
 
 Hard refresh `https://flightdeck.tail7de73e.ts.net:4700`.
 
@@ -261,7 +262,7 @@ Hard refresh `https://flightdeck.tail7de73e.ts.net:4700`.
 
 ## 2026-09-18 Session update (Amy FINISH_MS 1400)
 
-Latest commit: _(pending)_ Ã¢â‚¬â€ Mic end-of-thought pause raised **900 Ã¢â€ â€™ 1400 ms** so Amy stops cutting Chris mid-sentence. Synced viewer + `amy-voice.md` + server note.
+Latest commit: _(pending)_ â€” Mic end-of-thought pause raised **900 â†’ 1400 ms** so Amy stops cutting Chris mid-sentence. Synced viewer + `amy-voice.md` + server note.
 
 Hard refresh `https://flightdeck.tail7de73e.ts.net:4700`.
 
@@ -269,7 +270,7 @@ Hard refresh `https://flightdeck.tail7de73e.ts.net:4700`.
 
 ## 2026-09-18 Session update (Amy voice + clear-on-enter)
 
-Latest commit: _(pending)_ Ã¢â‚¬â€ Amy TTS picks a warmer Aussie-leaning voice (Karen/Catherine/AriaÃ¢â‚¬Â¦), slight pitch/rate bump. Chat input clears on Enter/ASK and after mic finish.
+Latest commit: _(pending)_ â€” Amy TTS picks a warmer Aussie-leaning voice (Karen/Catherine/Ariaâ€¦), slight pitch/rate bump. Chat input clears on Enter/ASK and after mic finish.
 
 Hard refresh `https://flightdeck.tail7de73e.ts.net:4700`. Restart optional.
 
@@ -277,7 +278,7 @@ Hard refresh `https://flightdeck.tail7de73e.ts.net:4700`. Restart optional.
 
 ## 2026-09-18 Session update (Amy on GPT-5.6 Luna)
 
-Latest commit: `94e9a3f` Ã¢â‚¬â€ Amy brain defaults to **`gpt-5.6-luna`** (OpenAI API prepaid credits). JarvisÃ¢â€ â€™Amy dialogue purge in notes/persona. OpenRouter still optional via `provider`/`openai_base_url`. Drop coin: https://platform.openai.com/settings/organization/billing/
+Latest commit: `94e9a3f` â€” Amy brain defaults to **`gpt-5.6-luna`** (OpenAI API prepaid credits). Jarvisâ†’Amy dialogue purge in notes/persona. OpenRouter still optional via `provider`/`openai_base_url`. Drop coin: https://platform.openai.com/settings/organization/billing/
 
 Hard refresh `https://flightdeck.tail7de73e.ts.net:4700`. `systemctl --user restart jarvis`.
 
@@ -285,7 +286,7 @@ Hard refresh `https://flightdeck.tail7de73e.ts.net:4700`. `systemctl --user rest
 
 ## 2026-09-18 Session update (Amy Tripo face)
 
-Latest commit: `453ea63` Ã¢â‚¬â€ Amy HUD now uses Chris's Tripo showcase loop (`viewer/amy-face.webm` / `.mp4`) instead of the SVG circle face. Mode glows still map listening/talking/thinking.
+Latest commit: `453ea63` â€” Amy HUD now uses Chris's Tripo showcase loop (`viewer/amy-face.webm` / `.mp4`) instead of the SVG circle face. Mode glows still map listening/talking/thinking.
 
 Hard refresh `https://flightdeck.tail7de73e.ts.net:4700`. `systemctl --user restart jarvis`.
 
@@ -293,7 +294,7 @@ Hard refresh `https://flightdeck.tail7de73e.ts.net:4700`. `systemctl --user rest
 
 ## 2026-09-18 Session update (Amy rebrand + HUD fix)
 
-Latest commit: `5921228` Ã¢â‚¬â€ Workshop assistant is **Amy** (not Jarvis): face HUD, Chris/Kidabah address, funny personality, note panel moved left to fix HUD clash. Mic needs HTTPS Ã¢â‚¬â€ Tailscale Serve on `:4700`.
+Latest commit: `5921228` â€” Workshop assistant is **Amy** (not Jarvis): face HUD, Chris/Kidabah address, funny personality, note panel moved left to fix HUD clash. Mic needs HTTPS â€” Tailscale Serve on `:4700`.
 
 Hard refresh `https://flightdeck.tail7de73e.ts.net:4700` (prefer HTTPS for mic). `systemctl --user restart jarvis`.
 
@@ -301,7 +302,7 @@ Hard refresh `https://flightdeck.tail7de73e.ts.net:4700` (prefer HTTPS for mic).
 
 ## 2026-09-18 Session update (Jarvis HUD polish)
 
-Latest commit: `8674a65` Ã¢â‚¬â€ Jarvis viewer now has Flightdeck-flavoured command chrome: cyan HUD ring, speaking/model chips, RING/CUBE/FACE views, EYES organ (WATCH/HOLO/FOCUS stubs), denser starfield, search bar, and more workshop notes for a fuller galaxy.
+Latest commit: `8674a65` â€” Jarvis viewer now has Flightdeck-flavoured command chrome: cyan HUD ring, speaking/model chips, RING/CUBE/FACE views, EYES organ (WATCH/HOLO/FOCUS stubs), denser starfield, search bar, and more workshop notes for a fuller galaxy.
 
 Hard refresh `http://100.106.112.104:4700` (Ctrl+F5). `systemctl --user restart jarvis` after pull.
 
@@ -309,13 +310,13 @@ Hard refresh `http://100.106.112.104:4700` (Ctrl+F5). `systemctl --user restart 
 
 ## 2026-09-18 Session update (Jarvis workshop on Flightdeck Pi)
 
-Latest commit: `4d7953e` Ã¢â‚¬â€ **Jarvis** lives at `jarvis/` (runtime on Pi via user systemd). Dedicated 16GB Pi deferred until a spare PSU exists; current 8GB Flightdeck Pi has ~5.8Ã¢â‚¬Â¯Gi available and runs Jarvis fine on **:4700**.
+Latest commit: `4d7953e` â€” **Jarvis** lives at `jarvis/` (runtime on Pi via user systemd). Dedicated 16GB Pi deferred until a spare PSU exists; current 8GB Flightdeck Pi has ~5.8â€¯Gi available and runs Jarvis fine on **:4700**.
 
 - Notes galaxy + voice (Web Speech), butler persona, `/chat` `/remember` `/see`, preflight harness
-- Flightdeck tools: calibrate / status / pause-resume-stop with nicknames BigBoyÃ¢â€ â€™`h2d`, Big GirlÃ¢â€ â€™`o1c2`, X1CÃ¢â€ â€™`x1c`, GreyhoundÃ¢â€ â€™`greyhound`
+- Flightdeck tools: calibrate / status / pause-resume-stop with nicknames BigBoyâ†’`h2d`, Big Girlâ†’`o1c2`, X1Câ†’`x1c`, Greyhoundâ†’`greyhound`
 - User systemd: `systemctl --user status|restart jarvis`
-- Open UI: `http://100.106.112.104:4700` Ã¢â‚¬â€ paste OpenAI key into `~/flightdeck/jarvis/config.json` (from `config.example.json`) for notes Q&A; tools work without a key
-- Verified live: Ã¢â‚¬Å“run a calibration on BigBoyÃ¢â‚¬Â Ã¢â€ â€™ Flightdeck calibration start OK
+- Open UI: `http://100.106.112.104:4700` â€” paste OpenAI key into `~/flightdeck/jarvis/config.json` (from `config.example.json`) for notes Q&A; tools work without a key
+- Verified live: â€œrun a calibration on BigBoyâ€ â†’ Flightdeck calibration start OK
 
 Hard refresh not required (separate port). Backend: user `jarvis.service` already active.
 
@@ -323,13 +324,13 @@ Hard refresh not required (separate port). Backend: user `jarvis.service` alread
 
 ## 2026-09-17 Session update (Painter OBJ drop-in)
 
-Latest commit: `ef0e7cb` Ã¢â‚¬â€ Painter **b629**. Drop/browse now accepts **`.obj`** alongside STL/3MF (batch folder too). Quads/ngons fan-triangulate; same seat-on-bed orientation as STL.
+Latest commit: `ef0e7cb` â€” Painter **b629**. Drop/browse now accepts **`.obj`** alongside STL/3MF (batch folder too). Quads/ngons fan-triangulate; same seat-on-bed orientation as STL.
 
 Hard refresh Painter **b629** (`painter.html?v=629`; `painter.js?v=629`; Flightdeck shell `app.js?v=737`). Drop an OBJ and paint.
 
 ---
 
-## 2026-09-01 Ã¢â‚¬â€ PrintShelf mount readiness fix
+## 2026-09-01 â€” PrintShelf mount readiness fix
 
 - PrintShelf watched folders could remain configured while the Library showed `0 designs / 0 files`. The scanner guarded `/mnt` and `/media` roots with `os.path.ismount()` only; Linux bind mounts can legitimately return false there because the bind target may share the same device as its parent.
 - Scanner readiness now reads `/proc/self/mountinfo`, which reflects the PrintShelf service's own mount namespace and recognises bind, CIFS and NFS mount points. `os.path.ismount()` remains a fallback. Dead empty `/mnt/...` placeholders are still refused so a reboot cannot mark the whole library missing.
@@ -349,7 +350,7 @@ MakerDeck detailed notes: [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.m
 
 Mesh Prep now supports one additional conservative selected-boundary repair: a simple closed planar convex four-edge loop. Sanitiser Core v5 validates current topology, consistent winding, four unique vertices, tight planarity, convexity, and non-degenerate triangulation, then appends exactly two faces across the shorter valid diagonal. Existing Float32 coordinates remain unchanged; there is no welding, vertex movement, shell joining, or arbitrary polygon filling.
 
-The shared UI gate now dispatches three-edge loops to Stage 2B and four-edge loops to Stage 2C, requiring an N-edge repair to add exactly `N-2` faces, remove exactly N open edges, and leave non-manifold edges unchanged. The supplied deterministic and live-browser box calibration passes: faces `10 Ã¢â€ â€™ 12`, open edges `4 Ã¢â€ â€™ 0`, boundary groups `1 Ã¢â€ â€™ 0`, watertight `NO Ã¢â€ â€™ YES`, and non-manifold edges `0 Ã¢â€ â€™ 0`. Derived concave, non-planar, five-edge, complex/branched, and missing-selection cases are refused. Stage 1, Stage 2A, Stage 2B triangular repair, Stage 2B.1 persistent IDs, Auto-Frame, and BING remain green. Do not generalise to five-plus-edge polygons yet.
+The shared UI gate now dispatches three-edge loops to Stage 2B and four-edge loops to Stage 2C, requiring an N-edge repair to add exactly `N-2` faces, remove exactly N open edges, and leave non-manifold edges unchanged. The supplied deterministic and live-browser box calibration passes: faces `10 â†’ 12`, open edges `4 â†’ 0`, boundary groups `1 â†’ 0`, watertight `NO â†’ YES`, and non-manifold edges `0 â†’ 0`. Derived concave, non-planar, five-edge, complex/branched, and missing-selection cases are refused. Stage 1, Stage 2A, Stage 2B triangular repair, Stage 2B.1 persistent IDs, Auto-Frame, and BING remain green. Do not generalise to five-plus-edge polygons yet.
 
 ---
 
@@ -357,7 +358,7 @@ The shared UI gate now dispatches three-edge loops to Stage 2B and four-edge loo
 
 Live testing with three separate triangular holes exposed a UI identity bug: after repairing original Boundary 1, the two surviving openings were renumbered Boundary 1 / Boundary 2 even though they were the original Boundary 2 / Boundary 3. Stage 2B.1 fixes identity in `makerforge/meshprep.html` only. Each boundary now receives a canonical signature from its topology, edge count, and sorted quantized segments; matching signatures retain their original IDs through re-analysis and sequential repairs. IDs reset only when a genuinely new STL is loaded.
 
-The deterministic regression passes `Boundary 1, 2, 3 Ã¢â€ â€™ Boundary 2, 3 Ã¢â€ â€™ Boundary 3`. Stage 1, Stage 2A, Stage 2B triangular repair, syntax, source-parity, and diff checks remain green. `sanitiser-core.js` was unchanged by this identity fix. The separate quad-only Stage 2C checkpoint is now recorded above.
+The deterministic regression passes `Boundary 1, 2, 3 â†’ Boundary 2, 3 â†’ Boundary 3`. Stage 1, Stage 2A, Stage 2B triangular repair, syntax, source-parity, and diff checks remain green. `sanitiser-core.js` was unchanged by this identity fix. The separate quad-only Stage 2C checkpoint is now recorded above.
 
 ---
 
@@ -365,7 +366,7 @@ The deterministic regression passes `Boundary 1, 2, 3 Ã¢â€ â€™ Bounda
 
 Mesh Prep now exposes the first deliberately narrow Stage 2B geometry operation: **REPAIR SELECTED** appears only for a simple closed three-edge / three-vertex boundary. Sanitiser Core v4 copies every existing Float32 coordinate unchanged and appends exactly one oppositely wound replacement triangle. It refuses complex or branched boundaries, larger polygonal openings, inconsistent or stale selections, and degenerate replacement faces; there is still no welding, vertex movement, shell joining, general triangulation, or topology reconstruction.
 
-The UI re-analyses the candidate result before accepting it. The repair must add exactly one face, reduce open edges by exactly three, and leave non-manifold edge count unchanged; otherwise the original mesh is preserved. The deterministic and live-browser calibration both pass: faces `3 Ã¢â€ â€™ 4`, open edges `3 Ã¢â€ â€™ 0`, boundary groups `1 Ã¢â€ â€™ 0`, watertight `NO Ã¢â€ â€™ YES`, and non-manifold edges `0 Ã¢â€ â€™ 0`. Stage 1 and every Stage 2A diagnostic, classification, highlight, complex-topology, Auto-Frame, and BING contract remain green. Next: validate triangular repair on deliberately broken real meshes; do not generalise Stage 2B yet.
+The UI re-analyses the candidate result before accepting it. The repair must add exactly one face, reduce open edges by exactly three, and leave non-manifold edge count unchanged; otherwise the original mesh is preserved. The deterministic and live-browser calibration both pass: faces `3 â†’ 4`, open edges `3 â†’ 0`, boundary groups `1 â†’ 0`, watertight `NO â†’ YES`, and non-manifold edges `0 â†’ 0`. Stage 1 and every Stage 2A diagnostic, classification, highlight, complex-topology, Auto-Frame, and BING contract remain green. Next: validate triangular repair on deliberately broken real meshes; do not generalise Stage 2B yet.
 
 ---
 
@@ -383,7 +384,7 @@ Recovered the missing August 20 Mesh Prep Sanitiser work without using or overwr
 
 The missing `sanitiser-core.js?v=3` was reconstructed from the surviving v2 core, recovered Stage 2A UI, and authoritative calibration handoff. The exact calibration passes at 3 faces, 3 open edges, 1 shell, watertight NO, 1 MAJOR boundary, 3 edges, 40.0 mm span, and 120.0 mm perimeter. Live browser validation from the active checkout confirmed Boundary 1 selection, the three-edge locator, BING animation, and no console errors. The category thresholds outside the recovered MAJOR calibration are conservative reconstructions and remain diagnostic only.
 
-At the recovery handoff, the next job was **Boundary Auto-Frame** with roughly 15Ã¢â‚¬â€œ20% viewport padding. That presentation pass is now complete; deliberately holed real-model validation remains next. Do not begin Stage 2B repair rules until the inspector is trusted on those models.
+At the recovery handoff, the next job was **Boundary Auto-Frame** with roughly 15â€“20% viewport padding. That presentation pass is now complete; deliberately holed real-model validation remains next. Do not begin Stage 2B repair rules until the inspector is trusted on those models.
 
 ---
 
@@ -405,17 +406,17 @@ Hard refresh (`app.js?v=734`, MakerDeck `app.js?v=622` / **b622**). Header **b62
 
 Painter now has a **Bucket** tool that fills the connected base-model region under the click, plus **Swap base colours** controls for exchanging two painted filament slots. Stamped artwork is a protected layer: brush, spray, selection, smart fill, bucket, colour swap, and Clear Paint cannot alter its faces. Reopening a split Painter 3MF restores the body/art boundary, so the protection survives export and import.
 
-Feature commit: `0362a36` Ã¢â‚¬â€ hard refresh Painter **b626** (`painter.html?v=626`; Painter module `v=624`; Flightdeck shell `app.js?v=733`). Painter module syntax, `node makerforge/test/painter-art.mjs`, 3MF round-trip artwork-boundary assertions, and diff checks passed before deployment.
+Feature commit: `0362a36` â€” hard refresh Painter **b626** (`painter.html?v=626`; Painter module `v=624`; Flightdeck shell `app.js?v=733`). Painter module syntax, `node makerforge/test/painter-art.mjs`, 3MF round-trip artwork-boundary assertions, and diff checks passed before deployment.
 
 ---
 
 ## 2026-08-19 Session update (Bambu Lab brand normalisation and colour entry)
 
-Legacy Flightdeck `Bambu` inventory/catalogue/cost records are promoted to `Bambu Lab` at startup, and all new spool, restock, incoming-stock, catalogue, cost, and empty-spool-profile writes use the same spelling. Queue/Profile Doctor matching also treats either historical spelling as one brand, so BigBoyÃ¢â‚¬â„¢s AMS slot 3 no longer blocks merely because the printer says `Bambu Lab` while Flightdeck previously stored `Bambu`.
+Legacy Flightdeck `Bambu` inventory/catalogue/cost records are promoted to `Bambu Lab` at startup, and all new spool, restock, incoming-stock, catalogue, cost, and empty-spool-profile writes use the same spelling. Queue/Profile Doctor matching also treats either historical spelling as one brand, so BigBoyâ€™s AMS slot 3 no longer blocks merely because the printer says `Bambu Lab` while Flightdeck previously stored `Bambu`.
 
 The Spool Manager Colour name field is no longer a hidden colour-alias/autocomplete rule. It preserves every character the operator types, disables browser autocomplete, and leaves swatch clicks as the only intentional standard-name helper.
 
-Feature commit: `a149fdf` Ã¢â‚¬â€ Flightdeck shell cache-busted to `app.js?v=732`. Focused Bambu alias/preflight assertions, Python compile, JavaScript syntax, and diff checks passed before deployment.
+Feature commit: `a149fdf` â€” Flightdeck shell cache-busted to `app.js?v=732`. Focused Bambu alias/preflight assertions, Python compile, JavaScript syntax, and diff checks passed before deployment.
 
 ---
 
@@ -423,7 +424,7 @@ Feature commit: `a149fdf` Ã¢â‚¬â€ Flightdeck shell cache-busted to `a
 
 Painter artwork now has separate on-model transforms: drag the small blue centre target to move the live preview continuously over the fabric, and drag the outer blue ring to rotate it. A normal click still establishes the initial position. Size and Rotation labels are now editable number fields that stay synchronised with their sliders; Enter or clicking away applies the value.
 
-Feature commit: `2093056` Ã¢â‚¬â€ hard refresh Painter **b625** (`painter.html?v=625`; Flightdeck shell `app.js?v=731`). `node makerforge/test/painter-art.mjs`, Painter module syntax, and browser b625 control/console checks passed.
+Feature commit: `2093056` â€” hard refresh Painter **b625** (`painter.html?v=625`; Flightdeck shell `app.js?v=731`). `node makerforge/test/painter-art.mjs`, Painter module syntax, and browser b625 control/console checks passed.
 
 ---
 
@@ -431,15 +432,15 @@ Feature commit: `2093056` Ã¢â‚¬â€ hard refresh Painter **b625** (`pai
 
 Painter artwork is no longer committed on the first chest click. **b624** first positions a live logo preview, then exposes a blue on-model rotation ring plus the Rotation slider; only **Stamp artwork** turns that position into 3MF geometry. After stamping, **Adjust artwork** reopens the same logo so it can be moved or rotated again without uploading or tracing it again. Escape/Cancel abandons the pending adjustment and keeps the existing stamp.
 
-Feature commit: `427432f` Ã¢â‚¬â€ hard refresh Painter **b624** (`painter.html?v=624`; Flightdeck shell `app.js?v=730`). `node makerforge/test/painter-art.mjs`, Painter module syntax, and local browser console smoke passed.
+Feature commit: `427432f` â€” hard refresh Painter **b624** (`painter.html?v=624`; Flightdeck shell `app.js?v=730`). `node makerforge/test/painter-art.mjs`, Painter module syntax, and local browser console smoke passed.
 
 ---
 
 ## 2026-08-19 Session update (Painter b623 3MF volume export)
 
-The b622 Painter preview could be perfect while Bambu Studio rejected the saved 3MF configuration and deleted zero-volume objects. The split exporter used a recursive external component reference: a parent object and its mesh resource shared the same ID. b623 uses valid pairs (`1 Ã¢â€ â€™ 2` for Body and `3 Ã¢â€ â€™ 4` for Art), adds the mandatory `mimetype`, and emits only Bambu-safe, printer-neutral project settings.
+The b622 Painter preview could be perfect while Bambu Studio rejected the saved 3MF configuration and deleted zero-volume objects. The split exporter used a recursive external component reference: a parent object and its mesh resource shared the same ID. b623 uses valid pairs (`1 â†’ 2` for Body and `3 â†’ 4` for Art), adds the mandatory `mimetype`, and emits only Bambu-safe, printer-neutral project settings.
 
-Feature commit: `762fbb9` Ã¢â‚¬â€ hard refresh Painter **b623** (`painter.html?v=623`, `painter.js?v=623`; Flightdeck shell `app.js?v=729`), reload the model/artwork, stamp it, then export a completely new 3MF. `node makerforge/test/painter-art.mjs` passed, including a 3MF split-volume round trip and config/package assertions.
+Feature commit: `762fbb9` â€” hard refresh Painter **b623** (`painter.html?v=623`, `painter.js?v=623`; Flightdeck shell `app.js?v=729`), reload the model/artwork, stamp it, then export a completely new 3MF. `node makerforge/test/painter-art.mjs` passed, including a 3MF split-volume round trip and config/package assertions.
 
 ---
 
@@ -447,19 +448,19 @@ Feature commit: `762fbb9` Ã¢â‚¬â€ hard refresh Painter **b623** (`pai
 
 Painter now stamps artwork onto the actual nearby chest surface even when an imported STL has reversed face winding. The old sampler rejected those triangles and could revert to a flat plane that passed through a curved shirt. The relief remains a separate closed 3MF part, 0.04 mm clear of the surface and 0.72 mm proud.
 
-Feature commit: `b594dbc` Ã¢â‚¬â€ MakerDeck **b622**. The Painter frame is cache-busted to `painter.html?v=622` and the Flightdeck shell to `app.js?v=728`. `node makerforge/test/painter-art.mjs` passed, including a reversed-winding curved-surface regression case. Reload the model, stamp again, and export a new 3MF; prior exports retain their former decal mesh.
+Feature commit: `b594dbc` â€” MakerDeck **b622**. The Painter frame is cache-busted to `painter.html?v=622` and the Flightdeck shell to `app.js?v=728`. `node makerforge/test/painter-art.mjs` passed, including a reversed-winding curved-surface regression case. Reload the model, stamp again, and export a new 3MF; prior exports retain their former decal mesh.
 
 ---
 
 ## 2026-08-19 Session update (PETG-CF AMS profile)
 
-Feature commit: `35a16d6` Ã¢â‚¬â€ a Flightdeck spool recorded as `PETG` with subtype `CF` (including Siddament PETG CF) now programs the AMS with Bambu's `GFG98 Ã‚Â· Generic PETG-CF` profile, at its 240Ã¢â‚¬â€œ270 Ã‚Â°C range. Plain PETG remains `GFG99 Ã‚Â· Generic PETG`.
+Feature commit: `35a16d6` â€” a Flightdeck spool recorded as `PETG` with subtype `CF` (including Siddament PETG CF) now programs the AMS with Bambu's `GFG98 Â· Generic PETG-CF` profile, at its 240â€“270 Â°C range. Plain PETG remains `GFG99 Â· Generic PETG`.
 
 Validated locally with the exact Siddament spool shape: the emitted AMS command is `GFG98`, `PETG-CF`, `Generic PETG-CF`, and Profile Doctor clears the mismatch. Deployed to the Pi: Flightdeck is active and H2C / AMS HT slot 1 now reports `Generic PETG-CF` / `GFG98` for spool #119. The printer remained physically idle after the profile replay.
 
 ## 2026-08-18 Session update (Hoodie art sits on the fabric)
 
-Latest commit: `f0f1140` Ã¢â‚¬â€ MakerDeck **b621**. Export was carving the panther into Body (0.24 mm embed + CSG pocket), which is the jagged Fusion mesh and the rough print. Body stays the original hoodie; crest sits on the chest (~0.84 mm proud). Red/black still trimmed apart.
+Latest commit: `f0f1140` â€” MakerDeck **b621**. Export was carving the panther into Body (0.24 mm embed + CSG pocket), which is the jagged Fusion mesh and the rough print. Body stays the original hoodie; crest sits on the chest (~0.84 mm proud). Red/black still trimmed apart.
 
 Latest local/Pi change:
 - Hard refresh (`app.js?v=727`, MakerDeck `app.js?v=621` / **b621**). Header **b621**. Re-export a **new** 3MF. Fusion Body = plain hoodie, Art = separate crest on the chest. Do not click Repair.
@@ -471,7 +472,7 @@ Previous:
 
 ## 2026-08-17 Session update (H2C slice kept dumping RHS grouping)
 
-Latest commit: `9a4fb63` Ã¢â‚¬â€ MakerDeck **b618**. July 6 `Vase_1.gcode.3mf` (working) vs tonightÃ¢â‚¬â„¢s `blue grey vase.3mf`: both dual-nozzle, but the new file flushed extras into infill (`flush_into_infill=1`), omitted per-nozzle printable areas, and used H2D presets. H2C slice then remaps PrepareÃ¢â‚¬â„¢s RHS grouping to left-only. Match the working vase: flush off, H2C AMS/printable zones, Generic PLA @BBL H2C.
+Latest commit: `9a4fb63` â€” MakerDeck **b618**. July 6 `Vase_1.gcode.3mf` (working) vs tonightâ€™s `blue grey vase.3mf`: both dual-nozzle, but the new file flushed extras into infill (`flush_into_infill=1`), omitted per-nozzle printable areas, and used H2D presets. H2C slice then remaps Prepareâ€™s RHS grouping to left-only. Match the working vase: flush off, H2C AMS/printable zones, Generic PLA @BBL H2C.
 
 Latest local/Pi change:
 - Hard refresh (`app.js?v=724`, MakerDeck `app.js?v=618` / **b618**). Header **b618**. Re-export the blue/grey vase. Prepare can still show extras on the right; after slice grouping should keep a right nozzle (like the July vase: left white, right colour). Do not click Set to Optimal.
@@ -483,10 +484,10 @@ Previous:
 
 ## 2026-08-17 Session update (Hoodie runner in front of crest)
 
-Latest commit: `67cc0ac` Ã¢â‚¬â€ MakerDeck **b615**. b613Ã¢â‚¬â„¢s sprue went *through* the body (Art Red Ã¢â€ â€ Body at layer 79, empty layers, floating grey) so Studio dumped the art back to filament 1. Back to the b606 path that actually coloured: separate objects, crest **on** the chest (not embedded), 1.6 mm runner **in front of** the hoodie with a bar that joins the art.
+Latest commit: `67cc0ac` â€” MakerDeck **b615**. b613â€™s sprue went *through* the body (Art Red â†” Body at layer 79, empty layers, floating grey) so Studio dumped the art back to filament 1. Back to the b606 path that actually coloured: separate objects, crest **on** the chest (not embedded), 1.6 mm runner **in front of** the hoodie with a bar that joins the art.
 
 Latest local/Pi change:
-- Hard refresh (`app.js?v=721`, MakerDeck `app.js?v=615` / **b615**). Header **b615**. Re-export a **new** 3MF. Prepare: Body + Art as separate objects. Expect two thin coloured sticks in front of the chest from the plate up to the crest Ã¢â‚¬â€ snip after print. Slice **Filament** view: white / red / black; grouping left=1, right=2+3. No Repair. No Ã¢â‚¬Å“Art Red Ã¢â€ â€ BodyÃ¢â‚¬Â, no empty-layer, no floating grey.
+- Hard refresh (`app.js?v=721`, MakerDeck `app.js?v=615` / **b615**). Header **b615**. Re-export a **new** 3MF. Prepare: Body + Art as separate objects. Expect two thin coloured sticks in front of the chest from the plate up to the crest â€” snip after print. Slice **Filament** view: white / red / black; grouping left=1, right=2+3. No Repair. No â€œArt Red â†” Bodyâ€, no empty-layer, no floating grey.
 
 Previous:
 - Hoodie H2C object extruders + sprues (`b4d70f0`).
@@ -495,10 +496,10 @@ Previous:
 
 ## 2026-08-17 Session update (Hoodie H2C object extruders + sprues)
 
-Latest commit: `b4d70f0` Ã¢â‚¬â€ MakerDeck **b613**. H2C ignores assembled/painted volume extruders (slice = filament 1, right nozzle empty, crest as grey relief). Export is separate objects again (the only path that coloured in Prepare) with a **continuous sprue** from the plate to the crest (no empty-layer skip) and a boolean gap between red/black so they donÃ¢â‚¬â„¢t fight on the right nozzle.
+Latest commit: `b4d70f0` â€” MakerDeck **b613**. H2C ignores assembled/painted volume extruders (slice = filament 1, right nozzle empty, crest as grey relief). Export is separate objects again (the only path that coloured in Prepare) with a **continuous sprue** from the plate to the crest (no empty-layer skip) and a boolean gap between red/black so they donâ€™t fight on the right nozzle.
 
 Latest local/Pi change:
-- Hard refresh (`app.js?v=720`, MakerDeck `app.js?v=613` / **b613**). Header **b613**. Re-export a **new** 3MF. Prepare: Body + Art as separate objects, 3 filaments, no empty-layer / floating / redÃ¢â€ â€grey conflict. Slice **Filament** view: white body, red crest, black knight; grouping left=1, right=2+3. Do not click Repair.
+- Hard refresh (`app.js?v=720`, MakerDeck `app.js?v=613` / **b613**). Header **b613**. Re-export a **new** 3MF. Prepare: Body + Art as separate objects, 3 filaments, no empty-layer / floating / redâ†”grey conflict. Slice **Filament** view: white body, red crest, black knight; grouping left=1, right=2+3. Do not click Repair.
 
 Previous:
 - Hoodie one object per colour volume (`51a7c66`).
@@ -507,37 +508,37 @@ Previous:
 
 ## 2026-08-17 Session update (Hoodie one object per colour volume)
 
-Latest commit: `51a7c66` Ã¢â‚¬â€ MakerDeck **b612**, hoodie is **one object** with one volume per colour (red pieces merged). No separate plate objects, no bed foot.
+Latest commit: `51a7c66` â€” MakerDeck **b612**, hoodie is **one object** with one volume per colour (red pieces merged). No separate plate objects, no bed foot.
 
 Latest local/Pi change:
-- b611 got colours in Prepare (crest + tower) then slice dumped them: Art Red/Grey gcode conflicts, Art Red 3 floating, empty layers from the bed foot. Same-colour meshes are merged; they are parts of one assembled object so overlap on the chest is legal. Hard refresh (`app.js?v=719`, MakerDeck `app.js?v=612` / **b612**). Header **b612**. Re-export. Prepare: one hoodie, no Ã¢â‚¬Å“Art Red 3Ã¢â‚¬Â, no conflict/floating/empty-layer warnings. Then slice Filament view.
+- b611 got colours in Prepare (crest + tower) then slice dumped them: Art Red/Grey gcode conflicts, Art Red 3 floating, empty layers from the bed foot. Same-colour meshes are merged; they are parts of one assembled object so overlap on the chest is legal. Hard refresh (`app.js?v=719`, MakerDeck `app.js?v=612` / **b612**). Header **b612**. Re-export. Prepare: one hoodie, no â€œArt Red 3â€, no conflict/floating/empty-layer warnings. Then slice Filament view.
 
 Previous:
 - Hoodie separate objects + bed foot (`5ce5988`).
 
 ---
 
-Latest commit: `5ce5988` Ã¢â‚¬â€ MakerDeck **b611**, hoodie colours as **separate objects** (the only H2C path that used red/black) with a hidden bed foot so Studio cannot drop the crest.
+Latest commit: `5ce5988` â€” MakerDeck **b611**, hoodie colours as **separate objects** (the only H2C path that used red/black) with a hidden bed foot so Studio cannot drop the crest.
 
 Latest local/Pi change:
-- Paint / assembled volumes never made H2C use extra filaments. b606 did Ã¢â‚¬â€ then auto-drop put art on the plate. Each art mesh now has a tiny foot at body Z. Hard refresh (`app.js?v=718`, MakerDeck `app.js?v=611` / **b611**). Header **b611**. Re-export. Prepare should list Body + Art (not one lump). Slice Filament view: white/red/black; crest still on the chest. Do not click Repair.
+- Paint / assembled volumes never made H2C use extra filaments. b606 did â€” then auto-drop put art on the plate. Each art mesh now has a tiny foot at body Z. Hard refresh (`app.js?v=718`, MakerDeck `app.js?v=611` / **b611**). Header **b611**. Re-export. Prepare should list Body + Art (not one lump). Slice Filament view: white/red/black; crest still on the chest. Do not click Repair.
 
 Previous:
 - Hoodie Bambu object_1 volumes (`37a10d3`).
 
 ---
 
-Latest commit: `37a10d3` Ã¢â‚¬â€ MakerDeck **b610**, hoodie colours are volumes inside **one** `object_1.model` (how Studio actually saves multi-part objects).
+Latest commit: `37a10d3` â€” MakerDeck **b610**, hoodie colours are volumes inside **one** `object_1.model` (how Studio actually saves multi-part objects).
 
 Latest local/Pi change:
-- b609 was still the wrong production layout (one file per colour). H2C ignored those part extruders Ã¢â‚¬â€ same all-white slice, right nozzle empty, mid-plate. Hard refresh (`app.js?v=717`, MakerDeck `app.js?v=610` / **b610**). Header **b610**. Re-export a **new** 3MF. Prepare tab: one hoodie with Body / Art parts. Filament view: white/red/black. Grouping left=1, right=2+3. Do not click Repair.
+- b609 was still the wrong production layout (one file per colour). H2C ignored those part extruders â€” same all-white slice, right nozzle empty, mid-plate. Hard refresh (`app.js?v=717`, MakerDeck `app.js?v=610` / **b610**). Header **b610**. Re-export a **new** 3MF. Prepare tab: one hoodie with Body / Art parts. Filament view: white/red/black. Grouping left=1, right=2+3. Do not click Repair.
 
 Previous:
 - Hoodie native volumes (`59527ce`).
 
 ---
 
-Latest commit: `59527ce` Ã¢â‚¬â€ MakerDeck **b609**, hoodie colours are real Bambu volumes in **one** assembled object.
+Latest commit: `59527ce` â€” MakerDeck **b609**, hoodie colours are real Bambu volumes in **one** assembled object.
 
 Latest local/Pi change:
 - Placement was never the bug (model was already mid-plate). H2C ignores triangle `paint_color`; separate plate objects dropped the crest. Export now writes `3D/Objects/object_N.model` + one parent with `p:path` components. Hard refresh (`app.js?v=716`, MakerDeck `app.js?v=609` / **b609**). Header **b609**. Re-export a **new** 3MF. Object list = one hoodie; Filament view = white/red/black; grouping left=1, right=2+3; crest stays on the chest. Do not click Repair.
@@ -547,10 +548,10 @@ Previous:
 
 ---
 
-Latest commit: `f194013` Ã¢â‚¬â€ MakerDeck **b608**, hoodie sits in the H2C **dual-nozzle** zone (25Ã¢â‚¬â€œ325 mm), not the left-nozzle-only strip.
+Latest commit: `f194013` â€” MakerDeck **b608**, hoodie sits in the H2C **dual-nozzle** zone (25â€“325 mm), not the left-nozzle-only strip.
 
 Latest local/Pi change:
-- Right nozzle was empty because the 3MF put the model at the origin (left-only). Placement is assemble-only now; printable areas match H2C. Hard refresh (`app.js?v=715`, MakerDeck `app.js?v=608` / **b608**). Header **b608**. Re-export. Model should sit in the middle of the plate, not on Ã¢â‚¬Å“Left nozzle only areaÃ¢â‚¬Â.
+- Right nozzle was empty because the 3MF put the model at the origin (left-only). Placement is assemble-only now; printable areas match H2C. Hard refresh (`app.js?v=715`, MakerDeck `app.js?v=608` / **b608**). Header **b608**. Re-export. Model should sit in the middle of the plate, not on â€œLeft nozzle only areaâ€.
 
 Previous:
 - Hoodie paint on one object (`1a47cc9`).
@@ -559,7 +560,7 @@ Previous:
 
 ## 2026-08-17 Session update (Hoodie paint, not separate objects)
 
-Latest commit: `1a47cc9` Ã¢â‚¬â€ MakerDeck **b607**, logo stays on the hoodie. b606 separate objects dropped art to the plate (tiny red at the hem, tower still 3-colour).
+Latest commit: `1a47cc9` â€” MakerDeck **b607**, logo stays on the hoodie. b606 separate objects dropped art to the plate (tiny red at the hem, tower still 3-colour).
 
 Latest local/Pi change:
 - One object again; crest/text triangles are AMS-painted (not a second object that H2C auto-drops). Hard refresh (`app.js?v=714`, MakerDeck `app.js?v=607` / **b607**). Header **b607**. Re-export. Do not click Repair.
@@ -571,10 +572,10 @@ Previous:
 
 ## 2026-08-17 Session update (Hoodie colours as separate objects)
 
-Latest commit: `642d53b` Ã¢â‚¬â€ MakerDeck **b606**, hoodie Body / Art / Text are **separate 3MF objects** (assembled), so H2C cannot union the crest onto filament 1.
+Latest commit: `642d53b` â€” MakerDeck **b606**, hoodie Body / Art / Text are **separate 3MF objects** (assembled), so H2C cannot union the crest onto filament 1.
 
 Latest local/Pi change:
-- Slice used only filament 1 (0 colour changes, right nozzle empty) because the assembly was one object and H2C printed it all as white. Hard refresh (`app.js?v=713`, MakerDeck `app.js?v=606` / **b606**). Header **b606**. Re-export. Object list should show Body + Art Red + Art Dark grey + Text, not a single Ã¢â‚¬Å“1Ã¢â‚¬Â.
+- Slice used only filament 1 (0 colour changes, right nozzle empty) because the assembly was one object and H2C printed it all as white. Hard refresh (`app.js?v=713`, MakerDeck `app.js?v=606` / **b606**). Header **b606**. Re-export. Object list should show Body + Art Red + Art Dark grey + Text, not a single â€œ1â€.
 
 Previous:
 - Hoodie AMS HT left only (`42267fb`).
@@ -583,7 +584,7 @@ Previous:
 
 ## 2026-08-17 Session update (Hoodie AMS HT left only)
 
-Latest commit: `42267fb` Ã¢â‚¬â€ MakerDeck **b605**, left nozzle = **AMS HT**, right nozzle = **regular AMS**. White/red/black no longer all labelled HT-A.
+Latest commit: `42267fb` â€” MakerDeck **b605**, left nozzle = **AMS HT**, right nozzle = **regular AMS**. White/red/black no longer all labelled HT-A.
 
 Latest local/Pi change:
 - 3MF was missing `extruder_ams_count`, so Studio parked every PLA Basic on HT-A. Now left is `1#0|4#1` (HT) and right is `1#1|4#0` (AMS). Hard refresh (`app.js?v=712`, MakerDeck `app.js?v=605` / **b605**). Header **b605**. Re-export.
@@ -595,10 +596,10 @@ Previous:
 
 ## 2026-08-17 Session update (Hoodie dual nozzle)
 
-Latest commit: `00b15f0` Ã¢â‚¬â€ MakerDeck **b604**, hoodie 3MF maps **white body to left** (AMS HT) and **red/black art to right**. Prime tower on (right nozzle cannot purge into left infill).
+Latest commit: `00b15f0` â€” MakerDeck **b604**, hoodie 3MF maps **white body to left** (AMS HT) and **red/black art to right**. Prime tower on (right nozzle cannot purge into left infill).
 
 Latest local/Pi change:
-- b602/b603 pinned every slot to the left, so Studio showed right nozzle empty. Dual map is back; colour merge still caps ~3Ã¢â‚¬â€œ4 slots so the tower should stay far under the old 20h. Hard refresh (`app.js?v=711`, MakerDeck `app.js?v=604` / **b604**). Header **b604**. Re-export. Filament grouping: 1 on left, 2+3 on right.
+- b602/b603 pinned every slot to the left, so Studio showed right nozzle empty. Dual map is back; colour merge still caps ~3â€“4 slots so the tower should stay far under the old 20h. Hard refresh (`app.js?v=711`, MakerDeck `app.js?v=604` / **b604**). Header **b604**. Re-export. Filament grouping: 1 on left, 2+3 on right.
 
 Previous:
 - Hoodie dark grey stays black (`2d7b7a4`).
@@ -607,7 +608,7 @@ Previous:
 
 ## 2026-08-17 Session update (Hoodie dark grey stays black)
 
-Latest commit: `2d7b7a4` Ã¢â‚¬â€ MakerDeck **b603**, crest **Dark grey** (knight) no longer merges into the white body slot.
+Latest commit: `2d7b7a4` â€” MakerDeck **b603**, crest **Dark grey** (knight) no longer merges into the white body slot.
 
 Latest local/Pi change:
 - b602 parked `Art Dark grey` on filament 1, so the knight vanished. Dark grey / black now get their own slot (priority: body, red, black, white). Hard refresh (`app.js?v=710`, MakerDeck `app.js?v=603` / **b603**). Header **b603**. Re-export. Do not click Set to Optimal.
@@ -619,10 +620,10 @@ Previous:
 
 ## 2026-08-17 Session update (Hoodie no prime tower)
 
-Latest commit: `5291bf3` Ã¢â‚¬â€ MakerDeck **b602**, hoodie 3MF maps all filaments to the **left** nozzle, merges similar crest colours (cap 4), and keeps **prime tower off** via `different_settings_to_system`.
+Latest commit: `5291bf3` â€” MakerDeck **b602**, hoodie 3MF maps all filaments to the **left** nozzle, merges similar crest colours (cap 4), and keeps **prime tower off** via `different_settings_to_system`.
 
 Latest local/Pi change:
-- 19h 44m + tower was 8 AMS slots with art on the **right** nozzle (flush-into-body cannot eat right-nozzle purges). Export now: ~3Ã¢â‚¬â€œ4 filaments all on left, tower off, purge into hoodie infill/objects. Hard refresh (`app.js?v=709`, MakerDeck `app.js?v=602` / **b602**). Header **b602**. Re-export. In Studio: do **not** click Ã¢â‚¬Å“Set to OptimalÃ¢â‚¬Â (that puts colours back on the right). Prime tower should be off.
+- 19h 44m + tower was 8 AMS slots with art on the **right** nozzle (flush-into-body cannot eat right-nozzle purges). Export now: ~3â€“4 filaments all on left, tower off, purge into hoodie infill/objects. Hard refresh (`app.js?v=709`, MakerDeck `app.js?v=602` / **b602**). Header **b602**. Re-export. In Studio: do **not** click â€œSet to Optimalâ€ (that puts colours back on the right). Prime tower should be off.
 
 Previous:
 - Hoodie 3MF loads as H2C 0.24 Standard (`beaf424`).
@@ -631,10 +632,10 @@ Previous:
 
 ## 2026-08-17 Session update (Hoodie 3MF loads as H2C 0.24 Standard)
 
-Latest commit: `beaf424` Ã¢â‚¬â€ MakerDeck **b601**, 3MF is a real Bambu project on **0.24mm Standard @BBL H2C**.
+Latest commit: `beaf424` â€” MakerDeck **b601**, 3MF is a real Bambu project on **0.24mm Standard @BBL H2C**.
 
 Latest local/Pi change:
-- Studio dumped settings because Application was `BambuStudio` (no version) and the JSON had no `nozzle_diameter` / `extruder_type`. There is no Hoodie Fast in System presets Ã¢â‚¬â€ fastest stock is **0.24mm Standard**. Hard refresh (`app.js?v=708`, MakerDeck `app.js?v=601` / **b601**). Header **b601**. Re-export. Process dropdown should show 0.24mm Standard, no Ã¢â‚¬Å“invalid configÃ¢â‚¬Â.
+- Studio dumped settings because Application was `BambuStudio` (no version) and the JSON had no `nozzle_diameter` / `extruder_type`. There is no Hoodie Fast in System presets â€” fastest stock is **0.24mm Standard**. Hard refresh (`app.js?v=708`, MakerDeck `app.js?v=601` / **b601**). Header **b601**. Re-export. Process dropdown should show 0.24mm Standard, no â€œinvalid configâ€.
 
 Previous:
 - Hoodie 0.4 slice cracks (`ee77d2a`).
@@ -643,7 +644,7 @@ Previous:
 
 ## 2026-08-17 Session update (Hoodie 0.4 slice cracks + H2C config)
 
-Latest commit: `ee77d2a` Ã¢â‚¬â€ MakerDeck **b600**, thicker 0.4 mm stamp; 3MF is H2C 0.4 / 0.20mm Standard.
+Latest commit: `ee77d2a` â€” MakerDeck **b600**, thicker 0.4 mm stamp; 3MF is H2C 0.4 / 0.20mm Standard.
 
 Latest local/Pi change:
 - Grey cracks in the crest and LITTLE were a 0.62 mm stamp (one 0.4 mm line). Export is ~0.90 mm (two lines) with a deeper bite into the fabric. 3MF now says **Bambu Lab H2C 0.4 nozzle** + **0.20mm Standard @BBL H2C** so Studio should keep the settings (not 20 hr geometry-only). Hard refresh (`app.js?v=707`, MakerDeck `app.js?v=600` / **b600**). Header **b600**. Re-click Stubby holder, re-export. **Do not click Repair.**
@@ -655,10 +656,10 @@ Previous:
 
 ## 2026-08-17 Session update (Hoodie Body 3 open edges)
 
-Latest commit: `cf8f26c` Ã¢â‚¬â€ MakerDeck **b599**, 3MF sanitiser strips duplicate faces before peel so the hoodie Body stays closed.
+Latest commit: `cf8f26c` â€” MakerDeck **b599**, 3MF sanitiser strips duplicate faces before peel so the hoodie Body stays closed.
 
 Latest local/Pi change:
-- Export warned Ã¢â‚¬Å“Body 3 openÃ¢â‚¬Â because peel treated 24 duplicate faces as non-manifold and punched a hole. Duplicates go first now. Hard refresh (`app.js?v=706`, MakerDeck `app.js?v=599` / **b599**). Header **b599**. Re-click Stubby holder, export 3MF. **Do not click Repair.**
+- Export warned â€œBody 3 openâ€ because peel treated 24 duplicate faces as non-manifold and punched a hole. Duplicates go first now. Hard refresh (`app.js?v=706`, MakerDeck `app.js?v=599` / **b599**). Header **b599**. Re-click Stubby holder, export 3MF. **Do not click Repair.**
 
 Previous:
 - Hoodie back uses the chest stamp (`c1d7dee`).
@@ -667,10 +668,10 @@ Previous:
 
 ## 2026-08-17 Session update (Hoodie back uses the chest stamp)
 
-Latest commit: `c1d7dee` Ã¢â‚¬â€ MakerDeck **b598**, back text uses the same Y-stamp + 5-pass blur as the chest.
+Latest commit: `c1d7dee` â€” MakerDeck **b598**, back text uses the same Y-stamp + 5-pass blur as the chest.
 
 Latest local/Pi change:
-- Front LITTLE is close because it stamps on a min-Y heightfield with pocket-close blur. Back now uses that same path on the outer +Y skin (no cylinder unwrap, no normals). Face Ã¢â€ â€™ Back, type in Text. PNG still chest-only. Hard refresh (`app.js?v=705`, MakerDeck `app.js?v=598` / **b598**). Header **b598**. Re-click Stubby holder.
+- Front LITTLE is close because it stamps on a min-Y heightfield with pocket-close blur. Back now uses that same path on the outer +Y skin (no cylinder unwrap, no normals). Face â†’ Back, type in Text. PNG still chest-only. Hard refresh (`app.js?v=705`, MakerDeck `app.js?v=598` / **b598**). Header **b598**. Re-click Stubby holder.
 
 Previous:
 - Drop hoodie back text (`fa27395`).
@@ -679,7 +680,7 @@ Previous:
 
 ## 2026-08-17 Session update (Drop hoodie back text)
 
-Latest commit: `fa27395` Ã¢â‚¬â€ MakerDeck **b597**, stubby holder text/logo on the chest only.
+Latest commit: `fa27395` â€” MakerDeck **b597**, stubby holder text/logo on the chest only.
 
 Latest local/Pi change:
 - Back text on the hoodie well was never going to sit clean (cylinder + stamp kept clipping/crumpling). Face Back is gone. Type in Text or drop a PNG on the chest. Hard refresh (`app.js?v=704`, MakerDeck `app.js?v=597` / **b597**). Header **b597**. Re-click Stubby holder.
@@ -691,10 +692,10 @@ Previous:
 
 ## 2026-08-17 Session update (Hoodie back text wraps the cylinder)
 
-Latest commit: `26ab787` Ã¢â‚¬â€ MakerDeck **b596**, back text wraps around the well like a can label.
+Latest commit: `26ab787` â€” MakerDeck **b596**, back text wraps around the well like a can label.
 
 Latest local/Pi change:
-- Chest-style Y-stamp cannot sit on the cylindrical back Ã¢â‚¬â€ letters crumpled into the wall. Back text now unwraps around `backY` (same Text box, Face Ã¢â€ â€™ Back). Front logo unchanged. Hard refresh (`app.js?v=703`, MakerDeck `app.js?v=596` / **b596**). Header **b596**. Re-click Stubby holder, Face Ã¢â€ â€™ Back Ã¢â‚¬â€ rear text, type again.
+- Chest-style Y-stamp cannot sit on the cylindrical back â€” letters crumpled into the wall. Back text now unwraps around `backY` (same Text box, Face â†’ Back). Front logo unchanged. Hard refresh (`app.js?v=703`, MakerDeck `app.js?v=596` / **b596**). Header **b596**. Re-click Stubby holder, Face â†’ Back â€” rear text, type again.
 
 Previous:
 - Hoodie back text uses the front stamp (`efff7b2`).
@@ -703,7 +704,7 @@ Previous:
 
 ## 2026-08-17 Session update (Hoodie back text uses the front stamp)
 
-Latest commit: `efff7b2` Ã¢â‚¬â€ MakerDeck **b595**, back text uses the same Y-stamp as the chest.
+Latest commit: `efff7b2` â€” MakerDeck **b595**, back text uses the same Y-stamp as the chest.
 
 Latest local/Pi change:
 - Back LITTLE was a comb of spikes from offsetting along noisy surface normals. Back text now uses the same setup as the front: type in the Text box, stamp along world Y. Face Front = chest logo or text; Back = rear text. Hard refresh (`app.js?v=702`, MakerDeck `app.js?v=595` / **b595**). Header **b595**. Re-click Stubby holder.
@@ -715,7 +716,7 @@ Previous:
 
 ## 2026-08-17 Session update (Hoodie back letters wrap the curve)
 
-Latest commit: `3973047` Ã¢â‚¬â€ MakerDeck **b594**, back text follows the outer curve, not a flat plane.
+Latest commit: `3973047` â€” MakerDeck **b594**, back text follows the outer curve, not a flat plane.
 
 Latest local/Pi change:
 - LITTLE was buried at the spine and floating at the ends because the back field was flattened and offset in +Y. It now keeps the cylinder envelope and stamps along the surface normal. Front unchanged. Hard refresh (`app.js?v=701`, MakerDeck `app.js?v=594` / **b594**). Header **b594**. Re-click Stubby holder.
@@ -727,7 +728,7 @@ Previous:
 
 ## 2026-08-17 Session update (Hoodie back text through the wall)
 
-Latest commit: `32986c3` Ã¢â‚¬â€ MakerDeck **b593**, back stamp uses the outer fabric only.
+Latest commit: `32986c3` â€” MakerDeck **b593**, back stamp uses the outer fabric only.
 
 Latest local/Pi change:
 - Back LITTLE was shredded through the well wall because the heightfield kept every vertex past Y=2 (inner well + outer skin). It now only samples the outer back. Front chest path unchanged. Hard refresh (`app.js?v=700`, MakerDeck `app.js?v=593` / **b593**). Header **b593**. Re-click Stubby holder.
@@ -739,22 +740,22 @@ Previous:
 
 ## 2026-08-17 Session update (Undo b591 front field)
 
-Latest commit: `be456ba` Ã¢â‚¬â€ MakerDeck **b592**, chest logo field restored; back-only drape stays.
+Latest commit: `be456ba` â€” MakerDeck **b592**, chest logo field restored; back-only drape stays.
 
 Latest local/Pi change:
 - b591 sampled the pouch interior and exploded the front shield into spikes. Front heightfield is back to the pocket-close blur. Back text path unchanged. Hard refresh (`app.js?v=699`, MakerDeck `app.js?v=592` / **b592**). Header **b592**. Re-click Stubby holder and drop the PNG again.
 
 Previous:
-- Hoodie LITTLE Swiss cheese (`cd0ad7b`) Ã¢â‚¬â€ reverted.
+- Hoodie LITTLE Swiss cheese (`cd0ad7b`) â€” reverted.
 
 ---
 
 ## 2026-08-17 Session update (Hoodie LITTLE Swiss cheese)
 
-Latest commit: `cd0ad7b` Ã¢â‚¬â€ MakerDeck **b591**, chest stamp follows the pocket skin.
+Latest commit: `cd0ad7b` â€” MakerDeck **b591**, chest stamp follows the pocket skin.
 
 Latest local/Pi change:
-- LITTLE on the chest was holey because the heightfield was mean-blurred behind the kangaroo pocket, then sat 0.04 mm Ã¢â‚¬Å“onÃ¢â‚¬Â that fake surface. Stamp now follows the outer fabric; preview sits 0.25 mm proud. Hard refresh (`app.js?v=698`, MakerDeck `app.js?v=591` / **b591**). Header **b591**. Re-click Stubby holder.
+- LITTLE on the chest was holey because the heightfield was mean-blurred behind the kangaroo pocket, then sat 0.04 mm â€œonâ€ that fake surface. Stamp now follows the outer fabric; preview sits 0.25 mm proud. Hard refresh (`app.js?v=698`, MakerDeck `app.js?v=591` / **b591**). Header **b591**. Re-click Stubby holder.
 
 Previous:
 - Hoodie back text too deep (`01fbcff`).
@@ -763,10 +764,10 @@ Previous:
 
 ## 2026-08-17 Session update (Hoodie back text too deep)
 
-Latest commit: `01fbcff` Ã¢â‚¬â€ MakerDeck **b590**, back text sits on the fabric again.
+Latest commit: `01fbcff` â€” MakerDeck **b590**, back text sits on the fabric again.
 
 Latest local/Pi change:
-- b589 embedded 0.55 mm into the hoodie on preview, so LITTLE punched through the back. Preview is a 0.5 mm stamp on the fabric; export only bites 0.12 mm for bonding. Back heightfield no longer mean-blurs inward. Hard refresh (`app.js?v=697`, MakerDeck `app.js?v=590` / **b590**). Header **b590**. Re-click Stubby holder, Face Ã¢â€ â€™ Back Ã¢â‚¬â€ text.
+- b589 embedded 0.55 mm into the hoodie on preview, so LITTLE punched through the back. Preview is a 0.5 mm stamp on the fabric; export only bites 0.12 mm for bonding. Back heightfield no longer mean-blurs inward. Hard refresh (`app.js?v=697`, MakerDeck `app.js?v=590` / **b590**). Header **b590**. Re-click Stubby holder, Face â†’ Back â€” text.
 
 Previous:
 - Hoodie shield slice + manifold (`edb6a7c`).
@@ -775,10 +776,10 @@ Previous:
 
 ## 2026-08-17 Session update (Hoodie shield slice + manifold)
 
-Latest commit: `edb6a7c` Ã¢â‚¬â€ MakerDeck **b589**, 3MF sanitiser peels 3+ face edges; crest embeds into the fabric.
+Latest commit: `edb6a7c` â€” MakerDeck **b589**, 3MF sanitiser peels 3+ face edges; crest embeds into the fabric.
 
 Latest local/Pi change:
-- BambuÃ¢â‚¬â„¢s Ã¢â‚¬Å“24 non-manifold edgesÃ¢â‚¬Â on `stubby-holder-65x145mm` was real: the sanitiser only counted **open** (1-face) edges, so a closed hoodie with 3-face edges skipped repair. Shield also sat ~0.04 mm off the chest so the slice could drop it. Hard refresh (`app.js?v=696`, MakerDeck `app.js?v=589` / **b589**). Header **b589**. Re-click Stubby holder, re-drop the PNG, re-export 3MF. **Do not click Repair.** Side view: crest and back text should sit in the fabric.
+- Bambuâ€™s â€œ24 non-manifold edgesâ€ on `stubby-holder-65x145mm` was real: the sanitiser only counted **open** (1-face) edges, so a closed hoodie with 3-face edges skipped repair. Shield also sat ~0.04 mm off the chest so the slice could drop it. Hard refresh (`app.js?v=696`, MakerDeck `app.js?v=589` / **b589**). Header **b589**. Re-click Stubby holder, re-drop the PNG, re-export 3MF. **Do not click Repair.** Side view: crest and back text should sit in the fabric.
 
 Previous:
 - Hoodie text on the back (`7007588`).
@@ -787,10 +788,10 @@ Previous:
 
 ## 2026-08-17 Session update (Hoodie text on the back)
 
-Latest commit: `7007588` Ã¢â‚¬â€ MakerDeck **b588**, Face Back puts text on the rear, chest logo stays.
+Latest commit: `7007588` â€” MakerDeck **b588**, Face Back puts text on the rear, chest logo stays.
 
 Latest local/Pi change:
-- Stubby holder Face is Front or Back. PNG/logo stays on the chest; Text on Back drapes on the rear fabric. Hard refresh (`app.js?v=695`, MakerDeck `app.js?v=588` / **b588**). Header **b588**. Art tab Ã¢â€ â€™ Face Ã¢â€ â€™ **Back Ã¢â‚¬â€ text**, then type on the Text pane.
+- Stubby holder Face is Front or Back. PNG/logo stays on the chest; Text on Back drapes on the rear fabric. Hard refresh (`app.js?v=695`, MakerDeck `app.js?v=588` / **b588**). Header **b588**. Art tab â†’ Face â†’ **Back â€” text**, then type on the Text pane.
 
 Previous:
 - Stubby holder empty after b586 (`b5bbbe7`).
@@ -799,7 +800,7 @@ Previous:
 
 ## 2026-08-17 Session update (Stubby holder empty after b586)
 
-Latest commit: `b5bbbe7` Ã¢â‚¬â€ MakerDeck **b587**, one hoodie-stubby module instance.
+Latest commit: `b5bbbe7` â€” MakerDeck **b587**, one hoodie-stubby module instance.
 
 Latest local/Pi change:
 - Clicking Stubby holder loaded the STL into one JS cache and built the mesh from another (empty) because `hoodie-stubby.js?v=586` vs `?v=585`. Hard refresh (`app.js?v=694`, MakerDeck `app.js?v=587` / **b587**). Header must say **b587**. Click Stubby holder again.
@@ -811,10 +812,10 @@ Previous:
 
 ## 2026-08-17 Session update (Hoodie 18h slice was AMS, not geometry)
 
-Latest commit: `23da307` Ã¢â‚¬â€ MakerDeck **b586**, one-object 3MF + flush into the hoodie body.
+Latest commit: `23da307` â€” MakerDeck **b586**, one-object 3MF + flush into the hoodie body.
 
 Latest local/Pi change:
-- test2 in Bambu was **18h 43m** with 553 AMS swaps, prime tower on, flush-into-infill off. Crest is ~56 mm tall so it hits ~280 layers Ãƒâ€” 3 colours. Next export is one assembly (not separate objects), purge into infill, no tower, art on the right H2D nozzle. Hard refresh (`app.js?v=693`, MakerDeck `app.js?v=586` / **b586**). Re-export 3MF. In the open slicer: Flush into infill + objects, multiplier ~0.4, prime tower off, then slice again. Orca preset **0.28mm Hoodie Fast @H2D**.
+- test2 in Bambu was **18h 43m** with 553 AMS swaps, prime tower on, flush-into-infill off. Crest is ~56 mm tall so it hits ~280 layers Ã— 3 colours. Next export is one assembly (not separate objects), purge into infill, no tower, art on the right H2D nozzle. Hard refresh (`app.js?v=693`, MakerDeck `app.js?v=586` / **b586**). Re-export 3MF. In the open slicer: Flush into infill + objects, multiplier ~0.4, prime tower off, then slice again. Orca preset **0.28mm Hoodie Fast @H2D**.
 
 Previous:
 - Hoodie crest stamp (`bf04e9f`).
@@ -823,21 +824,21 @@ Previous:
 
 ## 2026-08-17 Session update (Hoodie crest is a fine stamp)
 
-Latest commit: `bf04e9f` Ã¢â‚¬â€ MakerDeck **b585**, shared-vertex chest stamp, no 0.22 mm cells / scanlines.
+Latest commit: `bf04e9f` â€” MakerDeck **b585**, shared-vertex chest stamp, no 0.22 mm cells / scanlines.
 
 Latest local/Pi change:
-- St George was Lego-blocky with horizontal scanlines because b584 forced 0.22 mm voxels and `DECAL_LAYER_MM` row banding. Chest art now uses PainterÃ¢â‚¬â„¢s shared-vertex heightfield (~0.06 mm start, grid cap 520 Ã¢â€°Ë† 0.11 mm on a 56 mm logo). Skin stays 0.04 / ~0.72 mm. Hard refresh (`app.js?v=692`, MakerDeck `app.js?v=585` / **b585**). Header must say **b585**. Re-click Stubby holder and drop the PNG again.
+- St George was Lego-blocky with horizontal scanlines because b584 forced 0.22 mm voxels and `DECAL_LAYER_MM` row banding. Chest art now uses Painterâ€™s shared-vertex heightfield (~0.06 mm start, grid cap 520 â‰ˆ 0.11 mm on a 56 mm logo). Skin stays 0.04 / ~0.72 mm. Hard refresh (`app.js?v=692`, MakerDeck `app.js?v=585` / **b585**). Header must say **b585**. Re-click Stubby holder and drop the PNG again.
 
 Previous:
 - Hoodie stamp matches Painter thickness (`57fee2b`).
 
 ---
 
-## STOP Ã¢â‚¬â€ pick up 2026-08-17 (hoodie logo still not crisp)
+## STOP â€” pick up 2026-08-17 (hoodie logo still not crisp)
 
-Latest commit: `57fee2b` / `19593e3` Ã¢â‚¬â€ session parked. MakerDeck **b584** is live. Do not ship another depth/drape tweak until crispness is fixed.
+Latest commit: `57fee2b` / `19593e3` â€” session parked. MakerDeck **b584** is live. Do not ship another depth/drape tweak until crispness is fixed.
 
-**What Chris sees:** St George crest on the hoodie in MakerDeck is blocky, scanlined, and a bit engraved. STL Painter is the look we want (thin stamp on the fabric, clean edges). He was comparing Painter vs MakerDeck; MakerDeck is the one thatÃ¢â‚¬â„¢s wrong.
+**What Chris sees:** St George crest on the hoodie in MakerDeck is blocky, scanlined, and a bit engraved. STL Painter is the look we want (thin stamp on the fabric, clean edges). He was comparing Painter vs MakerDeck; MakerDeck is the one thatâ€™s wrong.
 
 **This is the same family of bugs as this morning, not a new one.**
 
@@ -845,21 +846,21 @@ Latest commit: `57fee2b` / `19593e3` Ã¢â‚¬â€ session parked. MakerDec
 | --- | --- | --- |
 | Painter b590 | Paint colours onto hoodie triangles | Jagged red spikes (`f13c15b` / b591 undid this) |
 | Painter b589 | One prism per bitmap cell | Millions of faces, 0-byte 3MF. Fix: **shared-vertex heightfield**, grid ~0.2 mm |
-| Painter b584Ã¢â‚¬â€œb588 | Raw PNG grey halo | Fringe / saw-teeth around the shield |
-| MakerDeck b584 tonight | Forced hoodie art to **0.22 mm cells** + row banding | **TonightÃ¢â‚¬â„¢s Ã¢â‚¬Å“not crispÃ¢â‚¬Â** Ã¢â‚¬â€ stepped letters, horizontal scanlines |
+| Painter b584â€“b588 | Raw PNG grey halo | Fringe / saw-teeth around the shield |
+| MakerDeck b584 tonight | Forced hoodie art to **0.22 mm cells** + row banding | **Tonightâ€™s â€œnot crispâ€** â€” stepped letters, horizontal scanlines |
 
-**Tomorrow Ã¢â‚¬â€ do this:**
+**Tomorrow â€” do this:**
 
 1. **Undo the 0.22 mm hoodie cap** in `features.js` (`buildFlatShapeGroupsSolidMesh` stepMm and `buildWrapTraceSlabMesh` stepPx). That cap is why ST. GEORGE / ILLAWARRA look like Lego. Box art stays crisp at **0.035 mm export / 0.05 mm preview**.
-2. **Do not row-band the crest** with `DECAL_LAYER_MM` (0.2 mm). ThatÃ¢â‚¬â„¢s the horizontal striations across the shield.
-3. **Keep** b584Ã¢â‚¬â„¢s good bits: Painter skin **0.04 mm**, shell **~0.72 mm**, smoothed front-face chest field. Those fixed the side-on brick, not the top-down pixels.
-4. Prefer **PainterÃ¢â‚¬â„¢s `appendStampHeightfield`** (`makerforge/js/painter-art.js`) on MakerDeckÃ¢â‚¬â„¢s `getEmbossFaceFrame` / chest field Ã¢â‚¬â€ one shell per colour, shared verts Ã¢â‚¬â€ instead of voxel marching with fat cells.
+2. **Do not row-band the crest** with `DECAL_LAYER_MM` (0.2 mm). Thatâ€™s the horizontal striations across the shield.
+3. **Keep** b584â€™s good bits: Painter skin **0.04 mm**, shell **~0.72 mm**, smoothed front-face chest field. Those fixed the side-on brick, not the top-down pixels.
+4. Prefer **Painterâ€™s `appendStampHeightfield`** (`makerforge/js/painter-art.js`) on MakerDeckâ€™s `getEmbossFaceFrame` / chest field â€” one shell per colour, shared verts â€” instead of voxel marching with fat cells.
 5. **Never** paint the hoodie mesh triangles again (b591). Logo stays a separate colour part.
-6. If the grey halo is back, reuse PainterÃ¢â‚¬â„¢s `scrubTraceMat` / paper knockout Ã¢â‚¬â€ donÃ¢â‚¬â„¢t restamp the raw PNG.
+6. If the grey halo is back, reuse Painterâ€™s `scrubTraceMat` / paper knockout â€” donâ€™t restamp the raw PNG.
 
 **Do not:** another proud/depth pass, pocket-interior drape, or painting the STL. Crispness is grid + builder, not millimetres of offset.
 
-Hard refresh still **b584** until tomorrowÃ¢â‚¬â„¢s build. Re-click Stubby holder after the crisp fix.
+Hard refresh still **b584** until tomorrowâ€™s build. Re-click Stubby holder after the crisp fix.
 
 Previous:
 - MakerDeck hoodie stamp matches Painter thickness (`57fee2b`).
@@ -868,10 +869,10 @@ Previous:
 
 ## 2026-08-16 Session update (MakerDeck hoodie stamp matches Painter)
 
-Latest commit: `57fee2b` Ã¢â‚¬â€ Match MakerDeck hoodie logos to STL Painter's thin smooth stamp.
+Latest commit: `57fee2b` â€” Match MakerDeck hoodie logos to STL Painter's thin smooth stamp.
 
 Latest local/Pi change:
-- MakerDeck was voxel-extruding a noisy chest field (~0.85 mm proud). It now uses PainterÃ¢â‚¬â„¢s skin (0.04 mm) + ~0.72 mm shell, a smoothed front-face heightfield, and a ~0.22 mm grid. Hard refresh (`app.js?v=691`, MakerDeck `app.js?v=584` / **b584**). Header must say **b584**. Re-click Stubby holder, drop the PNG again.
+- MakerDeck was voxel-extruding a noisy chest field (~0.85 mm proud). It now uses Painterâ€™s skin (0.04 mm) + ~0.72 mm shell, a smoothed front-face heightfield, and a ~0.22 mm grid. Hard refresh (`app.js?v=691`, MakerDeck `app.js?v=584` / **b584**). Header must say **b584**. Re-click Stubby holder, drop the PNG again.
 
 Previous:
 - Hoodie 3MF Bambu export (`29aa8ab`).
@@ -880,7 +881,7 @@ Previous:
 
 ## 2026-08-16 Session update (Hoodie 3MF survives Bambu)
 
-Latest commit: `29aa8ab` Ã¢â‚¬â€ Export hoodie logos as closed 3MF solids that stay standing in Bambu.
+Latest commit: `29aa8ab` â€” Export hoodie logos as closed 3MF solids that stay standing in Bambu.
 
 Latest local/Pi change:
 - MakerDeck preview was right; Bambu dropped the art as zero-volume parts and auto-dropped the hoodie onto its back. 3MF now ships Body + colour art as separate objects, closed ~0.8 mm proud slabs, no auto_drop. Hard refresh (`app.js?v=690`, MakerDeck `app.js?v=583` / **b583**). Header must say **b583**. Re-export 3MF from MakerDeck (not the original STL).
@@ -892,7 +893,7 @@ Previous:
 
 ## 2026-08-16 Session update (Hoodie stamp follows the fabric)
 
-Latest commit: `7c08c52` Ã¢â‚¬â€ Sit hoodie logos on the outer fabric instead of a recessed chest plane.
+Latest commit: `7c08c52` â€” Sit hoodie logos on the outer fabric instead of a recessed chest plane.
 
 Latest local/Pi change:
 - b581 still flattened the stamp onto the chest plane while the pocket stuck out (side-view step). Art now follows the front-most fabric and sits ~0.85 mm proud. Hard refresh (`app.js?v=689`, MakerDeck `app.js?v=582` / **b582**). Header must say **b582**. Re-click Stubby holder, drop the PNG again.
@@ -904,7 +905,7 @@ Previous:
 
 ## 2026-08-16 Session update (Hoodie stamp too deep)
 
-Latest commit: `8cbe554` Ã¢â‚¬â€ Keep hoodie chest logos as a shallow stamp, not a pocket carve.
+Latest commit: `8cbe554` â€” Keep hoodie chest logos as a shallow stamp, not a pocket carve.
 
 Latest local/Pi change:
 - Per-vertex chest drape was sampling the pouch interior and pulling the WAK logo ~28 mm into the pocket. Art now sits on hole-closed front fabric (~0.4 mm proud). Hard refresh (`app.js?v=688`, MakerDeck `app.js?v=581` / **b581**). Header must say **b581**. Re-click Stubby holder, drop the PNG again.
@@ -916,7 +917,7 @@ Previous:
 
 ## 2026-08-16 Session update (Stubby holder round1 crash)
 
-Latest commit: `d1e7ef6` Ã¢â‚¬â€ Fix Stubby holder crash: round1 was missing after the chest-drape change.
+Latest commit: `d1e7ef6` â€” Fix Stubby holder crash: round1 was missing after the chest-drape change.
 
 Latest local/Pi change:
 - Clicking Stubby holder threw `round1 is not defined`. Helper is back. Hard refresh (`app.js?v=687`, MakerDeck `app.js?v=580` / **b580**). Header must say **b580**.
@@ -928,7 +929,7 @@ Previous:
 
 ## 2026-08-16 Session update (Hoodie chest art sits on the surface)
 
-Latest commit: `21449f9` Ã¢â‚¬â€ Drape MakerDeck logos onto the hoodie chest instead of the belly bounding box.
+Latest commit: `21449f9` â€” Drape MakerDeck logos onto the hoodie chest instead of the belly bounding box.
 
 Latest local/Pi change:
 - The logo was floating in front of the hoodie because art sat on the pocket AABB, not the chest. It now drapes onto the chest surface. Hard refresh (`app.js?v=686`, MakerDeck `app.js?v=579` / **b579**). Header must say **b579**. Re-click Stubby holder, drop the PNG again.
@@ -940,10 +941,10 @@ Previous:
 
 ## 2026-08-16 Session update (Hoodie is the MakerDeck stubby holder)
 
-Latest commit: `085927b` Ã¢â‚¬â€ Put the Panthers hoodie mesh in MakerDeck as Stubby holder.
+Latest commit: `085927b` â€” Put the Panthers hoodie mesh in MakerDeck as Stubby holder.
 
 Latest local/Pi change:
-- Stubby holder is the hoodie (150 mm / 65 mm well), not the can-cup. Drop a PNG on the Art tab Ã¢â‚¬â€ chest logo exports as a separate colour part like other MakerDeck boxes. Hard refresh (`app.js?v=685`, MakerDeck `app.js?v=578` / **b578**). Header must say **b578**.
+- Stubby holder is the hoodie (150 mm / 65 mm well), not the can-cup. Drop a PNG on the Art tab â€” chest logo exports as a separate colour part like other MakerDeck boxes. Hard refresh (`app.js?v=685`, MakerDeck `app.js?v=578` / **b578**). Header must say **b578**.
 
 Previous:
 - MakerDeck stubby holder cup (`6713cfe`).
@@ -952,10 +953,10 @@ Previous:
 
 ## 2026-08-16 Session update (MakerDeck stubby holder back)
 
-Latest commit: `6713cfe` Ã¢â‚¬â€ Restore the MakerDeck stubby holder preset so wrap art can be tested on a cup.
+Latest commit: `6713cfe` â€” Restore the MakerDeck stubby holder preset so wrap art can be tested on a cup.
 
 Latest local/Pi change:
-- Painter logo still does not transfer the way MakerDeck wrap-art does, so the parametric **Stubby holder** is back on MakerDeck Quick presets. Can vs Bottle, Easy 68 mm / Snug 67.5 mm. Drop a PNG on the Art tab Ã¢â‚¬â€ it wraps the cup wall. Export is `*-base.3mf` + `*-stack.3mf`. Hard refresh (`app.js?v=684`, MakerDeck `app.js?v=577` / **b577**). Header must say **b577**.
+- Painter logo still does not transfer the way MakerDeck wrap-art does, so the parametric **Stubby holder** is back on MakerDeck Quick presets. Can vs Bottle, Easy 68 mm / Snug 67.5 mm. Drop a PNG on the Art tab â€” it wraps the cup wall. Export is `*-base.3mf` + `*-stack.3mf`. Hard refresh (`app.js?v=684`, MakerDeck `app.js?v=577` / **b577**). Header must say **b577**.
 
 Previous:
 - Painter logo separate 3MF part (`f13c15b`).
@@ -964,7 +965,7 @@ Previous:
 
 ## 2026-08-16 Session update (Painter logo clean edges + separate 3MF part)
 
-Latest commit: `f13c15b` Ã¢â‚¬â€ Stop painting hoodie triangles; export the logo as its own 3MF part.
+Latest commit: `f13c15b` â€” Stop painting hoodie triangles; export the logo as its own 3MF part.
 
 Latest local/Pi change:
 - b590 painted the chest mesh, so the crest grew jagged red spikes and a white triangle. Logo now sits on the surface again (~0.72 mm) and exports as `object_2` so Bambu keeps it after slice without shattering the hoodie. Hard refresh (`app.js?v=683`, Painter `painter.html?v=591` / **b591**). Reload the STL, stamp once, export. Preview colour mode: **Filament**.
@@ -976,7 +977,7 @@ Previous:
 
 ## 2026-08-16 Session update (Painter logo survives slice)
 
-Latest commit: `55f1b8f` Ã¢â‚¬â€ Sink Painter logos into the hoodie so Bambu keeps them after slice.
+Latest commit: `55f1b8f` â€” Sink Painter logos into the hoodie so Bambu keeps them after slice.
 
 Latest local/Pi change:
 - Logo showed in Prepare then vanished after slice (15s filament changes). The stamp was a 0.32 mm shell floating 0.14 mm off the chest, so the slicer dropped it. Stamp now embeds ~0.55 mm, is ~0.8 mm thick, stacks ink above the white plate, and paints the hoodie triangles (including white). Hard refresh (`app.js?v=682`, Painter `painter.html?v=590` / **b590**). Reload the STL, stamp once, export. In Preview switch the colour legend from Line Type to **Filament**.
@@ -988,10 +989,10 @@ Previous:
 
 ## 2026-08-16 Session update (Painter 3MF export empty file)
 
-Latest commit: `40a1ea7` Ã¢â‚¬â€ Stop Painter logo stamps from writing a 0-byte 3MF.
+Latest commit: `40a1ea7` â€” Stop Painter logo stamps from writing a 0-byte 3MF.
 
 Latest local/Pi change:
-- The painted hoodie 3MFs (`obj_1_Hoodie_stubby_150x65_painted.3mf`, `test.3mf`) are **0 bytes** Ã¢â‚¬â€ the save picker created the file, then export died building a per-cell stamp mesh (white crest plate = hundreds of thousands of isolated prisms). Those files cannot be repaired; reload the STL and re-export.
+- The painted hoodie 3MFs (`obj_1_Hoodie_stubby_150x65_painted.3mf`, `test.3mf`) are **0 bytes** â€” the save picker created the file, then export died building a per-cell stamp mesh (white crest plate = hundreds of thousands of isolated prisms). Those files cannot be repaired; reload the STL and re-export.
 - Stamp is now a shared-vertex heightfield, grid capped (~0.2 mm), 3MF XML is built in one join, empty exports are rejected. Hard refresh (`app.js?v=681`, Painter `painter.html?v=589` / **b589**). Header must say **b589**. Reload the hoodie STL, stamp the logo once, export again.
 
 Previous:
@@ -1001,7 +1002,7 @@ Previous:
 
 ## 2026-08-16 Session update (Tools dismiss failed queue leftovers)
 
-Latest commit: `420acc3` Ã¢â‚¬â€ Add Settings Ã¢â€ â€™ Tools dismiss for failed/cancelled queue leftovers.
+Latest commit: `420acc3` â€” Add Settings â†’ Tools dismiss for failed/cancelled queue leftovers.
 
 Latest local/Pi change:
 - Tools can dismiss leftover failed/cancelled queue rows (like BigBoy job #307) without touching the printer. Hard refresh (`app.js?v=680`, `style.css?v=509`).
@@ -1013,7 +1014,7 @@ Previous:
 
 ## 2026-08-16 Session update (Clear BigBoy cancelled-print fault)
 
-Latest commit: `29391e8` Ã¢â‚¬â€ Treat Bambu 0300-400C (printing was cancelled) as a cleared cancel, not a live fault.
+Latest commit: `29391e8` â€” Treat Bambu 0300-400C (printing was cancelled) as a cleared cancel, not a live fault.
 
 Latest local/Pi change:
 - BigBoy was stuck `error` after a cancelled print (`0300-400C`). Flightdeck now dismisses that retained FAILED banner and sends `clean_print_error`. Backend restart required.
@@ -1025,7 +1026,7 @@ Previous:
 
 ## 2026-08-16 Session update (Painter sit logo on hoodie)
 
-Latest commit: `75369e1` Ã¢â‚¬â€ Sit Painter logos on the hoodie surface and drop the grey under-layer.
+Latest commit: `75369e1` â€” Sit Painter logos on the hoodie surface and drop the grey under-layer.
 
 Latest local/Pi change:
 - Stamp follows the chest (no more flat slab cutting in). Logo sits ~0.14 mm on top, ~0.32 mm thick. Pale grey fringe layers are dropped.
@@ -1038,7 +1039,7 @@ Previous:
 
 ## 2026-08-16 Session update (Painter stop restamping the grey PNG)
 
-Latest commit: `019832a` Ã¢â‚¬â€ Stop Painter from rebuilding the grey logo fringe off the raw PNG.
+Latest commit: `019832a` â€” Stop Painter from rebuilding the grey logo fringe off the raw PNG.
 
 Latest local/Pi change:
 - Stamp uses the scrubbed trace only (no raw-PNG fallback that put the grey halo back). Grey layers and border-connected grey pixels are dropped; the white crest plate stays; 1px spikes on the plate edge are opened off.
@@ -1051,7 +1052,7 @@ Previous:
 
 ## 2026-08-16 Session update (Painter clip logo to ink island)
 
-Latest commit: 0ebd0de Ã¢â‚¬â€ Clip Painter logos to the sealed red/black island and stop fringe growth.
+Latest commit: 0ebd0de â€” Clip Painter logos to the sealed red/black island and stop fringe growth.
 
 Latest local/Pi change:
 - Stamp now floods from the crop edge and stops at a sealed red/black outline, so the grey halo around the shield is punched. Slab downsample needs a majority of ink (no more fat saw-teeth).
@@ -1064,7 +1065,7 @@ Previous:
 
 ## 2026-08-16 Session update (Painter source-flood logo mat)
 
-Latest commit: `36a232f` Ã¢â‚¬â€ Knock out logo paper from the PNG pixels, and replace the old stamp.
+Latest commit: `36a232f` â€” Knock out logo paper from the PNG pixels, and replace the old stamp.
 
 Latest local/Pi change:
 - Artwork scrub now floods the **source PNG** from the border (same idea as MakerDeck paper knockout), so grey/white mats die even when they were quantized as White.
@@ -1077,7 +1078,7 @@ Previous:
 
 ## 2026-08-15 Session update (Painter punch grey logo halo)
 
-Latest commit: `2734919` Ã¢â‚¬â€ Punch grey halo outside the crest, not just the full-frame mat.
+Latest commit: `2734919` â€” Punch grey halo outside the crest, not just the full-frame mat.
 
 Latest local/Pi change:
 - Flood from the crop edge through grey/empty so a jagged silver halo around the shield is removed. Interior white stays.
@@ -1090,7 +1091,7 @@ Previous:
 
 ## 2026-08-15 Session update (Painter drop grey logo mat)
 
-Latest commit: `358bbea` Ã¢â‚¬â€ Drop the grey bounding-mat around Painter team logos.
+Latest commit: `358bbea` â€” Drop the grey bounding-mat around Painter team logos.
 
 Latest local/Pi change:
 - Multi-colour stamp now throws away grey/white paper that hugs the image edge (the jagged grey box around the Dragons crest). Shield colours stay.
@@ -1103,10 +1104,10 @@ Previous:
 
 ## 2026-08-15 Session update (Painter multi-colour team-logo trace)
 
-Latest commit: `2dd3bab` Ã¢â‚¬â€ Stamp Painter logos via MakerDeck Multi-colour AMS trace.
+Latest commit: `2dd3bab` â€” Stamp Painter logos via MakerDeck Multi-colour AMS trace.
 
 Latest local/Pi change:
-- STL Painter Artwork uses the same **Multi-colour Ã¢â‚¬â€ team logo (AMS)** trace as Art on box, then extrudes those ink layers (no grey mat, no pixel shards).
+- STL Painter Artwork uses the same **Multi-colour â€” team logo (AMS)** trace as Art on box, then extrudes those ink layers (no grey mat, no pixel shards).
 - Threshold / Invert match MakerDeck. Hard refresh (`app.js?v=673`, Painter `painter.html?v=582` / **b582**). Drop the logo again, wait for "AMS colours traced", then click the chest.
 
 Previous:
@@ -1116,7 +1117,7 @@ Previous:
 
 ## 2026-08-15 Session update (Painter MakerDeck-style logo)
 
-Latest commit: `3ddb736` Ã¢â‚¬â€ Stamp artwork as raised logo geometry, not painted triangles.
+Latest commit: `3ddb736` â€” Stamp artwork as raised logo geometry, not painted triangles.
 
 Latest local/Pi change:
 - STL Painter Artwork now builds MakerDeck-style ~0.28 mm slabs on the click plane (same clear logo look as boxes/vases).
@@ -1129,7 +1130,7 @@ Previous:
 
 ## 2026-08-15 Session update (Painter stamp sharpness)
 
-Latest commit: `0217012` Ã¢â‚¬â€ Stop shattered logo stamps in STL Painter.
+Latest commit: `0217012` â€” Stop shattered logo stamps in STL Painter.
 
 Latest local/Pi change:
 - Artwork stamp auto Fine (Ultra if still coarse). Only paints faces mostly on solid logo pixels.
@@ -1143,7 +1144,7 @@ Previous:
 
 ## 2026-08-15 Session update (Painter PNG/JPG artwork)
 
-Latest commit: `f04b288` Ã¢â‚¬â€ Accept PNG/JPG artwork in STL Painter, not just SVG.
+Latest commit: `f04b288` â€” Accept PNG/JPG artwork in STL Painter, not just SVG.
 
 Latest local/Pi change:
 - Artwork drop now takes **PNG, JPG, WebP, GIF**, plus SVG. White-background knockout for photos (toggle).
@@ -1157,7 +1158,7 @@ Previous:
 
 ## 2026-08-15 Session update (Painter SVG artwork)
 
-Latest commit: `5b10ec9` Ã¢â‚¬â€ Stamp SVG artwork onto meshes in STL Painter.
+Latest commit: `5b10ec9` â€” Stamp SVG artwork onto meshes in STL Painter.
 
 Latest local/Pi change:
 - STL Painter Paint tab: drop an SVG, set size/rotation, click the model to stamp as paint.
@@ -1171,11 +1172,11 @@ Previous:
 
 ## 2026-08-15 Session update (Tiered sell strategies)
 
-Latest commit: `751290b` Ã¢â‚¬â€ Add batch, machine-hour, and value sell strategies on top of shop costing.
+Latest commit: `751290b` â€” Add batch, machine-hour, and value sell strategies on top of shop costing.
 
 Latest local/Pi change:
-- Settings Ã¢â€ â€™ Costing keeps **floor** (filament + shop hours + optional labour) as true cost.
-- New **Sell strategies**: Shop markup (current default), Batch (filament Ãƒâ€” 4Ã¢â‚¬â€œ6), Machine-hour (filament + hours Ãƒâ€” rate), Value (filament Ãƒâ€” 10 as an art starting price). Fail buffer (default 8%) is in sell prices only. Design $/hr is a separate quote-helper line.
+- Settings â†’ Costing keeps **floor** (filament + shop hours + optional labour) as true cost.
+- New **Sell strategies**: Shop markup (current default), Batch (filament Ã— 4â€“6), Machine-hour (filament + hours Ã— rate), Value (filament Ã— 10 as an art starting price). Fail buffer (default 8%) is in sell prices only. Design $/hr is a separate quote-helper line.
 - Quote helper, passports, and projects show all three plus Suggested from the strategy you pick. Save costing after choosing.
 - Hard refresh (`app.js?v=668`, `style.css?v=508`). Backend restart required.
 
@@ -1186,11 +1187,11 @@ Previous:
 
 ## 2026-08-15 Session update (Queue Release / Tools)
 
-Latest commit: `ecff7b1` Ã¢â‚¬â€ Add Flightdeck-only queue Release so stuck printing jobs can be cleared from the UI.
+Latest commit: `ecff7b1` â€” Add Flightdeck-only queue Release so stuck printing jobs can be cleared from the UI.
 
 Latest local/Pi change:
-- Printing/uploading queue rows now have **Release** (Queue page and Settings Ã¢â€ â€™ Tools). Drops the Flightdeck row only Ã¢â‚¬â€ does not cancel or stop the printer. If the bay is idle, the next pending job may auto-start.
-- Settings Ã¢â€ â€™ **Tools** lists stuck jobs and flags when the printer is idle but the queue still says printing.
+- Printing/uploading queue rows now have **Release** (Queue page and Settings â†’ Tools). Drops the Flightdeck row only â€” does not cancel or stop the printer. If the bay is idle, the next pending job may auto-start.
+- Settings â†’ **Tools** lists stuck jobs and flags when the printer is idle but the queue still says printing.
 - Hard refresh (`app.js?v=667`, `style.css?v=507`). Backend restart required.
 
 Previous:
@@ -1200,7 +1201,7 @@ Previous:
 
 ## 2026-08-15 Session update (Quote-slice .gcode.3mf)
 
-Latest commit: `a917993` Ã¢â‚¬â€ Keep quote-slice output as .gcode.3mf and sanitize MakerWorld H2D G-code placeholders.
+Latest commit: `a917993` â€” Keep quote-slice output as .gcode.3mf and sanitize MakerWorld H2D G-code placeholders.
 
 Latest local/Pi change:
 - Docker sidecar was saving quote-slices as generic `result.3mf`, so Print Bay still showed **Slice** on the source. Output is now `{source}_{printer}.gcode.3mf`. Print Bay offers **Queue sliced** when that sibling exists (also treats leftover `result.3mf` as sliced).
@@ -1214,7 +1215,7 @@ Previous:
 
 ## 2026-08-14 Session update (H2D G-code placeholders)
 
-Latest commit: `f7290ce` Ã¢â‚¬â€ Strip unknown H2D G-code placeholders so Docker Orca can slice MakerWorld 3MFs.
+Latest commit: `f7290ce` â€” Strip unknown H2D G-code placeholders so Docker Orca can slice MakerWorld 3MFs.
 
 Latest local/Pi change:
 - Nightly Orca (and even stable 2.4.2) still fails windowless CLI without Mesa. Slice unsliced now uses the Docker sidecar (`:3003`, Orca 2.4.0-alpha) when **Use Slicer API** is on.
@@ -1230,12 +1231,12 @@ Previous:
 
 ## 2026-08-14 Session update (Multi-plate queue split)
 
-Latest commit: `0700b11` Ã¢â‚¬â€ Queue an all-plates `.gcode.3mf` as one job per plate.
+Latest commit: `0700b11` â€” Queue an all-plates `.gcode.3mf` as one job per plate.
 
 Latest local/Pi change:
-- Bambu **Export all plates** `.gcode.3mf` now enqueues **N prints** (plate 1Ã¢â‚¬Â¦N), not one print of plate 1.
-- Each queue row shows `Plate 3 of 8` plus that plateÃ¢â‚¬â„¢s time/grams/thumbnail; send uses `Metadata/plate_N.gcode`.
-- Projects file row shows `8 plates Ã‚Â· Ã¢â‚¬Â¦` when the export has more than one plate.
+- Bambu **Export all plates** `.gcode.3mf` now enqueues **N prints** (plate 1â€¦N), not one print of plate 1.
+- Each queue row shows `Plate 3 of 8` plus that plateâ€™s time/grams/thumbnail; send uses `Metadata/plate_N.gcode`.
+- Projects file row shows `8 plates Â· â€¦` when the export has more than one plate.
 - Hard refresh (`app.js?v=665`). Backend restart required.
 
 Previous:
@@ -1245,10 +1246,10 @@ Previous:
 
 ## 2026-08-14 Session update (Project quote line items)
 
-Latest commit: `b026b71` Ã¢â‚¬â€ Show filament, shop time, labour, and suggested separately on Projects.
+Latest commit: `b026b71` â€” Show filament, shop time, labour, and suggested separately on Projects.
 
 Latest local/Pi change:
-- Project quote was labelling the full floor as Ã¢â‚¬Å“shopÃ¢â‚¬Â, so filament looked extra. Cards now split filament / shop hours / my time / suggested.
+- Project quote was labelling the full floor as â€œshopâ€, so filament looked extra. Cards now split filament / shop hours / my time / suggested.
 - Hard refresh (`app.js?v=664`). Backend restart required.
 
 Previous:
@@ -1258,7 +1259,7 @@ Previous:
 
 ## 2026-08-14 Session update (3MF CLI sentinels)
 
-Latest commit: `516e8a1` Ã¢â‚¬â€ Strip Bambu inherit-sentinels so Orca CLI can slice MakerWorld 3MFs.
+Latest commit: `516e8a1` â€” Strip Bambu inherit-sentinels so Orca CLI can slice MakerWorld 3MFs.
 
 Latest local/Pi change:
 - Orca CLI was failing with `Param values in 3mf/config` because Bambu writes `-1` / filament `0` inherit sentinels. Flightdeck now strips those from `project_settings.config` before slice (and retries any leftover keys from the error).
@@ -1271,10 +1272,10 @@ Previous:
 
 ## 2026-08-14 Session update (Slice without dead sidecar)
 
-Latest commit: `dfe35b7` Ã¢â‚¬â€ Quote slices use Windows Orca when the Slicer API sidecar is down.
+Latest commit: `dfe35b7` â€” Quote slices use Windows Orca when the Slicer API sidecar is down.
 
 Latest local/Pi change:
-- Project auto-slice was timing out on the offline Slicer API (`:3003`). 3MF/project files now go to the Windows workerÃ¢â‚¬â„¢s local Orca (`orca-slicer.exe`) and skip the sidecar unless an H2D STL/OBJ actually needs it.
+- Project auto-slice was timing out on the offline Slicer API (`:3003`). 3MF/project files now go to the Windows workerâ€™s local Orca (`orca-slicer.exe`) and skip the sidecar unless an H2D STL/OBJ actually needs it.
 - Backend restart required. On the Bully project hit **Slice unsliced**.
 
 Previous:
@@ -1284,12 +1285,12 @@ Previous:
 
 ## 2026-08-14 Session update (Project auto-slice)
 
-Latest commit: `2b1fe1a` Ã¢â‚¬â€ Auto-slice unsliced project 3MF files for quotes.
+Latest commit: `2b1fe1a` â€” Auto-slice unsliced project 3MF files for quotes.
 
 Latest local/Pi change:
 - Drop a MakerWorld / Save Project `.3mf` (or STL) into a Project: Flightdeck background-slices it with slicer defaults and writes a `.gcode.3mf` into the vault folder, then quotes grams/time.
 - Pick **Slice / quote printer** on the project (or Auto matches the 3MF printer / first printer with defaults). **Slice unsliced** retries failures.
-- Needs Settings Ã¢â€ â€™ Slicer defaults + worker/API. Hard refresh (`app.js?v=663`, `style.css?v=506`). Backend restart required.
+- Needs Settings â†’ Slicer defaults + worker/API. Hard refresh (`app.js?v=663`, `style.css?v=506`). Backend restart required.
 
 Previous:
 - Overhead electric name match (`44f0f71`).
@@ -1298,10 +1299,10 @@ Previous:
 
 ## 2026-08-14 Session update (Overhead electric name match)
 
-Latest commit: `44f0f71` Ã¢â‚¬â€ Only fill the Electricity overhead from Power this month.
+Latest commit: `44f0f71` â€” Only fill the Electricity overhead from Power this month.
 
 Latest local/Pi change:
-- Ã¢â‚¬Å“Daily Network Electricity AccessÃ¢â‚¬Â was matching `electric` in the name and getting overwritten to the power $ total. Power now binds only to the dedicated Electricity line (id/name exactly Electricity).
+- â€œDaily Network Electricity Accessâ€ was matching `electric` in the name and getting overwritten to the power $ total. Power now binds only to the dedicated Electricity line (id/name exactly Electricity).
 - Hard refresh (`app.js?v=662`). Re-enter the network line amount if it already saved as the power figure.
 
 Previous:
@@ -1311,10 +1312,10 @@ Previous:
 
 ## 2026-08-14 Session update (Electricity from power calc)
 
-Latest commit: `60ff95e` Ã¢â‚¬â€ Fill Costing Electricity overhead from Power this month.
+Latest commit: `60ff95e` â€” Fill Costing Electricity overhead from Power this month.
 
 Latest local/Pi change:
-- Monthly overheads **Electricity** is filled from the Power this month $ total (print hours Ãƒâ€” wiki watts Ãƒâ€” tariff). Shop rate updates live; Save costing to persist.
+- Monthly overheads **Electricity** is filled from the Power this month $ total (print hours Ã— wiki watts Ã— tariff). Shop rate updates live; Save costing to persist.
 - Hard refresh (`app.js?v=661`, `style.css?v=505`). Backend restart optional.
 
 Previous:
@@ -1324,11 +1325,11 @@ Previous:
 
 ## 2026-08-14 Session update (Power this month)
 
-Latest commit: `f17089a` Ã¢â‚¬â€ Estimate print electricity from History hours Ãƒâ€” Bambu wiki watts Ãƒâ€” tariff.
+Latest commit: `f17089a` â€” Estimate print electricity from History hours Ã— Bambu wiki watts Ã— tariff.
 
 Latest local/Pi change:
-- Settings Ã¢â€ â€™ Costing: **Power this month** panel Ã¢â‚¬â€ month picker, print hours by printer, wiki avg W (material-aware when known), editable W overrides, $/kWh tariff Ã¢â€ â€™ kWh and $.
-- Does **not** dump the whole bill onto printers; shop-rate overhead Ã¢â‚¬Å“ElectricityÃ¢â‚¬Â line stays a bill share. Quotes still use shop $/hr.
+- Settings â†’ Costing: **Power this month** panel â€” month picker, print hours by printer, wiki avg W (material-aware when known), editable W overrides, $/kWh tariff â†’ kWh and $.
+- Does **not** dump the whole bill onto printers; shop-rate overhead â€œElectricityâ€ line stays a bill share. Quotes still use shop $/hr.
 - API: `GET /api/costing/power?month=YYYY-MM`. Costing settings store `electricity_rate_per_kwh` + optional `power_watts` overrides.
 - Hard refresh (`app.js?v=660`, `style.css?v=504`). Backend restart required.
 
@@ -1339,7 +1340,7 @@ Previous:
 
 ## 2026-08-14 Session update (Projects delete stick)
 
-Latest commit: `97999f4` Ã¢â‚¬â€ Keep deleted Projects from coming back via orphan folder adopt.
+Latest commit: `97999f4` â€” Keep deleted Projects from coming back via orphan folder adopt.
 
 Latest local/Pi change:
 - Delete project was toasting success then immediately re-adopting the vault folder. Dismissed folders are now remembered so delete sticks; files still stay on disk.
@@ -1350,12 +1351,12 @@ Previous:
 
 ---
 
-## 2026-08-14 Session update (Projects Ã¢â‚¬â€ Bambu Save vs Export)
+## 2026-08-14 Session update (Projects â€” Bambu Save vs Export)
 
-Latest commit: `cf6bdfd` Ã¢â‚¬â€ Explain Bambu Save Project vs plate .gcode.3mf exports in Projects.
+Latest commit: `cf6bdfd` â€” Explain Bambu Save Project vs plate .gcode.3mf exports in Projects.
 
 Latest local/Pi change:
-- Bambu **Save Project** `.3mf` keeps plate previews but empties `slice_info` Ã¢â‚¬â€ Flightdeck now labels that clearly instead of Ã¢â‚¬Å“Not sliced yetÃ¢â‚¬Â.
+- Bambu **Save Project** `.3mf` keeps plate previews but empties `slice_info` â€” Flightdeck now labels that clearly instead of â€œNot sliced yetâ€.
 - Quotes need **Export plate data** `.gcode.3mf` files (per plate). Orphan `Projects/*` vault folders are re-linked on Projects list.
 - Hard refresh (`app.js?v=658`). Backend restart required.
 
@@ -1366,11 +1367,11 @@ Previous:
 
 ## 2026-08-14 Session update (Project folders)
 
-Latest commit: `03ca599` Ã¢â‚¬â€ Add project folders so a vault kit quotes from sliced grams and time.
+Latest commit: `03ca599` â€” Add project folders so a vault kit quotes from sliced grams and time.
 
 Latest local/Pi change:
 - New **Projects** tab: named Print Vault folder (`Projects/Summer Goose`), drop sliced plates, Flightdeck sums grams + time from 3MF/gcode.
-- Quote uses Costing shop rate: filament, printer-hours (shop floor), and **elapsed** (overlap = max(longest plate, total ÃƒÂ· printers)).
+- Quote uses Costing shop rate: filament, printer-hours (shop floor), and **elapsed** (overlap = max(longest plate, total Ã· printers)).
 - PrintShelf stays the library. Hard refresh (`app.js?v=657`, `style.css?v=503`). **Backend restart required.**
 
 Previous:
@@ -1380,12 +1381,12 @@ Previous:
 
 ## 2026-08-14 Session update (Shop costing for local quotes)
 
-Latest commit: `3db4475` Ã¢â‚¬â€ Add shop costing so local quotes cover overhead without a full labour rate.
+Latest commit: `3db4475` â€” Add shop costing so local quotes cover overhead without a full labour rate.
 
 Latest local/Pi change:
-- Settings Ã¢â€ â€™ **Costing**: monthly overheads (Bambu, electricity, other), expected print hours (prefill from last 30 days), markup %, optional Ã¢â‚¬Å“my timeÃ¢â‚¬Â $/hr (default $0).
-- Derived **shop rate** = monthly ÃƒÂ· hours. Quote helper: grams + hours Ã¢â€ â€™ filament / time / floor / suggested.
-- Passports and Print Memory show **filament / time / floor / suggested**. Filament `total_cost` is unchanged so old numbers donÃ¢â‚¬â„¢t lie.
+- Settings â†’ **Costing**: monthly overheads (Bambu, electricity, other), expected print hours (prefill from last 30 days), markup %, optional â€œmy timeâ€ $/hr (default $0).
+- Derived **shop rate** = monthly Ã· hours. Quote helper: grams + hours â†’ filament / time / floor / suggested.
+- Passports and Print Memory show **filament / time / floor / suggested**. Filament `total_cost` is unchanged so old numbers donâ€™t lie.
 - Hard refresh (`app.js?v=656`, `style.css?v=502`). **Backend restart required.**
 
 Previous:
@@ -1393,12 +1394,12 @@ Previous:
 
 ---
 
-## 2026-08-13 Session update (Flight Recorder Ã¢â‚¬â€ Windows lockup)
+## 2026-08-13 Session update (Flight Recorder â€” Windows lockup)
 
-Latest commit: `68f3635` Ã¢â‚¬â€ Don't auto-decode Bambu clips in Flight Recorder
+Latest commit: `68f3635` â€” Don't auto-decode Bambu clips in Flight Recorder
 
 Latest local/Pi change:
-- Opening a print passport auto-loaded the Flight Recorder video (`preload=metadata`). Bambu harvested MP4s keep `moov` at the **end**, so the browser downloads the whole clip and hardware-decodes it immediately Ã¢â‚¬â€ that can freeze/crash Windows (GPU TDR).
+- Opening a print passport auto-loaded the Flight Recorder video (`preload=metadata`). Bambu harvested MP4s keep `moov` at the **end**, so the browser downloads the whole clip and hardware-decodes it immediately â€” that can freeze/crash Windows (GPU TDR).
 - Videos now `preload="none"` (click play to load), previous clip is aborted when switching prints, and new harvests/uploads are remuxed with faststart.
 - Hard refresh (`app.js?v=655`). Backend restart required.
 
@@ -1407,13 +1408,13 @@ Previous:
 
 ---
 
-## 2026-08-13 Session update (Painter Ã¢â‚¬â€ Flip + Chop socket seating)
+## 2026-08-13 Session update (Painter â€” Flip + Chop socket seating)
 
-Latest commit: `482d294` Ã¢â‚¬â€ Painter Flip; seat on cut face not socket
+Latest commit: `482d294` â€” Painter Flip; seat on cut face not socket
 
 Latest local/Pi change:
-- Chop connector sockets were fooling Painter's "lay on bed" heuristic (minY = pocket floor Ã¢â€ â€™ Trix sat on her snout). Now scores the dominant flat instead.
-- **Flip** / Spin 90Ã‚Â° / Roll 90Ã‚Â° in Painter (toolbar + Model tab) so you can turn a model over.
+- Chop connector sockets were fooling Painter's "lay on bed" heuristic (minY = pocket floor â†’ Trix sat on her snout). Now scores the dominant flat instead.
+- **Flip** / Spin 90Â° / Roll 90Â° in Painter (toolbar + Model tab) so you can turn a model over.
 - Hard refresh (`app.js?v=654`, Painter **b577** / `painter.html?v=577`). Reload Trix if she is already open.
 
 Previous:
@@ -1421,26 +1422,26 @@ Previous:
 
 ---
 
-## 2026-08-13 Session update (Chop Ã¢â‚¬â€ Flexi range + own menu)
+## 2026-08-13 Session update (Chop â€” Flexi range + own menu)
 
-Latest commit: `f654a16` Ã¢â‚¬â€ Chop Flexi Cut 256 planes; own sidebar tab
+Latest commit: `f654a16` â€” Chop Flexi Cut 256 planes; own sidebar tab
 
 Latest local/Pi change:
-- Flexi Cut plane count max **64 Ã¢â€ â€™ 256**; adjust-plane slider is 10Ãƒâ€” finer (full piece length).
+- Flexi Cut plane count max **64 â†’ 256**; adjust-plane slider is 10Ã— finer (full piece length).
 - **Chop** is now its own Flightdeck sidebar tab (`#/chop`), same iframe pattern as STL Painter. Still reachable from MakerDeck too.
 - Hard refresh (`app.js?v=653` / `style.css?v=501`). Chop HTML is served fresh on first open of the tab.
 
 Previous:
-- Vinyl Ã¢â‚¬â€ drop Taskbar, playlist in Small (`59393e0`).
+- Vinyl â€” drop Taskbar, playlist in Small (`59393e0`).
 
 ---
 
-## 2026-08-12 Session update (Vinyl Ã¢â‚¬â€ drop Taskbar, playlist in Small)
+## 2026-08-12 Session update (Vinyl â€” drop Taskbar, playlist in Small)
 
-Latest commit: `59393e0` Ã¢â‚¬â€ Remove Taskbar; + Playlist in Small player
+Latest commit: `59393e0` â€” Remove Taskbar; + Playlist in Small player
 
 Latest local/Mora change:
-- Removed Taskbar mode (worth a shot; canÃ¢â‚¬â„¢t embed in the OS bar).
+- Removed Taskbar mode (worth a shot; canâ€™t embed in the OS bar).
 - Small player keeps **SPIN** and now has **+ Playlist** beside it.
 - Hard refresh / reopen Cindy. Rebuild `vinyl` on Mora.
 
@@ -1449,13 +1450,13 @@ Previous:
 
 ---
 
-## 2026-08-12 Session update (Vinyl Ã¢â‚¬â€ Taskbar layout fix)
+## 2026-08-12 Session update (Vinyl â€” Taskbar layout fix)
 
-Latest commit: `0a8b7f6` Ã¢â‚¬â€ Taskbar fills window as one row
+Latest commit: `0a8b7f6` â€” Taskbar fills window as one row
 
 Latest local/Mora change:
 - Taskbar mode was leaving a huge empty grey slab (ribbon CSS pinned the bar to the bottom).
-- Now fills the compact window as a single strip; also stops the Ã¢â€°Â¤700px wrap stacking.
+- Now fills the compact window as a single strip; also stops the â‰¤700px wrap stacking.
 - Hard refresh / reopen Cindy. Rebuild `vinyl` on Mora.
 
 Previous:
@@ -1463,9 +1464,9 @@ Previous:
 
 ---
 
-## 2026-08-12 Session update (Vinyl Ã¢â‚¬â€ Taskbar above OS bar)
+## 2026-08-12 Session update (Vinyl â€” Taskbar above OS bar)
 
-Latest commit: `81794a0` Ã¢â‚¬â€ Dock compact modes above Windows taskbar
+Latest commit: `81794a0` â€” Dock compact modes above Windows taskbar
 
 Latest local/Mora change:
 - Taskbar/Small player now re-measure `outerHeight` and sit **above** the Windows taskbar (was sliding underneath).
@@ -1476,14 +1477,14 @@ Previous:
 
 ---
 
-## 2026-08-12 Session update (Vinyl Ã¢â‚¬â€ Taskbar mode)
+## 2026-08-12 Session update (Vinyl â€” Taskbar mode)
 
-Latest commit: `5fdd075` Ã¢â‚¬â€ Third chrome mode: Taskbar strip
+Latest commit: `5fdd075` â€” Third chrome mode: Taskbar strip
 
 Latest local/Mora change:
-- Header **Taskbar** (and Ã¢â€¹Â¯ / SmallÃ¢â€ â€™Taskbar chip) docks an ultra-slim strip (~560Ãƒâ€”92).
+- Header **Taskbar** (and â‹¯ / Smallâ†’Taskbar chip) docks an ultra-slim strip (~560Ã—92).
 - Taskbar keeps art, title, prev/play/next, **Small**, **ROOM**.
-- Modes: vinyl room Ã¢â€ â€™ Small player Ã¢â€ â€™ Taskbar.
+- Modes: vinyl room â†’ Small player â†’ Taskbar.
 - Hard refresh / reopen Cindy. Rebuild `vinyl` on Mora.
 
 Previous:
@@ -1491,12 +1492,12 @@ Previous:
 
 ---
 
-## 2026-08-12 Session update (Vinyl Ã¢â‚¬â€ Small player button)
+## 2026-08-12 Session update (Vinyl â€” Small player button)
 
-Latest commit: `9c657e6` Ã¢â‚¬â€ Named Small player size (680Ãƒâ€”210)
+Latest commit: `9c657e6` â€” Named Small player size (680Ã—210)
 
 Latest local/Mora change:
-- Header **Small player** button (and Ã¢â€¹Â¯ menu) opens the compact player at the size Chris liked.
+- Header **Small player** button (and â‹¯ menu) opens the compact player at the size Chris liked.
 - **ROOM** still restores the full vinyl room.
 - Hard refresh / reopen Cindy. Rebuild `vinyl` on Mora.
 
@@ -1505,9 +1506,9 @@ Previous:
 
 ---
 
-## 2026-08-12 Session update (Vinyl Ã¢â‚¬â€ ROOM restore + ribbon controls)
+## 2026-08-12 Session update (Vinyl â€” ROOM restore + ribbon controls)
 
-Latest commit: `cc5dca5` Ã¢â‚¬â€ ROOM opens vinyl room; keep shuffle/norm on ribbon
+Latest commit: `cc5dca5` â€” ROOM opens vinyl room; keep shuffle/norm on ribbon
 
 Latest local/Mora change:
 - **ROOM** (not Windows maximise) opens a clean large vinyl-room window.
@@ -1520,9 +1521,9 @@ Previous:
 
 ---
 
-## 2026-08-12 Session update (Vinyl Ã¢â‚¬â€ ribbon SPIN actually shows)
+## 2026-08-12 Session update (Vinyl â€” ribbon SPIN actually shows)
 
-Latest commit: `af924d2` Ã¢â‚¬â€ SPIN/ROOM always on slim bar; fix ribbon race
+Latest commit: `af924d2` â€” SPIN/ROOM always on slim bar; fix ribbon race
 
 Latest local/Mora change:
 - SPIN + ROOM show whenever the window is short (not only when `.ribbon` class sticks).
@@ -1535,13 +1536,13 @@ Previous:
 
 ---
 
-## 2026-08-12 Session update (Vinyl Ã¢â‚¬â€ ribbon fixes)
+## 2026-08-12 Session update (Vinyl â€” ribbon fixes)
 
-Latest commit: `d039444` Ã¢â‚¬â€ Ribbon SPIN + auto-restore on maximise
+Latest commit: `d039444` â€” Ribbon SPIN + auto-restore on maximise
 
 Latest local/Mora change:
-- Ribbon bar now has **SPIN** (random sleeve) and **Ã¢â€“Â´ Room** to browse crates.
-- Maximising / expanding the window auto-restores the full vinyl room (no more gray Ã¢â‚¬Å“Playing in the ribbonÃ¢â‚¬Â stuck state).
+- Ribbon bar now has **SPIN** (random sleeve) and **â–´ Room** to browse crates.
+- Maximising / expanding the window auto-restores the full vinyl room (no more gray â€œPlaying in the ribbonâ€ stuck state).
 - Hard refresh Vinyl. Rebuild `vinyl` on Mora.
 
 Previous:
@@ -1549,12 +1550,12 @@ Previous:
 
 ---
 
-## 2026-08-12 Session update (Vinyl Ã¢â‚¬â€ minimise to ribbon)
+## 2026-08-12 Session update (Vinyl â€” minimise to ribbon)
 
-Latest commit: `7e0e694` Ã¢â‚¬â€ Cindy Vinyl ribbon / windowshade mode
+Latest commit: `7e0e694` â€” Cindy Vinyl ribbon / windowshade mode
 
 Latest local/Mora change:
-- **Ã¢â€“Â¬** in the header (and Ã¢â€¹Â¯ Ã¢â€ â€™ Minimise to ribbon) collapses the vinyl room to a slim now-playing bar. Ã¢â€“Â´ or Escape restores.
+- **â–¬** in the header (and â‹¯ â†’ Minimise to ribbon) collapses the vinyl room to a slim now-playing bar. â–´ or Escape restores.
 - Installed PWA: tries to shrink the window and dock it to the bottom of the screen.
 - Browser (Edge/Chrome): uses a floating always-on-top ribbon when Document Picture-in-Picture is available.
 - Hard refresh Vinyl (`http://192.168.4.77:4541`). Rebuild `vinyl` on Mora.
@@ -1564,12 +1565,12 @@ Previous:
 
 ---
 
-## 2026-08-12 Session update (Chop Ã¢â‚¬â€ part # away from connectors)
+## 2026-08-12 Session update (Chop â€” part # away from connectors)
 
-Latest commit: `pending` Ã¢â‚¬â€ Stamp part numbers in a corner, not on the peg
+Latest commit: `pending` â€” Stamp part numbers in a corner, not on the peg
 
 Latest local/Pi change:
-- Auto-finish was engraving huge centered part numbers on the same cut face as the connector Ã¢â€ â€™ jagged boolean junk.
+- Auto-finish was engraving huge centered part numbers on the same cut face as the connector â†’ jagged boolean junk.
 - Numbers are now small and in a **corner**; skipped if the face is too small to host both.
 - Hard refresh Chop (`mesh-cut.js?v=24`). Recut (or undo + recut) to clear existing artifacts.
 
@@ -1578,13 +1579,13 @@ Previous:
 
 ---
 
-## 2026-08-12 Session update (Chop Ã¢â‚¬â€ tidy sidebar, finish by default)
+## 2026-08-12 Session update (Chop â€” tidy sidebar, finish by default)
 
-Latest commit: `c618353` Ã¢â‚¬â€ Chop UI flow + connectors/part # after every cut
+Latest commit: `c618353` â€” Chop UI flow + connectors/part # after every cut
 
 Latest local/Pi change:
-- Sidebar is now **Load Ã¢â€ â€™ Setup Ã¢â€ â€™ Cut Ã¢â€ â€™ Finish Ã¢â€ â€™ Pieces** instead of a pile of add-on panels.
-- **Connectors** and **Part numbers** are on by default and run automatically after Commit Cut / Auto-Chop. Uncheck to skip; Ã¢â‚¬Å“Apply to current piecesÃ¢â‚¬Â re-runs on an existing cut.
+- Sidebar is now **Load â†’ Setup â†’ Cut â†’ Finish â†’ Pieces** instead of a pile of add-on panels.
+- **Connectors** and **Part numbers** are on by default and run automatically after Commit Cut / Auto-Chop. Uncheck to skip; â€œApply to current piecesâ€ re-runs on an existing cut.
 - Hard refresh Chop (`mesh-cut.js?v=23`).
 
 Previous:
@@ -1592,24 +1593,24 @@ Previous:
 
 ---
 
-## 2026-08-12 Session update (Chop Ã¢â‚¬â€ merge strips connectors / no punch-through)
+## 2026-08-12 Session update (Chop â€” merge strips connectors / no punch-through)
 
-Latest commit: `2bb01b4` Ã¢â‚¬â€ Thickness-capped pegs; merge removes internal connectors
+Latest commit: `2bb01b4` â€” Thickness-capped pegs; merge removes internal connectors
 
 Latest local/Pi change:
 - Thin neck/shell joints were getting pegs that punched through; merge kept that geometry.
 - Connector depth now capped at **40% of wall thickness** (skip if wall &lt; 8 mm).
 - **Merge Selected** strips any connector that sat between the pieces you merge.
-- Hard refresh Chop (`mesh-cut.js?v=22`). Undo connectors, re-add, then merge Ã¢â‚¬â€ or merge now to strip the poking peg.
+- Hard refresh Chop (`mesh-cut.js?v=22`). Undo connectors, re-add, then merge â€” or merge now to strip the poking peg.
 
 Previous:
 - Catch missing joints (`5e5fbce`).
 
 ---
 
-## 2026-08-12 Session update (Chop Ã¢â‚¬â€ catch missing joints)
+## 2026-08-12 Session update (Chop â€” catch missing joints)
 
-Latest commit: `5e5fbce` Ã¢â‚¬â€ Detect staggered cut faces; lower tiny-face skip to 22mm
+Latest commit: `5e5fbce` â€” Detect staggered cut faces; lower tiny-face skip to 22mm
 
 Latest local/Pi change:
 - Some joints got no connectors: adjacency only matched near-identical scars (missed staggered/partial overlaps), and the 40mm skip was too aggressive.
@@ -1622,9 +1623,9 @@ Previous:
 
 ---
 
-## 2026-08-12 Session update (Chop Ã¢â‚¬â€ skip connectors on tiny faces)
+## 2026-08-12 Session update (Chop â€” skip connectors on tiny faces)
 
-Latest commit: `9de77f1` Ã¢â‚¬â€ Skip connectors on faces under 40mm
+Latest commit: `9de77f1` â€” Skip connectors on faces under 40mm
 
 Latest local/Pi change:
 - Ear-tip / sliver joints still got pegs that swallowed the piece.
@@ -1632,17 +1633,17 @@ Latest local/Pi change:
 - Hard refresh Chop (`mesh-cut.js?v=20`). Tiny pieces can still be **Merge Selected** into a neighbour if you don't want them separate.
 
 Previous:
-- Connector 30Ãƒâ€”18 cap (`9446912`).
+- Connector 30Ã—18 cap (`9446912`).
 
 ---
 
-## 2026-08-12 Session update (Chop Ã¢â‚¬â€ connectors smaller again)
+## 2026-08-12 Session update (Chop â€” connectors smaller again)
 
-Latest commit: `9446912` Ã¢â‚¬â€ Lower connector cap to 30Ãƒâ€”18 mm
+Latest commit: `9446912` â€” Lower connector cap to 30Ã—18 mm
 
 Latest local/Pi change:
 - Neck/rump pegs still looked brick-like at 55mm/40mm depth.
-- Cap now **30 mm** wide, depth **Ã¢â€°Â¤18 mm** (0.6Ãƒâ€” width); face ratio 40%Ã¢â€ â€™12%.
+- Cap now **30 mm** wide, depth **â‰¤18 mm** (0.6Ã— width); face ratio 40%â†’12%.
 - Hard refresh Chop (`mesh-cut.js?v=19`). Undo + Add Connectors on a clean cut.
 
 Previous:
@@ -1650,13 +1651,13 @@ Previous:
 
 ---
 
-## 2026-08-12 Session update (Chop Ã¢â‚¬â€ LuBan connectors, smaller)
+## 2026-08-12 Session update (Chop â€” LuBan connectors, smaller)
 
-Latest commit: `9d5f003` Ã¢â‚¬â€ Cap connector size / depth so pegs aren't bricks
+Latest commit: `9d5f003` â€” Cap connector size / depth so pegs aren't bricks
 
 Latest local/Pi change:
-- After LuBan single-connector pass, life-size faces still got oversized pegs (up to ~35% of face, depth 1.5Ãƒâ€” width).
-- Now: width blends 55%Ã¢â€ â€™18% of face min-dim, **hard cap 55 mm**; depth = min(0.75Ãƒâ€”width, 40 mm).
+- After LuBan single-connector pass, life-size faces still got oversized pegs (up to ~35% of face, depth 1.5Ã— width).
+- Now: width blends 55%â†’18% of face min-dim, **hard cap 55 mm**; depth = min(0.75Ã—width, 40 mm).
 - Hard refresh Chop (`mesh-cut.js?v=18`). Undo + Add Connectors again on a clean cut.
 
 Previous:
@@ -1664,60 +1665,60 @@ Previous:
 
 ---
 
-## 2026-08-12 Session update (Chop Ã¢â‚¬â€ LuBan-style single connectors)
+## 2026-08-12 Session update (Chop â€” LuBan-style single connectors)
 
-Latest commit: `1a994e3` Ã¢â‚¬â€ One proportional connector per joint (LuBan-style)
+Latest commit: `1a994e3` â€” One proportional connector per joint (LuBan-style)
 
 Latest local/Pi change:
-- **Problem:** Add Connectors tiled a dense grid of tiny pegs (~12 mm cap) across every cut face Ã¢â‚¬â€ unprintable on life-size Trixie pieces vs LuBanÃ¢â‚¬â„¢s single large interlocking peg.
+- **Problem:** Add Connectors tiled a dense grid of tiny pegs (~12 mm cap) across every cut face â€” unprintable on life-size Trixie pieces vs LuBanâ€™s single large interlocking peg.
 - **Fix:** One centred peg/socket per shared interface; width scales with face size (~85% of min dim on small faces, ~35% on large). Shrinks to fit organic cut boundaries.
 - Files: `makerforge/js/mesh-cut.js`, `makerforge/chop.html` (`mesh-cut.js?v=17`), `makerforge/test/chop-manifold.mjs`.
-- Hard refresh Chop. UI-only static Ã¢â‚¬â€ pull required; restart optional.
-- Verified: `chop-manifold.mjs` Ã¢â‚¬â€ all 203 checks passed.
+- Hard refresh Chop. UI-only static â€” pull required; restart optional.
+- Verified: `chop-manifold.mjs` â€” all 203 checks passed.
 
 Previous:
 - Cindy Vinyl post-outage recovery (`35157e2`).
 
 ---
 
-## 2026-08-08 Session update (Cindy Vinyl Ã¢â‚¬â€ post-power-outage recovery)
+## 2026-08-08 Session update (Cindy Vinyl â€” post-power-outage recovery)
 
-Latest commit: `35157e2` Ã¢â‚¬â€ Fix Mora vinyl mounts after Cindy NAS offline / reboot
+Latest commit: `35157e2` â€” Fix Mora vinyl mounts after Cindy NAS offline / reboot
 
 Latest Mora change:
-- **Root cause:** power outage Ã¢â€ â€™ Cindy NAS off Ã¢â€ â€™ Mora lost `/share/{Cindy,Checked,Jamal}` remote mounts Ã¢â€ â€™ `cindy-navidrome` exited; vinyl health/covers/stream failed.
+- **Root cause:** power outage â†’ Cindy NAS off â†’ Mora lost `/share/{Cindy,Checked,Jamal}` remote mounts â†’ `cindy-navidrome` exited; vinyl health/covers/stream failed.
 - **Fix:** Navidrome compose now bind-mounts `/volume2/cindy-vinyl/mounts/{Cindy,Checked,Jamal}` (stable SSD paths). New `jukebox/scripts/mount-cindy-on-mora.sh` CIFS-mounts Cindy when it's back online.
 - **Deployed on Mora:** Navidrome restarted; `/api/health` ok, random album 200. **Playback needs Cindy NAS powered on** + run mount script.
 - When Cindy is back: on Mora (sudo) `cd /volume2/cindy-vinyl/compose && sh mount-cindy-on-mora.sh && sh build-mora-library-view.sh && docker compose -f docker-compose.mora.yml restart navidrome`
-- LAN: `http://192.168.4.77:4541` Ã¢â‚¬â€ no app.js bump (infra only).
+- LAN: `http://192.168.4.77:4541` â€” no app.js bump (infra only).
 
 Previous:
-- Vinyl Ã¢â‚¬â€ add to playlist from crates/Stacks (`6cd9885`).
+- Vinyl â€” add to playlist from crates/Stacks (`6cd9885`).
 
 ---
 
-## 2026-08-04 Session update (MakerDeck Ã¢â‚¬â€ new Chop plane-cutting tool)
+## 2026-08-04 Session update (MakerDeck â€” new Chop plane-cutting tool)
 
 Latest local/Pi change:
-- New MakerDeck tool **Chop** (`/makerdeck/chop.html`): load STL/OBJ Ã¢â€ â€™ scale to a target size Ã¢â€ â€™ straight/angled plane cuts Ã¢â€ â€™ per-piece STL export, with a bed-fit pill sourced from `printers.yaml` build volumes.
-- From-scratch plane-cutting core (`makerforge/js/mesh-cut.js`) Ã¢â‚¬â€ no CSG existed in the repo before. Verified watertight via new `makerforge/test/chop-manifold.mjs` (axis-aligned / angled / vertex-through / multi-loop / chained cuts, all 0 open edges) and a scripted headless-Chrome pass.
+- New MakerDeck tool **Chop** (`/makerdeck/chop.html`): load STL/OBJ â†’ scale to a target size â†’ straight/angled plane cuts â†’ per-piece STL export, with a bed-fit pill sourced from `printers.yaml` build volumes.
+- From-scratch plane-cutting core (`makerforge/js/mesh-cut.js`) â€” no CSG existed in the repo before. Verified watertight via new `makerforge/test/chop-manifold.mjs` (axis-aligned / angled / vertex-through / multi-loop / chained cuts, all 0 open edges) and a scripted headless-Chrome pass.
 - New STL+OBJ loaders (`makerforge/js/mesh-import.js`), new `GET /api/printers/bed-sizes` endpoint.
-- Connectors (pegs/sockets) and part-number stamping intentionally deferred to a follow-up session Ã¢â‚¬â€ this is Phase 1 only.
+- Connectors (pegs/sockets) and part-number stamping intentionally deferred to a follow-up session â€” this is Phase 1 only.
 - **Backend restart required** (new API route).
-- MakerDeck session notes Ã¢â€ â€™ [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.md)
+- MakerDeck session notes â†’ [makerforge/SESSION_NEXT.md](makerforge/SESSION_NEXT.md)
 
 Previous:
-- Vinyl Ã¢â‚¬â€ add to playlist from crates/Stacks (`6cd9885`).
+- Vinyl â€” add to playlist from crates/Stacks (`6cd9885`).
 
 ---
 
-## 2026-08-04 Session update (Vinyl Ã¢â‚¬â€ add to playlist from crates/Stacks)
+## 2026-08-04 Session update (Vinyl â€” add to playlist from crates/Stacks)
 
-Latest commit: `6cd9885` Ã¢â‚¬â€ Add albums/tracks from crates & Stacks to playlist
+Latest commit: `6cd9885` â€” Add albums/tracks from crates & Stacks to playlist
 
 Latest Mora change:
-- Sleeve Ã¢â€¹Â¯ on crates + Found in the stacks albums: **Add album to playlist**.
-- Stacks track tiles Ã¢â€¹Â¯: **Add to playlist**.
+- Sleeve â‹¯ on crates + Found in the stacks albums: **Add album to playlist**.
+- Stacks track tiles â‹¯: **Add to playlist**.
 - Reuses existing playlist APIs; no new crates.
 - Also ships `python-multipart` (cover upload Form routes).
 - Mora compose host port is **4541 only** (Tailscale serve owns 4540).
@@ -1728,13 +1729,13 @@ Previous:
 
 ---
 
-## 2026-08-03 Session update (H-series unload Ã¢â‚¬â€ drop path skip)
+## 2026-08-03 Session update (H-series unload â€” drop path skip)
 
-Latest commit: `0caaa79` Ã¢â‚¬â€ Always unload low-temp before H-series high-temp jobs
+Latest commit: `0caaa79` â€” Always unload low-temp before H-series high-temp jobs
 
 Latest local/Pi change:
-- BigBoy test (job #243): ASA on left metadata + PETG on AMS HT skipped unload because of H2D Ã¢â‚¬Å“other pathÃ¢â‚¬Â logic.
-- Removed that skip Ã¢â‚¬â€ any low-temp at `tray_now` before a high-temp queue job now auto-unloads.
+- BigBoy test (job #243): ASA on left metadata + PETG on AMS HT skipped unload because of H2D â€œother pathâ€ logic.
+- Removed that skip â€” any low-temp at `tray_now` before a high-temp queue job now auto-unloads.
 - **Backend restart required**.
 
 Previous:
@@ -1744,10 +1745,10 @@ Previous:
 
 ## 2026-08-03 Session update (H-series high-temp nozzle unload)
 
-Latest commit: `6653256` Ã¢â‚¬â€ Auto-unload low-temp before H-series high-temp queue jobs
+Latest commit: `6653256` â€” Auto-unload low-temp before H-series high-temp queue jobs
 
 Latest local/Pi change:
-- On **H-series** queue dispatch: if the job needs high-temp (ABS/ASA/PA/PC/Ã¢â‚¬Â¦) and AMS `tray_now` still shows low-temp (PLA/PETG/TPU/Ã¢â‚¬Â¦) at the nozzle, Flightdeck **auto-unloads**, waits until clear (up to 5 min), then starts the print.
+- On **H-series** queue dispatch: if the job needs high-temp (ABS/ASA/PA/PC/â€¦) and AMS `tray_now` still shows low-temp (PLA/PETG/TPU/â€¦) at the nozzle, Flightdeck **auto-unloads**, waits until clear (up to 5 min), then starts the print.
 - Preflight shows an info line; decisions logged as `ams_unload_before_high_temp*`.
 - Files: `app/main.py`, `app/printers/bambu.py` (unload-without-slot now heats to tray_now material).
 - **Backend restart required** after Pi pull.
@@ -1757,22 +1758,22 @@ Previous:
 
 ---
 
-## 2026-08-03 Session update (Cindy Vinyl Ã¢â‚¬â€ loudness normalise)
+## 2026-08-03 Session update (Cindy Vinyl â€” loudness normalise)
 
-Latest commit: `4d329fe` Ã¢â‚¬â€ Add deck loudness normaliser
+Latest commit: `4d329fe` â€” Add deck loudness normaliser
 
 Latest local/Mora change:
-- Deck control **Ã¢Å’â‚¬** toggles Web Audio loudness normalise (levels quiet/loud tracks). Preference saved in `localStorage`.
-- Live on Mora Ã¢â‚¬â€ hard refresh Vinyl (`http://192.168.4.77:4541`).
+- Deck control **âŒ€** toggles Web Audio loudness normalise (levels quiet/loud tracks). Preference saved in `localStorage`.
+- Live on Mora â€” hard refresh Vinyl (`http://192.168.4.77:4541`).
 
 Previous:
 - Vinyl on Mora (`9f3d922`).
 
 ---
 
-## 2026-08-03 Session update (Cindy Vinyl Ã¢â€ â€™ Mora)
+## 2026-08-03 Session update (Cindy Vinyl â†’ Mora)
 
-Latest commit: `9f3d922` Ã¢â‚¬â€ Move Cindy Vinyl and Navidrome onto Mora volume2
+Latest commit: `9f3d922` â€” Move Cindy Vinyl and Navidrome onto Mora volume2
 
 Latest local/Mora change:
 - Vinyl + Navidrome now run on **Mora** (`192.168.4.77`), data on SSD `/volume2/cindy-vinyl/`, music via `/share/{Cindy,Checked,Jamal}`.
@@ -1786,9 +1787,9 @@ Previous:
 
 ---
 
-## 2026-08-01 Session update (Cindy Vinyl Ã¢â‚¬â€ Open helper fix)
+## 2026-08-01 Session update (Cindy Vinyl â€” Open helper fix)
 
-Latest commit: `5a400e7` Ã¢â‚¬â€ Fix cindyvinyl:// Explorer open (path mangling)
+Latest commit: `5a400e7` â€” Fix cindyvinyl:// Explorer open (path mangling)
 
 Latest local/Pi change:
 - Open helper was killing paths with PowerShell `-replace '/' '\'`; now uses base64 UNC + `.Replace` + error popup/log.
@@ -1799,13 +1800,13 @@ Previous:
 
 ---
 
-## 2026-08-01 Session update (Cindy Vinyl Ã¢â‚¬â€ Open in Explorer)
+## 2026-08-01 Session update (Cindy Vinyl â€” Open in Explorer)
 
-Latest commit: `e97d155` Ã¢â‚¬â€ On Cindy opens Explorer (not just copy)
+Latest commit: `e97d155` â€” On Cindy opens Explorer (not just copy)
 
 Latest local/Pi change:
 - On Cindy **Open** launches the album folder / selects the track file in Windows Explorer.
-- Needs a one-time helper: download `install-cindy-open.ps1` from the modal Ã¢â€ â€™ Run with PowerShell (registers `cindyvinyl://`).
+- Needs a one-time helper: download `install-cindy-open.ps1` from the modal â†’ Run with PowerShell (registers `cindyvinyl://`).
 - Hard refresh `?v=93`. Rebuild `vinyl`.
 
 Previous:
@@ -1813,12 +1814,12 @@ Previous:
 
 ---
 
-## 2026-08-01 Session update (Cindy Vinyl Ã¢â‚¬â€ On Cindy live data)
+## 2026-08-01 Session update (Cindy Vinyl â€” On Cindy live data)
 
-Latest commit: `9de7fc4` Ã¢â‚¬â€ Sleeve Ã¢â€¹Â¯ On Cindy live album/track paths
+Latest commit: `9de7fc4` â€” Sleeve â‹¯ On Cindy live album/track paths
 
 Latest local/Pi change:
-- Sleeve **Ã¢â€¹Â¯** is a menu: **Edit namesÃ¢â‚¬Â¦** / **On CindyÃ¢â‚¬Â¦**.
+- Sleeve **â‹¯** is a menu: **Edit namesâ€¦** / **On Cindyâ€¦**.
 - On Cindy pulls live Navidrome tags + library/UNC paths for the album and each track (click a track to load its path).
 - Tracks panel gets a **Cindy** button per side for the same lookup.
 - Hard refresh `?v=92`. Rebuild `vinyl`.
@@ -1828,42 +1829,42 @@ Previous:
 
 ---
 
-## 2026-08-01 Session update (Cindy Vinyl Ã¢â‚¬â€ smooth platter loop)
+## 2026-08-01 Session update (Cindy Vinyl â€” smooth platter loop)
 
-Latest commit: `74b7dd5` Ã¢â‚¬â€ Fix record spin jump at hold seam
+Latest commit: `74b7dd5` â€” Fix record spin jump at hold seam
 
 Latest local/Pi change:
-- Amp-rack hold loop was 8Ã¢â€ â€™9s (wrong period); now one real revolution (31 frames @ 24fps Ã¢â€°Ë† 1.29s) with frame-accurate seek.
-- CSS label no longer resets to 0Ã‚Â° on pause (`animation-play-state` instead of tearing down the animation).
+- Amp-rack hold loop was 8â†’9s (wrong period); now one real revolution (31 frames @ 24fps â‰ˆ 1.29s) with frame-accurate seek.
+- CSS label no longer resets to 0Â° on pause (`animation-play-state` instead of tearing down the animation).
 - Lounge freezes the arm-down frame (no clean seam in that footage) while the label keeps spinning.
 - Hard refresh `?v=91`. Rebuild `vinyl`.
 
 Previous:
-- Center cover + AÃ¢â‚¬â€œZ by artist (`4b62eea`).
+- Center cover + Aâ€“Z by artist (`4b62eea`).
 
 ---
 
-## 2026-07-31 Session update (Cindy Vinyl Ã¢â‚¬â€ centered sleeve + AÃ¢â‚¬â€œZ by artist)
+## 2026-07-31 Session update (Cindy Vinyl â€” centered sleeve + Aâ€“Z by artist)
 
-Latest commit: `4b62eea` Ã¢â‚¬â€ Center cover; AÃ¢â‚¬â€œZ by artist (filter pack collapse)
+Latest commit: `4b62eea` â€” Center cover; Aâ€“Z by artist (filter pack collapse)
 
 Latest local/Pi change:
 - Now-playing cover sits centered in the hero gap (not stuck on the far right); a bit larger.
-- AÃ¢â‚¬â€œZ crate files by **album artist** (record-store style): Deep Purple Ã¢â€ â€™ D, comps on **VA**.
+- Aâ€“Z crate files by **album artist** (record-store style): Deep Purple â†’ D, comps on **VA**.
 - After folder-collapse, drop sleeves that no longer match the letter (VA chart packs leaking into A).
 - Hard refresh `?v=90`. Rebuild `vinyl`.
 
 Previous:
-- AÃ¢â‚¬â€œZ more sleeves paging (`12b2b8d`).
+- Aâ€“Z more sleeves paging (`12b2b8d`).
 
 ---
 
-## 2026-07-31 Session update (Cindy Vinyl Ã¢â‚¬â€ AÃ¢â‚¬â€œZ more sleeves)
+## 2026-07-31 Session update (Cindy Vinyl â€” Aâ€“Z more sleeves)
 
-Latest commit: `12b2b8d` Ã¢â‚¬â€ Page through all sleeves in a letter
+Latest commit: `12b2b8d` â€” Page through all sleeves in a letter
 
 Latest local/Pi change:
-- AÃ¢â‚¬â€œZ was capped at 36 sleeves; now shows Ã¢â‚¬Å“N of totalÃ¢â‚¬Â and a **More sleeves** button to append the next page (PageDown also loads more).
+- Aâ€“Z was capped at 36 sleeves; now shows â€œN of totalâ€ and a **More sleeves** button to append the next page (PageDown also loads more).
 - Backend caches the full collapsed letter list and serves `offset`/`hasMore`.
 - Hard refresh `?v=89`. Rebuild `vinyl`.
 
@@ -1872,13 +1873,13 @@ Previous:
 
 ---
 
-## 2026-07-31 Session update (Cindy Vinyl Ã¢â‚¬â€ light/dark amp-rack themes)
+## 2026-07-31 Session update (Cindy Vinyl â€” light/dark amp-rack themes)
 
-Latest commit: `812cc1e` Ã¢â‚¬â€ Light white-crate theme; remove Tracks Amp panel
+Latest commit: `812cc1e` â€” Light white-crate theme; remove Tracks Amp panel
 
 Latest local/Pi change:
 - Removed the Tracks Amp VU/EQ panel; volume lives in the transport bar again.
-- Themes: **Dark Ã‚Â· Amp rack** (default, dark crate), **Light Ã‚Â· Amp rack** (white Cindy crate + light room chrome), **Dark Ã‚Â· Lounge**.
+- Themes: **Dark Â· Amp rack** (default, dark crate), **Light Â· Amp rack** (white Cindy crate + light room chrome), **Dark Â· Lounge**.
 - Both amp-rack themes share the deck-on-amp footage; crate + page chrome switch with the room.
 - Hard refresh `?v=84`. Rebuild `vinyl`.
 
@@ -1889,12 +1890,12 @@ Previous:
 
 ## 2026-07-31 Session update (queue: finished prints not marked CANCELLED)
 
-Latest commit: `04f9e2f` Ã¢â‚¬â€ Mark stuck queue jobs DONE after real finish
+Latest commit: `04f9e2f` â€” Mark stuck queue jobs DONE after real finish
 
 Latest local/Pi change:
-- Pyramid job showed CANCELLED + Ã¢â‚¬Å“Cleared stale queue state after printer returned to idleÃ¢â‚¬Â even though the print had finished and the printer was idle.
+- Pyramid job showed CANCELLED + â€œCleared stale queue state after printer returned to idleâ€ even though the print had finished and the printer was idle.
 - Cause: queue row stayed `printing` after a missed finish transition; reconciler treated idle/finished as stale cancel.
-- Now: `finished` / recent finish / last print FINISHED matching the queue filename Ã¢â€ â€™ mark DONE; only true orphans get the soft cancel.
+- Now: `finished` / recent finish / last print FINISHED matching the queue filename â†’ mark DONE; only true orphans get the soft cancel.
 - Backend restart required.
 
 Previous:
@@ -1902,14 +1903,14 @@ Previous:
 
 ---
 
-## 2026-07-31 Session update (Cindy Vinyl Ã¢â‚¬â€ fast crates / startup)
+## 2026-07-31 Session update (Cindy Vinyl â€” fast crates / startup)
 
-Latest commit: `8051c77` Ã¢â‚¬â€ Precompute folder stubs; warm AÃ¢â‚¬â€œZ (~0.1s digs)
+Latest commit: `8051c77` â€” Precompute folder stubs; warm Aâ€“Z (~0.1s digs)
 
 Latest local/Pi change:
-- Cold AÃ¢â‚¬â€œZ was ~24Ã¢â‚¬â€œ31s: crate collapse built full tracklists / re-scanned `media_file` per pack.
+- Cold Aâ€“Z was ~24â€“31s: crate collapse built full tracklists / re-scanned `media_file` per pack.
 - One library pass now primes merge maps + slim folder sleeves; letter A warmed before ready.
-- Pi bench after deploy: A/K/R/newest/letters all ~0.1Ã¢â‚¬â€œ0.15s (was 24s+ cold).
+- Pi bench after deploy: A/K/R/newest/letters all ~0.1â€“0.15s (was 24s+ cold).
 - Letters GROUP BY; shared cover httpx client; cue videos after first crate paint.
 - Hard refresh `?v=83`. Rebuild `vinyl`.
 
@@ -1918,13 +1919,13 @@ Previous:
 
 ---
 
-## 2026-07-30 Session update (Cindy Vinyl Ã¢â‚¬â€ crate-carousel AÃ¢â‚¬â€œZ browse)
+## 2026-07-30 Session update (Cindy Vinyl â€” crate-carousel Aâ€“Z browse)
 
-Latest commit: `3f8ec8f` Ã¢â‚¬â€ Cindy Vinyl: crate-carousel A-Z browse
+Latest commit: `3f8ec8f` â€” Cindy Vinyl: crate-carousel A-Z browse
 
 Latest local/Pi change:
-- AÃ¢â‚¬â€œZ letter-chip rail replaced with a themed crate carousel: the real "Cindy Ã‚Â· Vinyl" crate photo as the frame, sleeves paged per non-empty letter inside its interior opening.
-- `[` / `]` page between letters (not Ã¢â€ Â/Ã¢â€ â€™ Ã¢â‚¬â€ already bound to track skip). New `GET /api/letters` (cached) supplies the non-empty-letter list once, so empty letters are skipped entirely.
+- Aâ€“Z letter-chip rail replaced with a themed crate carousel: the real "Cindy Â· Vinyl" crate photo as the frame, sleeves paged per non-empty letter inside its interior opening.
+- `[` / `]` page between letters (not â†/â†’ â€” already bound to track skip). New `GET /api/letters` (cached) supplies the non-empty-letter list once, so empty letters are skipped entirely.
 - Sleeve click-to-play and drag-to-deck unchanged (reuses `sleeveButton()`). CSS perspective/tilt on the sleeves is deferred to a follow-up pass.
 - Hard refresh `?v=63`. Rebuild `vinyl` (backend + static change).
 
@@ -1933,13 +1934,13 @@ Previous:
 
 ---
 
-## 2026-07-30 Session update (Cindy Vinyl Ã¢â‚¬â€ Windows folder drop play)
+## 2026-07-30 Session update (Cindy Vinyl â€” Windows folder drop play)
 
-Latest commit: `32a3747` Ã¢â‚¬â€ Play dropped Windows folders locally
+Latest commit: `32a3747` â€” Play dropped Windows folders locally
 
 Latest local/Pi change:
-- Chris was dropping Explorer folders (status showed the old Ã¢â‚¬Å“canÃ¢â‚¬â„¢t dropÃ¢â‚¬Â line).
-- Deck now accepts OS folder/file drops: walks mp3/flac/m4a/Ã¢â‚¬Â¦ and plays via blob URLs.
+- Chris was dropping Explorer folders (status showed the old â€œcanâ€™t dropâ€ line).
+- Deck now accepts OS folder/file drops: walks mp3/flac/m4a/â€¦ and plays via blob URLs.
 - Hard refresh `?v=62`. Rebuild `vinyl`.
 
 Previous:
@@ -1947,13 +1948,13 @@ Previous:
 
 ---
 
-## 2026-07-30 Session update (Cindy Vinyl Ã¢â‚¬â€ pointer drag, no Ã¢Å Ëœ cursor)
+## 2026-07-30 Session update (Cindy Vinyl â€” pointer drag, no âŠ˜ cursor)
 
-Latest commit: `5b33b14` Ã¢â‚¬â€ Pointer-drag sleeves onto deck (skip HTML5 Ã¢Å Ëœ)
+Latest commit: `5b33b14` â€” Pointer-drag sleeves onto deck (skip HTML5 âŠ˜)
 
 Latest local/Pi change:
-- HTML5 drag showed the Windows Ã¢Å Ëœ Ã¢â‚¬Å“canÃ¢â‚¬â„¢t dropÃ¢â‚¬Â cursor in Edge app windows even over the deck.
-- Sleeve / track / queue Ã¢â€ â€™ deck now uses pointer capture drag (no HTML5 DnD).
+- HTML5 drag showed the Windows âŠ˜ â€œcanâ€™t dropâ€ cursor in Edge app windows even over the deck.
+- Sleeve / track / queue â†’ deck now uses pointer capture drag (no HTML5 DnD).
 - Hard refresh `?v=61`. Rebuild `vinyl`.
 
 Previous:
@@ -1961,14 +1962,14 @@ Previous:
 
 ---
 
-## 2026-07-30 Session update (Cindy Vinyl Ã¢â‚¬â€ folder-pack drop fix)
+## 2026-07-30 Session update (Cindy Vinyl â€” folder-pack drop fix)
 
-Latest commit: `22e1d8f` Ã¢â‚¬â€ Harden folder-pack drops; collapse AÃ¢â‚¬â€œZ; virtualize track list
+Latest commit: `22e1d8f` â€” Harden folder-pack drops; collapse Aâ€“Z; virtualize track list
 
 Latest local/Pi change:
-- Dropping folder packs was flaky / felt broken: DnD payload race, drop zone only on the photo, and huge packs (100Ã¢â‚¬â€œ600 tracks) froze the Tracks panel with cover imgs.
+- Dropping folder packs was flaky / felt broken: DnD payload race, drop zone only on the photo, and huge packs (100â€“600 tracks) froze the Tracks panel with cover imgs.
 - Keep drag payload longer; accept drop on whole `.hero-main`; status when drop misses.
-- AÃ¢â‚¬â€œZ / VA letter rail now folder-collapses (over-fetch then merge).
+- Aâ€“Z / VA letter rail now folder-collapses (over-fetch then merge).
 - Tracks list virtualizes (~80 rows, covers near the needle only).
 - Hard refresh `?v=60`. Rebuild `vinyl` (backend letter collapse).
 
@@ -1977,28 +1978,28 @@ Previous:
 
 ---
 
-## 2026-07-30 Session update (Cindy Vinyl Ã¢â‚¬â€ icon, VA crate, prism sleeve)
+## 2026-07-30 Session update (Cindy Vinyl â€” icon, VA crate, prism sleeve)
 
-Latest commit: `f499bc5` Ã¢â‚¬â€ App icon; VA AÃ¢â‚¬â€œZ chip; prism sleeve cover back (bigger)
+Latest commit: `f499bc5` â€” App icon; VA Aâ€“Z chip; prism sleeve cover back (bigger)
 
 Latest local/Pi change:
 - `cindy-vinyl.ico` for Windows shortcuts + favicon; installer downloads icon from LAN.
-- AÃ¢â‚¬â€œZ adds **VA** chip (Various Artists / compilation albums via SQLite).
+- Aâ€“Z adds **VA** chip (Various Artists / compilation albums via SQLite).
 - Restored leaning prism sleeve cover at ~15.5% width (a bit bigger than before), in front of the glass.
-- Hard refresh `?v=58`. Rebuild `vinyl`. Re-run installer on MazÃ¢â‚¬â„¢s PC for the icon.
+- Hard refresh `?v=58`. Rebuild `vinyl`. Re-run installer on Mazâ€™s PC for the icon.
 
 Previous:
 - LAN :4541 + Windows install (`e29e1b4` / UNC fix `eecaf3f`).
 
 ---
 
-## 2026-07-30 Session update (Cindy Vinyl Ã¢â‚¬â€ drag & drop onto deck)
+## 2026-07-30 Session update (Cindy Vinyl â€” drag & drop onto deck)
 
-Latest commit: `a5731ca` Ã¢â‚¬â€ Drag sleeves/tracks onto the deck to play
+Latest commit: `a5731ca` â€” Drag sleeves/tracks onto the deck to play
 
 Latest local/Pi change:
 - Left vinyl colour alone.
-- Drag a crate/search sleeve, a search track, or a Tracks-panel side onto the deck Ã¢â‚¬â€ gold Ã¢â‚¬Å“Drop to playÃ¢â‚¬Â highlight, then it cues up.
+- Drag a crate/search sleeve, a search track, or a Tracks-panel side onto the deck â€” gold â€œDrop to playâ€ highlight, then it cues up.
 - Hard refresh `?v=50`. Rebuild `vinyl`.
 
 Previous:
@@ -2006,9 +2007,9 @@ Previous:
 
 ---
 
-## 2026-07-30 Session update (Cindy Vinyl Ã¢â‚¬â€ colour per album)
+## 2026-07-30 Session update (Cindy Vinyl â€” colour per album)
 
-Latest commit: `6d333c9` Ã¢â‚¬â€ Random vinyl tint only when the album changes
+Latest commit: `6d333c9` â€” Random vinyl tint only when the album changes
 
 Latest local/Pi change:
 - Vinyl colour stays put across tracks on the same record; new random tint when a different album lands.
@@ -2019,9 +2020,9 @@ Previous:
 
 ---
 
-## 2026-07-30 Session update (Cindy Vinyl Ã¢â‚¬â€ faster label swaps)
+## 2026-07-30 Session update (Cindy Vinyl â€” faster label swaps)
 
-Latest commit: `8a2eb63` Ã¢â‚¬â€ Reuse sleeve-sized covers; prefetch; cache covers
+Latest commit: `8a2eb63` â€” Reuse sleeve-sized covers; prefetch; cache covers
 
 Latest local/Pi change:
 - Platter label was fetching 600px covers (cache miss vs crate sleeves at 300). Now uses 300px, prefetches nearby queue covers, and `/api/cover` sends `Cache-Control` for a week.
@@ -2032,12 +2033,12 @@ Previous:
 
 ---
 
-## 2026-07-29 Session update (Cindy Vinyl Ã¢â‚¬â€ warm tint palette polish)
+## 2026-07-29 Session update (Cindy Vinyl â€” warm tint palette polish)
 
-Latest commit: `14e5f71` Ã¢â‚¬â€ Warmer vinyl colours; tiny label/tint nudge
+Latest commit: `14e5f71` â€” Warmer vinyl colours; tiny label/tint nudge
 
 Latest local/Pi change:
-- Chris called `?v=46` the best yet Ã¢â‚¬â€ light polish only: warmer oxblood/plum/amber resin palette (less neon), slightly richer soft-light, micro-nudge label onto spindle.
+- Chris called `?v=46` the best yet â€” light polish only: warmer oxblood/plum/amber resin palette (less neon), slightly richer soft-light, micro-nudge label onto spindle.
 - Hard refresh `?v=47`. Rebuild `vinyl`.
 
 Previous:
@@ -2045,12 +2046,12 @@ Previous:
 
 ---
 
-## 2026-07-29 Session update (Cindy Vinyl Ã¢â‚¬â€ stop orbiting centre label)
+## 2026-07-29 Session update (Cindy Vinyl â€” stop orbiting centre label)
 
-Latest commit: `cab13bb` Ã¢â‚¬â€ Circular label spins in place; tint stays soft
+Latest commit: `cab13bb` â€” Circular label spins in place; tint stays soft
 
 Latest local/Pi change:
-- Centre art was an ellipse being rotated Ã¢â‚¬â€ that made it orbit inside the record. Now a circle with `rotateX` pose; only the inner wrapper spins.
+- Centre art was an ellipse being rotated â€” that made it orbit inside the record. Now a circle with `rotateX` pose; only the inner wrapper spins.
 - Tint stays the softer fuller-disc fade from `?v=45`.
 - Hard refresh `?v=46`. Rebuild `vinyl`.
 
@@ -2059,9 +2060,9 @@ Previous:
 
 ---
 
-## 2026-07-29 Session update (Cindy Vinyl Ã¢â‚¬â€ dial back tint wipe)
+## 2026-07-29 Session update (Cindy Vinyl â€” dial back tint wipe)
 
-Latest commit: `53616cf` Ã¢â‚¬â€ Softer arm fade; fuller colour disc
+Latest commit: `53616cf` â€” Softer arm fade; fuller colour disc
 
 Latest local/Pi change:
 - Hard right-half wipe was too aggressive (looked like a left wedge). Now a gentle far-right fade only, slightly softer opacity, smaller centre hole.
@@ -2072,12 +2073,12 @@ Previous:
 
 ---
 
-## 2026-07-29 Session update (Cindy Vinyl Ã¢â‚¬â€ screen-space elliptical tint)
+## 2026-07-29 Session update (Cindy Vinyl â€” screen-space elliptical tint)
 
-Latest commit: `ed3694f` Ã¢â‚¬â€ Elliptical tint (no rotateX); arm-side wipe; bigger label
+Latest commit: `ed3694f` â€” Elliptical tint (no rotateX); arm-side wipe; bigger label
 
 Latest local/Pi change:
-- Tint is an ellipse in screen space (perspective via widthÃ¢â€°Â height) so the arm cutout lines up with the video Ã¢â‚¬â€ `rotateX` was fighting the mask.
+- Tint is an ellipse in screen space (perspective via widthâ‰ height) so the arm cutout lines up with the video â€” `rotateX` was fighting the mask.
 - Soft-light blend + hard wipe on the right half where the tonearm lives.
 - Larger elliptical centre art covers the Navidrome/baked-in label.
 - Hard refresh `?v=44`. Rebuild `vinyl`.
@@ -2087,12 +2088,12 @@ Previous:
 
 ---
 
-## 2026-07-29 Session update (Cindy Vinyl Ã¢â‚¬â€ sleeve Edit Ã¢â€¹Â¯ + overlay polish)
+## 2026-07-29 Session update (Cindy Vinyl â€” sleeve Edit â‹¯ + overlay polish)
 
-Latest commit: `a0c3caa` Ã¢â‚¬â€ Sleeve edit; tilt/shrink tint; arm corridor; cover label
+Latest commit: `a0c3caa` â€” Sleeve edit; tilt/shrink tint; arm corridor; cover label
 
 Latest local/Pi change:
-- Each crate sleeve has Ã¢â€¹Â¯ Ã¢â€ â€™ Edit names (album/artist) without spinning first.
+- Each crate sleeve has â‹¯ â†’ Edit names (album/artist) without spinning first.
 - Colour tint: more back-tilt (`rotateX(58deg)`), slightly smaller, bigger centre hole, wider arm cutout so gold sits on top; centre art enlarged to cover baked-in video label.
 - Hard refresh `?v=43`. Rebuild `vinyl`.
 
@@ -2101,9 +2102,9 @@ Previous:
 
 ---
 
-## 2026-07-29 Session update (Cindy Vinyl Ã¢â‚¬â€ nudge + arm over tint)
+## 2026-07-29 Session update (Cindy Vinyl â€” nudge + arm over tint)
 
-Latest commit: `b0dcb93` Ã¢â‚¬â€ Micro-nudge label; mask colour under tonearm
+Latest commit: `b0dcb93` â€” Micro-nudge label; mask colour under tonearm
 
 Latest local/Pi change:
 - Nudged platter overlay right/down to `41.5% / 56%`.
@@ -2115,13 +2116,13 @@ Previous:
 
 ---
 
-## 2026-07-29 Session update (Cindy Vinyl Ã¢â‚¬â€ centre label + arm park + colour)
+## 2026-07-29 Session update (Cindy Vinyl â€” centre label + arm park + colour)
 
-Latest commit: `0e38b7c` Ã¢â‚¬â€ Nudge label onto spindle; short hold; visible vinyl tint
+Latest commit: `0e38b7c` â€” Nudge label onto spindle; short hold; visible vinyl tint
 
 Latest local/Pi change:
-- Label was ~5% left of the spindle Ã¢â‚¬â€ moved to 40.2% / 54.8%; spin on inner wrapper so 3D pose doesnÃ¢â‚¬â„¢t drift.
-- Hold loop back to 3.55Ã¢â€ â€™4.2s so the arm stays on the outer grooves (long loop was crawling then snapping).
+- Label was ~5% left of the spindle â€” moved to 40.2% / 54.8%; spin on inner wrapper so 3D pose doesnâ€™t drift.
+- Hold loop back to 3.55â†’4.2s so the arm stays on the outer grooves (long loop was crawling then snapping).
 - Vinyl colour is a saturated translucent groove ring (soft-light on black was invisible).
 - Hard refresh `?v=40`. Rebuild `vinyl`.
 
@@ -2130,12 +2131,12 @@ Previous:
 
 ---
 
-## 2026-07-29 Session update (Cindy Vinyl Ã¢â‚¬â€ label seam + colour + centre art)
+## 2026-07-29 Session update (Cindy Vinyl â€” label seam + colour + centre art)
 
-Latest commit: `a812eaf` Ã¢â‚¬â€ Revolution hold loop; spinning centre label; random vinyl colour
+Latest commit: `a812eaf` â€” Revolution hold loop; spinning centre label; random vinyl colour
 
 Latest local/Pi change:
-- Hold loop is one platter revolution (3.55Ã¢â€ â€™5.008s) so label phase matches at the seam.
+- Hold loop is one platter revolution (3.55â†’5.008s) so label phase matches at the seam.
 - Restored spinning album-art label over the platter centre (covers residual video jump).
 - Random vinyl colour tint each track (`mix-blend-mode` so the video tonearm stays visible).
 - Hard refresh `?v=39`. Rebuild `vinyl` (static only; restart optional).
@@ -2145,14 +2146,14 @@ Previous:
 
 ---
 
-## 2026-07-29 Session update (Cindy Vinyl Ã¢â‚¬â€ strip hero overlays)
+## 2026-07-29 Session update (Cindy Vinyl â€” strip hero overlays)
 
-Latest commit: `10448c8` Ã¢â‚¬â€ Remove prism sleeve + platter overlays
+Latest commit: `10448c8` â€” Remove prism sleeve + platter overlays
 
 Latest local/Pi change:
-- Hero is photo/video only Ã¢â‚¬â€ no floating album sleeve or fake spinning label.
+- Hero is photo/video only â€” no floating album sleeve or fake spinning label.
 - Cover art stays in the transport bar / track list.
-- Waiting on ChrisÃ¢â‚¬â„¢s new ~10s locked-camera loop (easier than cinematic + overlays).
+- Waiting on Chrisâ€™s new ~10s locked-camera loop (easier than cinematic + overlays).
 - Hard refresh `?v=32`. Rebuild `vinyl`.
 
 Previous:
@@ -2160,26 +2161,26 @@ Previous:
 
 ---
 
-## 2026-07-29 Session update (Cindy Vinyl Ã¢â‚¬â€ tight outer-groove loop)
+## 2026-07-29 Session update (Cindy Vinyl â€” tight outer-groove loop)
 
-Latest commit: `02b6a6f` Ã¢â‚¬â€ Loop only outer-groove spin (~0.65s)
+Latest commit: `02b6a6f` â€” Loop only outer-groove spin (~0.65s)
 
 Latest local/Pi change:
-- Hold loop was 2.0Ã¢â€ â€™5.15s so the arm crawled to the label then jumped back.
-- Now loops 3.55Ã¢â€ â€™4.2s (needle parked on the lead-in). Hard refresh `?v=38`.
+- Hold loop was 2.0â†’5.15s so the arm crawled to the label then jumped back.
+- Now loops 3.55â†’4.2s (needle parked on the lead-in). Hard refresh `?v=38`.
 
 Previous:
 - Spin loop after drop (`d27f956`).
 
 ---
 
-## 2026-07-29 Session update (Cindy Vinyl Ã¢â‚¬â€ keep spinning after drop)
+## 2026-07-29 Session update (Cindy Vinyl â€” keep spinning after drop)
 
-Latest commit: `d27f956` Ã¢â‚¬â€ Forward play + spin loop (no freeze)
+Latest commit: `d27f956` â€” Forward play + spin loop (no freeze)
 
 Latest local/Pi change:
 - Cue-in is the forward first ~5.4s (spin up / arm over).
-- Then loops 2.0sÃ¢â€ â€™5.15s so the platter keeps spinning with the arm down.
+- Then loops 2.0sâ†’5.15s so the platter keeps spinning with the arm down.
 - Queue end still plays the lift/stop outro. Hard refresh `?v=37`. Rebuild `vinyl`.
 
 Previous:
@@ -2187,9 +2188,9 @@ Previous:
 
 ---
 
-## 2026-07-29 Session update (Cindy Vinyl Ã¢â‚¬â€ full drop then freeze)
+## 2026-07-29 Session update (Cindy Vinyl â€” full drop then freeze)
 
-Latest commit: `5b42922` Ã¢â‚¬â€ Longer cue-in; donÃ¢â‚¬â„¢t abort mid-drop
+Latest commit: `5b42922` â€” Longer cue-in; donâ€™t abort mid-drop
 
 Latest local/Pi change:
 - Cue-in is the full arm-to-record move (~4.5s), then freeze on that frame.
@@ -2201,9 +2202,9 @@ Previous:
 
 ---
 
-## 2026-07-29 Session update (Cindy Vinyl Ã¢â‚¬â€ freeze after cue-in)
+## 2026-07-29 Session update (Cindy Vinyl â€” freeze after cue-in)
 
-Latest commit: `5d9086d` Ã¢â‚¬â€ Arm drops once, then freezes (no hold loop jump)
+Latest commit: `5d9086d` â€” Arm drops once, then freezes (no hold loop jump)
 
 Latest local/Pi change:
 - After cue-in, freeze on needle-down frame instead of looping a hold clip that jumped the arm back.
@@ -2214,9 +2215,9 @@ Previous:
 
 ---
 
-## 2026-07-29 Session update (Cindy Vinyl Ã¢â‚¬â€ new arm-lift stop clip)
+## 2026-07-29 Session update (Cindy Vinyl â€” new arm-lift stop clip)
 
-Latest commit: `a215cd6` Ã¢â‚¬â€ Wire ChrisÃ¢â‚¬â„¢s arm-lift / stop 10s clip
+Latest commit: `a215cd6` â€” Wire Chrisâ€™s arm-lift / stop 10s clip
 
 Latest local/Pi change:
 - New video split: short reverse drop-in (~2.2s), forward hold loop (~3.5s), cue-out lift/stop (~4.5s).
@@ -2227,14 +2228,14 @@ Previous:
 
 ---
 
-## 2026-07-29 Session update (Cindy Vinyl Ã¢â‚¬â€ Ã¢â€¹Â¯ menu + properties)
+## 2026-07-29 Session update (Cindy Vinyl â€” â‹¯ menu + properties)
 
-Latest commit: `10448c8` Ã¢â‚¬â€ Top-right menu: Cindy path + rename props
+Latest commit: `10448c8` â€” Top-right menu: Cindy path + rename props
 
 Latest local/Pi change:
 - Hero overlays stripped (photo/video only).
-- Header **Ã¢â€¹Â¯** menu: Show on Cindy (UNC path), Properties (Vinyl-only album/track rename), Refresh packs.
-- Overrides stored on Pi at `/home/flightdeck/cindy-vinyl-data` Ã¢â‚¬â€ Cindy stays read-only.
+- Header **â‹¯** menu: Show on Cindy (UNC path), Properties (Vinyl-only album/track rename), Refresh packs.
+- Overrides stored on Pi at `/home/flightdeck/cindy-vinyl-data` â€” Cindy stays read-only.
 - Hard refresh `?v=33`. Rebuild `vinyl`.
 
 Previous:
@@ -2242,13 +2243,13 @@ Previous:
 
 ---
 
-## 2026-07-29 Session update (Cindy Vinyl Ã¢â‚¬â€ forward hold + new deck still)
+## 2026-07-29 Session update (Cindy Vinyl â€” forward hold + new deck still)
 
-Latest commit: `4d0b37c` Ã¢â‚¬â€ Forward-only spin loop + fresher rest still
+Latest commit: `4d0b37c` â€” Forward-only spin loop + fresher rest still
 
 Latest local/Pi change:
 - Hold loop is **forward-only** (no reverse spin).
-- Rest/startup `deck.png` replaced with ChrisÃ¢â‚¬â„¢s matched still; prism sleeve + platter retuned for 16:9.
+- Rest/startup `deck.png` replaced with Chrisâ€™s matched still; prism sleeve + platter retuned for 16:9.
 - Hard refresh `?v=31`. Rebuild `vinyl`.
 
 Previous:
@@ -2256,9 +2257,9 @@ Previous:
 
 ---
 
-## 2026-07-29 Session update (Cindy Vinyl Ã¢â‚¬â€ loop hold after cue-in)
+## 2026-07-29 Session update (Cindy Vinyl â€” loop hold after cue-in)
 
-Latest commit: `5267827` Ã¢â‚¬â€ Ping-pong hold loop; no snap back to still
+Latest commit: `5267827` â€” Ping-pong hold loop; no snap back to still
 
 Latest local/Pi change:
 - Cue-in trimmed (~1.35s), then seamless handoff to `deck-cue-hold.mp4` (forward+reverse of post-drop).
@@ -2270,14 +2271,14 @@ Previous:
 
 ---
 
-## 2026-07-29 Session update (Cindy Vinyl Ã¢â‚¬â€ start/stop cue clips)
+## 2026-07-29 Session update (Cindy Vinyl â€” start/stop cue clips)
 
-Latest commit: `3298d22` Ã¢â‚¬â€ Silent spin-up / spin-down deck cues
+Latest commit: `3298d22` â€” Silent spin-up / spin-down deck cues
 
 Latest local/Pi change:
-- `start.mp4` Ã¢â€ â€™ `deck-cue-in.mp4`, stop clip Ã¢â€ â€™ `deck-cue-out.mp4` (audio stripped).
-- Play from rest Ã¢â€ â€™ cue-in (~3s), then static deck + spinning label + prism sleeve.
-- Queue end Ã¢â€ â€™ cue-out (~1.8s). Pause / track skip keep hold (no re-cue).
+- `start.mp4` â†’ `deck-cue-in.mp4`, stop clip â†’ `deck-cue-out.mp4` (audio stripped).
+- Play from rest â†’ cue-in (~3s), then static deck + spinning label + prism sleeve.
+- Queue end â†’ cue-out (~1.8s). Pause / track skip keep hold (no re-cue).
 - Hard refresh `?v=29`. Rebuild `cindy-vinyl` (`vinyl` service).
 
 Previous:
@@ -2285,9 +2286,9 @@ Previous:
 
 ---
 
-## 2026-07-29 Session update (Cindy Vinyl Ã¢â‚¬â€ sleeve on Technics prism)
+## 2026-07-29 Session update (Cindy Vinyl â€” sleeve on Technics prism)
 
-Latest commit: `72fbda1` Ã¢â‚¬â€ Album cover leans against Technics prism
+Latest commit: `72fbda1` â€” Album cover leans against Technics prism
 
 Latest local/Pi change:
 - Now-playing cover moved off the wall frame; sits in front of the glass Technics prism like a sleeve leaning on the table.
@@ -2298,9 +2299,9 @@ Previous:
 
 ---
 
-## 2026-07-29 Session update (Cindy Vinyl Ã¢â‚¬â€ wall album art)
+## 2026-07-29 Session update (Cindy Vinyl â€” wall album art)
 
-Latest commit: `eb86c66` Ã¢â‚¬â€ Album cover on framed gold Technics disc
+Latest commit: `eb86c66` â€” Album cover on framed gold Technics disc
 
 Latest local/Pi change:
 - Now-playing cover sits on the wall gold record behind the deck (circular overlay).
@@ -2311,9 +2312,9 @@ Previous:
 
 ---
 
-## 2026-07-29 Session update (Cindy Vinyl Ã¢â‚¬â€ PWA app)
+## 2026-07-29 Session update (Cindy Vinyl â€” PWA app)
 
-Latest commit: `753d6ba` Ã¢â‚¬â€ PWA manifest + icons; Install like PrintShelf
+Latest commit: `753d6ba` â€” PWA manifest + icons; Install like PrintShelf
 
 Latest local/Pi change:
 - Cindy Vinyl is installable: `manifest.json`, `sw.js`, icons, root routes.
@@ -2326,13 +2327,13 @@ Previous:
 
 ---
 
-## 2026-07-29 Session update (Cindy Vinyl Ã¢â‚¬â€ transport polish)
+## 2026-07-29 Session update (Cindy Vinyl â€” transport polish)
 
-Latest commit: `5a02518` Ã¢â‚¬â€ Volume, time readout, keyboard shortcuts
+Latest commit: `5a02518` â€” Volume, time readout, keyboard shortcuts
 
 Latest local/Pi change:
 - Transport: `0:00 / 3:55` beside seek; volume slider + mute (persisted).
-- Keys: Space play/pause, Ã¢â€ Â/Ã¢â€ â€™ skip, Ã¢â€ â€˜/Ã¢â€ â€œ volume, M mute (ignored while typing in search).
+- Keys: Space play/pause, â†/â†’ skip, â†‘/â†“ volume, M mute (ignored while typing in search).
 - Hard refresh Vinyl `?v=24`. Rebuild `cindy-vinyl`.
 
 Previous:
@@ -2340,9 +2341,9 @@ Previous:
 
 ---
 
-## 2026-07-29 Session update (Cindy Vinyl Ã¢â‚¬â€ spinning platter restored)
+## 2026-07-29 Session update (Cindy Vinyl â€” spinning platter restored)
 
-Latest commit: `3915b28` Ã¢â‚¬â€ Restore spinning label; park tonearm video for split clips
+Latest commit: `3915b28` â€” Restore spinning label; park tonearm video for split clips
 
 Latest local/Pi change:
 - Back to `deck.png` + spinning platter label (`?v=23`).
@@ -2354,12 +2355,12 @@ Previous:
 
 ---
 
-## 2026-07-29 Session update (Cindy Vinyl Ã¢â‚¬â€ silent SL1200 tonearm)
+## 2026-07-29 Session update (Cindy Vinyl â€” silent SL1200 tonearm)
 
-Latest commit: `7232c69` Ã¢â‚¬â€ Silent deck-arm.mp4 cue-in/out on play/end
+Latest commit: `7232c69` â€” Silent deck-arm.mp4 cue-in/out on play/end
 
 Latest local/Pi change:
-- Your `SL1200.mp4` Ã¢â€ â€™ `jukebox/static/deck-arm.mp4` (**audio stripped**, ~272KB).
+- Your `SL1200.mp4` â†’ `jukebox/static/deck-arm.mp4` (**audio stripped**, ~272KB).
 - Hero deck is a muted `<video>`: cue-in on track start, hold needle-down, cue-out when queue ends.
 - Pause mid-track keeps needle down. Hard refresh Vinyl `?v=22`.
 - Rebuild `cindy-vinyl` on Pi.
@@ -2369,9 +2370,9 @@ Previous:
 
 ---
 
-## 2026-07-29 Session update (Cindy Vinyl Ã¢â‚¬â€ pack merge + no-touch Cindy)
+## 2026-07-29 Session update (Cindy Vinyl â€” pack merge + no-touch Cindy)
 
-Latest commit: `19555f3` Ã¢â‚¬â€ Folder-pack merge + Cindy symlink view (skip #recycle)
+Latest commit: `19555f3` â€” Folder-pack merge + Cindy symlink view (skip #recycle)
 
 Latest local/Pi change:
 - **Cindy stays read-only** (PrintShelf-style): no retagging / no writes on the NAS.
@@ -2388,22 +2389,22 @@ Previous:
 
 ## 2026-07-29 Session update (Cindy Vinyl Jukebox)
 
-Latest commit: *(see log)* Ã¢â‚¬â€ Cindy Vinyl Technics deck stage
+Latest commit: *(see log)* â€” Cindy Vinyl Technics deck stage
 
 Latest local/Pi change:
-- Mount Cindy **MUSIC + CHECKED + JAMAL** Ã¢â€ â€™ `/mnt/cindy/*` (`mount-cindy.sh`, boot remount).
+- Mount Cindy **MUSIC + CHECKED + JAMAL** â†’ `/mnt/cindy/*` (`mount-cindy.sh`, boot remount).
 - **Navidrome** on `:4533` (indexes ~5.4TB; first scan takes hours).
-- **Cindy Vinyl** UI on `:4540` Ã¢â‚¬â€ Technics SL-1200 Limited hero (black/gold lounge), spinning label, SPIN/crates.
+- **Cindy Vinyl** UI on `:4540` â€” Technics SL-1200 Limited hero (black/gold lounge), spinning label, SPIN/crates.
 - Hard refresh `?v=2` / `http://flightdeck.tail7de73e.ts.net:4540`
 - Secrets: `jukebox/.env` on Pi only. Creds: `~/.smbcredentials-cindy`.
 
 Previous:
 - Mora Kidabah home mount (`bc1acbf`).
 
-Latest commit: `bc1acbf` Ã¢â‚¬â€ Mount Mora User Homes/Kidabah for PrintShelf
+Latest commit: `bc1acbf` â€” Mount Mora User Homes/Kidabah for PrintShelf
 
 Latest local/Pi change:
-- Mount helper `mount-nas-mora.sh` Ã¢â€ â€™ `/mnt/nas-mora` (bind of `User Homes/Kidabah`).
+- Mount helper `mount-nas-mora.sh` â†’ `/mnt/nas-mora` (bind of `User Homes/Kidabah`).
 - Remount-on-boot includes Mora when `~/.smbcredentials-mora` exists.
 - PrintShelf watched folder id `nas-mora` (windows path `\\192.168.4.77\User Homes\Kidabah`).
 - Live on Pi: Mora mounted; Folders shows **Mora Kidabah home**.
@@ -2415,7 +2416,7 @@ Previous:
 
 ## 2026-07-29 Session update (Pi reboot emptied PrintShelf library)
 
-Latest commit: `c1b4bf2` Ã¢â‚¬â€ Guard scan against unmounted /mnt shares
+Latest commit: `c1b4bf2` â€” Guard scan against unmounted /mnt shares
 
 Latest local/Pi change:
 - Pi reboot dropped CIFS mounts; Refresh scanned empty `/mnt/*` dirs and marked **all** assets `missing=1`.
@@ -2431,7 +2432,7 @@ Previous:
 
 ## 2026-07-28 Session update (Ooshies stand v2)
 
-Latest commit: `f9fed68` Ã¢â‚¬â€ Retune Ooshies stand to ~218Ãƒâ€”93Ãƒâ€”244 + photo look
+Latest commit: `f9fed68` â€” Retune Ooshies stand to ~218Ã—93Ã—244 + photo look
 
 Latest local/Pi change:
 - MakerDeck **b576**: proportions from peg-scaled reference STL; deep base tongue, side pills, 7 uppers.
@@ -2444,10 +2445,10 @@ Previous:
 
 ## 2026-07-28 Session update (Ooshies stand)
 
-Latest commit: `c695f73` Ã¢â‚¬â€ MakerDeck Ooshies stand (tab-slot kit, 52mm figure clearance)
+Latest commit: `c695f73` â€” MakerDeck Ooshies stand (tab-slot kit, 52mm figure clearance)
 
 Latest local/Pi change:
-- New MakerDeck preset **Ooshies stand** Ã¢â‚¬â€ pegs 6.5Ãƒâ€”10, gap for 40Ã¢â‚¬â€œ50 mm figures, sides+shelves kit export.
+- New MakerDeck preset **Ooshies stand** â€” pegs 6.5Ã—10, gap for 40â€“50 mm figures, sides+shelves kit export.
 - Hard refresh MakerDeck `?v=575` / **b575**.
 
 Previous:
@@ -2457,12 +2458,12 @@ Previous:
 
 ## 2026-07-28 Session update (real RAR unpack + kit cards)
 
-Latest commit: `651cef1` Ã¢â‚¬â€ Prefer 7zz for RAR; reject 0-byte stubs; one kit card under PrintShelf Extracted
+Latest commit: `651cef1` â€” Prefer 7zz for RAR; reject 0-byte stubs; one kit card under PrintShelf Extracted
 
 Latest local/Pi change:
-- Debian `7z` left empty STL shells (Ã¢â‚¬Å“Unsupported MethodÃ¢â‚¬Â). Now prefers `~/bin/7zz` (full RAR codecs).
+- Debian `7z` left empty STL shells (â€œUnsupported Methodâ€). Now prefers `~/bin/7zz` (full RAR codecs).
 - Empty stubs are purged / never counted as success; re-extract rewrites them.
-- Multi-file kits under `PrintShelf Extracted/<kit>/Ã¢â‚¬Â¦` group into **one** design card.
+- Multi-file kits under `PrintShelf Extracted/<kit>/â€¦` group into **one** design card.
 - Hard refresh `?v=61`. Restart required. Re-run Extract all on Art Guy zips after deploy.
 
 Previous:
@@ -2472,7 +2473,7 @@ Previous:
 
 ## 2026-07-28 Session update (search clears type filter)
 
-Latest commit: `d1d4524` Ã¢â‚¬â€ Clear ZIP/type tab when searching or after extract
+Latest commit: `d1d4524` â€” Clear ZIP/type tab when searching or after extract
 
 Latest local/Pi change:
 - Searching no longer stays stuck on the ZIP tab (which hid rescued STLs).
@@ -2486,11 +2487,11 @@ Previous:
 
 ## 2026-07-28 Session update (extract all / RAR)
 
-Latest commit: `fc6fc3e` Ã¢â‚¬â€ Extract all printables (unpack nested RAR via 7z)
+Latest commit: `fc6fc3e` â€” Extract all printables (unpack nested RAR via 7z)
 
 Latest local/Pi change:
 - ZIP **Extract all** rescues every printable; if the zip only wraps a `.rar`, streams it out and unpacks with Pi `7z`, then indexes meshes.
-- Test case: `3D Art Guy-Ã¢â‚¬Â¦002.zip` Ã¢â€ â€™ nested Crusader Diorama `.rar`.
+- Test case: `3D Art Guy-â€¦002.zip` â†’ nested Crusader Diorama `.rar`.
 - Hard refresh `?v=59`. Restart required. Big RARs can take minutes.
 
 Previous:
@@ -2500,11 +2501,11 @@ Previous:
 
 ## 2026-07-28 Session update (open zip on PC)
 
-Latest commit: `e0f30ea` Ã¢â‚¬â€ Card Ã¢â€¹Â® menu + Open zip on PC / Reveal in Explorer
+Latest commit: `e0f30ea` â€” Card â‹® menu + Open zip on PC / Reveal in Explorer
 
 Latest local/Pi change:
-- Design/asset cards: **Ã¢â€¹Â®** menu Ã¢â‚¬â€ Open in PrintShelf, Open zip on PC, Reveal in Explorer.
-- Detail: **Open zip on PC** + Ã¢â€¹Â® More. Double-click still opens in shelf.
+- Design/asset cards: **â‹®** menu â€” Open in PrintShelf, Open zip on PC, Reveal in Explorer.
+- Detail: **Open zip on PC** + â‹® More. Double-click still opens in shelf.
 - Needs **Windows Flightdeck worker restarted** (new `/api/slicer/worker/shell-open`).
 - Hard refresh PrintShelf `?v=58`. Restart Pi Flightdeck + PrintShelf.
 
@@ -2515,7 +2516,7 @@ Previous:
 
 ## 2026-07-28 Session update (extract UX)
 
-Latest commit: `27c6b64` Ã¢â‚¬â€ Explain RAR-only / empty zips on Extract
+Latest commit: `27c6b64` â€” Explain RAR-only / empty zips on Extract
 
 Latest local/Pi change:
 - Extract button always clickable; toast explains when zip has only a `.rar` / no printables.
@@ -2528,7 +2529,7 @@ Previous:
 
 ## 2026-07-28 Session update (zip extract)
 
-Latest commit: `be0001b` Ã¢â‚¬â€ Zip extract Ã¢â€ â€™ PrintShelf Extracted design card
+Latest commit: `be0001b` â€” Zip extract â†’ PrintShelf Extracted design card
 
 Latest local/Pi change:
 - ZIP detail **Extract to shelf** rescues the selected printable into `/mnt/koko-kidabah/PrintShelf Extracted`, indexes it, opens the new design card.
@@ -2542,7 +2543,7 @@ Previous:
 
 ## 2026-07-28 Session update (design grouping)
 
-Latest commit: `a22b9da` Ã¢â‚¬â€ Design cards use stem names
+Latest commit: `a22b9da` â€” Design cards use stem names
 
 Latest local/Pi change:
 - Library **Designs** tab groups STL/3MF/gcode siblings (same folder + stem).
@@ -2557,10 +2558,10 @@ Previous:
 
 ## 2026-07-27 Session update (delete copies)
 
-Latest commit: `213e056` Ã¢â‚¬â€ Warn / delete identical NAS copies
+Latest commit: `213e056` â€” Warn / delete identical NAS copies
 
 Latest local/Pi change:
-- Delete **does** remove from NAS (verified). Files Ã¢â‚¬Å“coming backÃ¢â‚¬Â were usually **duplicate copies** in other folders.
+- Delete **does** remove from NAS (verified). Files â€œcoming backâ€ were usually **duplicate copies** in other folders.
 - Delete flow now detects identical content-hash copies and offers **Delete all copies**.
 - Hard refresh `?v=46`. Restart required.
 
@@ -2571,10 +2572,10 @@ Previous today:
 
 ## 2026-07-27 Session update (Kidabah PC mount)
 
-Latest commit: `f8f18af` Ã¢â‚¬â€ (ops) Mount Kidabah PC Desktop/Downloads/Documents
+Latest commit: `f8f18af` â€” (ops) Mount Kidabah PC Desktop/Downloads/Documents
 
 Latest local/Pi change:
-- Windows share `PrintShelfRoots` Ã¢â€ â€™ junctions to Desktop/Downloads/Documents.
+- Windows share `PrintShelfRoots` â†’ junctions to Desktop/Downloads/Documents.
 - Pi mount `/mnt/kidabah-pc` (CIFS via `printshelf-pi` account); PrintShelf watched folder **Kidabah PC**.
 - Remount `@reboot` via `/home/flightdeck/bin/mount-kidabah-pc.sh`. PC must be on for scan/orbit of those files.
 - Hard refresh Folders; Rescan.
@@ -2586,10 +2587,10 @@ Previous today:
 
 ## 2026-07-27 Session update (watched folder Pi paths)
 
-Latest commit: `a8c235b` Ã¢â‚¬â€ Warn when watched folder path missing on Pi
+Latest commit: `a8c235b` â€” Warn when watched folder path missing on Pi
 
 Latest local/Pi change:
-- Downloads wasnÃ¢â‚¬â„¢t scanning: Pi path was `C:\Users\Ã¢â‚¬Â¦` (Windows). PrintShelf only walks Linux mounts.
+- Downloads wasnâ€™t scanning: Pi path was `C:\Users\â€¦` (Windows). PrintShelf only walks Linux mounts.
 - Folders UI shows **missing on Pi** + blocks adding Windows paths as Pi paths.
 - Hard refresh `?v=45`. Restart required.
 
@@ -2600,7 +2601,7 @@ Previous today:
 
 ## 2026-07-27 Session update (shared ZIP thumb)
 
-Latest commit: `66dcd18` Ã¢â‚¬â€ Don't delete shared ZIP thumb on asset delete
+Latest commit: `66dcd18` â€” Don't delete shared ZIP thumb on asset delete
 
 Latest local/Pi change:
 - ZIP icons vanished because deleting any ZIP unlinked `_shared_zip2.png` (shared by all cards).
@@ -2614,7 +2615,7 @@ Previous today:
 
 ## 2026-07-27 Session update (ASCII STL orbit)
 
-Latest commit: `a278b81` Ã¢â‚¬â€ PrintShelf orbit ASCII STL again
+Latest commit: `a278b81` â€” PrintShelf orbit ASCII STL again
 
 Latest local/Pi change:
 - Fake-STL harden broke **ASCII** meshes (e.g. `Vase_01_SMALL.stl`): binary-only preview + viewer header check.
@@ -2628,7 +2629,7 @@ Previous today:
 
 ## 2026-07-27 Session update (fake STL previews)
 
-Latest commit: `7a2caf4` Ã¢â‚¬â€ Skip Thingiverse PNG-as-STL junk
+Latest commit: `7a2caf4` â€” Skip Thingiverse PNG-as-STL junk
 
 Latest local/Pi change:
 - Orbit crash `Invalid typed array length` was **PNG card previews** with `.stl` names (e.g. `card_preview_*.stl`).
@@ -2642,7 +2643,7 @@ Previous today:
 
 ## 2026-07-27 Session update (G-code indexing)
 
-Latest commit: `3fbf996` Ã¢â‚¬â€ PrintShelf index `.gcode` / `.gco`
+Latest commit: `3fbf996` â€” PrintShelf index `.gcode` / `.gco`
 
 Latest local/Pi change:
 - **Why Baby Doll G-code was missing:** scanner only knew STL/OBJ/3MF/ZIP, and live `ignore_globs` had `**/*.gcode`.
@@ -2657,11 +2658,11 @@ Previous today:
 
 ## 2026-07-27 Session update
 
-Latest commit: `4703ae6` Ã¢â‚¬â€ PrintShelf fill tiny manifold holes
+Latest commit: `4703ae6` â€” PrintShelf fill tiny manifold holes
 
 Latest local/Pi change:
 - Manifold sanitize now **caps small open-edge loops** after weld/peel.
-- Part_37: **98 Ã¢â€ â€™ 0 open edges** Ã¢Å“â€œ
+- Part_37: **98 â†’ 0 open edges** âœ“
 - Hard refresh `?v=40`. Restart done.
 
 Previous today:
@@ -2671,10 +2672,10 @@ Previous today:
 
 ## 2026-07-27 Session update (folder browse)
 
-Latest commit: `0216556` Ã¢â‚¬â€ PrintShelf folder browse
+Latest commit: `0216556` â€” PrintShelf folder browse
 
 Latest local/Pi change:
-- Library **Folders** mode (default): watched roots Ã¢â€ â€™ nested folders Ã¢â€ â€™ files, with breadcrumbs.
+- Library **Folders** mode (default): watched roots â†’ nested folders â†’ files, with breadcrumbs.
 - **All files** still available for the flat grid. Search forces flat results.
 - Hard refresh `?v=17`. Restart required.
 
@@ -2685,10 +2686,10 @@ Previous today:
 
 ## 2026-07-27 Session update (ZIP orbit)
 
-Latest commit: `97fd1e5` Ã¢â‚¬â€ ZIP orbit + broken thumb fix
+Latest commit: `97fd1e5` â€” ZIP orbit + broken thumb fix
 
 Latest local/Pi change:
-- **ZIP orbit**: click a printable inside a zip Ã¢â€ â€™ loads in the detail viewer.
+- **ZIP orbit**: click a printable inside a zip â†’ loads in the detail viewer.
 - Grid no longer shows broken black thumbs (missing files resolved / onerror fallback). Hit **Rebuild thumbs** for Dryad etc.
 - Hard refresh `?v=16`. Restart required.
 
@@ -2699,10 +2700,10 @@ Previous today:
 
 ## 2026-07-27 Session update (3MF orbit)
 
-Latest commit: `79e1ae5` Ã¢â‚¬â€ PrintShelf 3MF orbit + mesh thumbs
+Latest commit: `79e1ae5` â€” PrintShelf 3MF orbit + mesh thumbs
 
 Latest local/Pi change:
-- **3MF orbit** in the detail viewer (extract mesh Ã¢â€ â€™ preview STL). Works for model 3MFs; profile-only packs still wonÃ¢â‚¬â„¢t orbit.
+- **3MF orbit** in the detail viewer (extract mesh â†’ preview STL). Works for model 3MFs; profile-only packs still wonâ€™t orbit.
 - Mesh thumbs (`3mf2`) when embedded preview missing/too dark. **Rebuild thumbs** for nicer 3MF cards.
 - Hard refresh `?v=15`. Restart required.
 
@@ -2713,7 +2714,7 @@ Previous today:
 
 ## 2026-07-27 Session update (multi-select)
 
-Latest commit: `8a46c8f` Ã¢â‚¬â€ PrintShelf multi-select bulk hide/delete
+Latest commit: `8a46c8f` â€” PrintShelf multi-select bulk hide/delete
 
 Latest local/Pi change:
 - **Multi-select** cards (checkbox / Ctrl-click) + bulk bar: Select all visible, Hide, Unhide, Delete from disk.
@@ -2726,7 +2727,7 @@ Previous today:
 
 ## 2026-07-27 Session update (ZIP)
 
-Latest commit: `49db5d7` Ã¢â‚¬â€ PrintShelf ZIP category
+Latest commit: `49db5d7` â€” PrintShelf ZIP category
 
 Latest local/Pi change:
 - Index **`.zip`** archives (contents list + printable counts inside; no extract).
@@ -2739,10 +2740,10 @@ Previous today:
 
 ## 2026-07-27 Session update (hide/delete)
 
-Latest commit: `b558494` Ã¢â‚¬â€ PrintShelf hide/delete + localhost bind for Tailscale
+Latest commit: `b558494` â€” PrintShelf hide/delete + localhost bind for Tailscale
 
 Latest local/Pi change:
-- **Hide from library** (stays on disk, survives rescan) + **Delete from disk** (confirm Ãƒâ€”2; removes file + indexed sidecars).
+- **Hide from library** (stays on disk, survives rescan) + **Delete from disk** (confirm Ã—2; removes file + indexed sidecars).
 - **Show hidden** filter + Unhide. DB column `assets.hidden`.
 - Service binds `127.0.0.1:8100` (Tailscale HTTPS owns public `:8100`). Use `https://flightdeck.tail7de73e.ts.net:8100`.
 - Hard refresh `app.js?v=12`. Restart done.
@@ -2754,10 +2755,10 @@ Previous today:
 
 ## 2026-07-27 Session update (orbit density)
 
-Latest commit: `b54b62e` Ã¢â‚¬â€ denser PrintShelf orbit previews + Higher detail
+Latest commit: `b54b62e` â€” denser PrintShelf orbit previews + Higher detail
 
 Latest local/Pi change:
-- Orbit preview default raised to **400k** tris (was 180k); **Higher detail** toggle Ã¢â€ â€™ **750k**.
+- Orbit preview default raised to **400k** tris (was 180k); **Higher detail** toggle â†’ **750k**.
 - Hard refresh `app.js?v=11` / `viewer.js?v=11`. Restart `printshelf.service` required.
 
 Previous today:
@@ -2767,7 +2768,7 @@ Previous today:
 
 ## 2026-07-27 Session update (type tabs)
 
-Latest commit: `f1bb170` Ã¢â‚¬â€ PrintShelf library type tabs
+Latest commit: `f1bb170` â€” PrintShelf library type tabs
 
 Latest local/Pi change:
 - Library **type tabs** (All / STL / 3MF / Gcode 3MF / OBJ) with counts; replaced the type dropdown.
@@ -2780,11 +2781,11 @@ Previous today:
 
 ## 2026-07-27 Session update (PWA)
 
-Latest commit: `ac66be8` Ã¢â‚¬â€ PrintShelf PWA install (same as Flightdeck)
+Latest commit: `ac66be8` â€” PrintShelf PWA install (same as Flightdeck)
 
 Latest local/Pi change:
 - PrintShelf **PWA**: `manifest.json` + minimal `sw.js`, brand icons, Install as app.
-- Tailscale Serve HTTPS on port **8100** Ã¢â€ â€™ `https://flightdeck.tail7de73e.ts.net:8100`
+- Tailscale Serve HTTPS on port **8100** â†’ `https://flightdeck.tail7de73e.ts.net:8100`
 - Hard refresh `app.js?v=9` / `style.css?v=9` / `viewer.js?v=9`. Restart `printshelf.service` required.
 - Optional Windows shortcut: `printshelf/scripts/create-desktop-shortcut.ps1`
 
@@ -2795,7 +2796,7 @@ Previous today:
 
 ## 2026-07-27 Session update (orbit viewer)
 
-Latest commit: `cc8f20b` Ã¢â‚¬â€ PrintShelf orbit viewer for STL/OBJ
+Latest commit: `cc8f20b` â€” PrintShelf orbit viewer for STL/OBJ
 
 Latest local/Pi change:
 - Detail pane **3D orbit viewer** (Three.js) for STL/OBJ via `/api/assets/{id}/model` (decimated ~180k tris when huge).
@@ -2809,11 +2810,11 @@ Previous (2026-07-26):
 
 ## 2026-07-26 Session update
 
-Latest commit: `9ad2f21` Ã¢â‚¬â€ filter temp OBJ + unique mesh thumbs
+Latest commit: `9ad2f21` â€” filter temp OBJ + unique mesh thumbs
 
 Latest local/Pi change:
 - Ignore / purge `*_temp.obj` junk from the library.
-- OBJ thumbs are **mesh-only** (no shared folder texture) Ã¢â€ â€™ `obj4`; hard refresh `app.js?v=7` + Rebuild thumbs.
+- OBJ thumbs are **mesh-only** (no shared folder texture) â†’ `obj4`; hard refresh `app.js?v=7` + Rebuild thumbs.
 
 Previous:
 - Z-up orientation; STL5; thumb rebuild. Archives in `docs/archive/`.
@@ -2823,28 +2824,28 @@ Previous:
 ## 2026-07-25 Session update
 
 Latest local/static change:
-- MakerDeck **b574** Ã¢â‚¬â€ Brush/nozzle size sliders are logarithmic (fine control at small sizes; no tinyÃ¢â€ â€™huge jumps).
+- MakerDeck **b574** â€” Brush/nozzle size sliders are logarithmic (fine control at small sizes; no tinyâ†’huge jumps).
 - Hard refresh Painter build **b574**. No backend restart required.
-- MakerDeck session notes Ã¢â€ â€™ [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md)
+- MakerDeck session notes â†’ [`makerforge/SESSION_NEXT.md`](makerforge/SESSION_NEXT.md)
 
 Previous local/static change:
-- MakerDeck **b573** Ã¢â‚¬â€ Freehand brush stops on mouse-up; much less drag lag (live tint, fewer dabs/move).
+- MakerDeck **b573** â€” Freehand brush stops on mouse-up; much less drag lag (live tint, fewer dabs/move).
 - Hard refresh Painter `painter.js?v=573`. No backend restart required.
 
 Previous local/static change:
-- MakerDeck **b572** Ã¢â‚¬â€ Fixed Smart fill sprawl: classic facing-patch default (Wrap off, 40Ã‚Â°); Wrap uses surface path so pillars donÃ¢â‚¬â„¢t get air-jumped.
+- MakerDeck **b572** â€” Fixed Smart fill sprawl: classic facing-patch default (Wrap off, 40Â°); Wrap uses surface path so pillars donâ€™t get air-jumped.
 - Hard refresh Painter `painter.js?v=572`. No backend restart required.
 
 Previous local/static change:
-- MakerDeck **b571** Ã¢â‚¬â€ Rebuilt STL Painter paint core: hide-as-hard-mask, clean hold-to-paint strokes, Smart fill masked, Clean Edge select-then-Fill/Clear.
+- MakerDeck **b571** â€” Rebuilt STL Painter paint core: hide-as-hard-mask, clean hold-to-paint strokes, Smart fill masked, Clean Edge select-then-Fill/Clear.
 - Hard refresh Painter `painter.js?v=571`. No backend restart required.
 
 Older local/static change:
-- MakerDeck **b570** Ã¢â‚¬â€ Edit shelf **Slot base** from solid/no-slot down to a **0.2 mm** floor (never a through-hole).
+- MakerDeck **b570** â€” Edit shelf **Slot base** from solid/no-slot down to a **0.2 mm** floor (never a through-hole).
 - Hard refresh MakerDeck `app.js?v=570` / `style.css?v=570`. No backend restart required.
 
 Previous local/static change:
-- MakerDeck **b569** Ã¢â‚¬â€ Edit shelf **Shelf length** max raised from 120 mm to **200 mm** (slider + geometry clamp).
+- MakerDeck **b569** â€” Edit shelf **Shelf length** max raised from 120 mm to **200 mm** (slider + geometry clamp).
 - Hard refresh MakerDeck `app.js?v=569` / `style.css?v=569`. No backend restart required.
 
 ---
