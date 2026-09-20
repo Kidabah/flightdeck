@@ -1,6 +1,6 @@
 ## 2026-09-20 Session update (Amy snoring)
 
-Latest commit: _(pending)_ — Sleep starts a looping snore (`amy-snore.wav` Tunetank clip, 16-bit). Rib her (**you sound like a bear** / **stop snoring** / **quiet**) → hush, stays asleep. Wake as usual. Reopen Amy; say **bedtime**.
+Latest commit: 98e0b01 — Sleep starts a looping snore (`amy-snore.wav` Tunetank clip, 16-bit). Rib her (**you sound like a bear** / **stop snoring** / **quiet**) → hush, stays asleep. Wake as usual. Reopen Amy; say **bedtime**.
 
 ---# 2026-09-20 Session update (casual mode workshop gate)
 
