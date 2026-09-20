@@ -1409,12 +1409,25 @@ function stopSnoring() {
   snoring = false;
 }
 
+/** Pause sawmill when Amy isn't on screen — zombie windows shouldn't haunt the desk. */
+function hushSnoreForHidden() {
+  stopSnoring();
+}
+
+function maybeResumeSnore() {
+  if (!asleep || snoreHushed || snoring) return;
+  if (typeof document !== 'undefined' && document.hidden) return;
+  startSnoring();
+}
+
 async function startSnoring() {
   if (!asleep || snoreHushed || snoring) return;
+  if (typeof document !== 'undefined' && document.hidden) return;
   unlockSfx();
   try {
     const buf = await loadSfxBuffer('snore');
     if (!asleep || snoreHushed || snoring) return;
+    if (typeof document !== 'undefined' && document.hidden) return;
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
     if (audioCtx.state === 'suspended') await audioCtx.resume();
     stopSnoring();
@@ -1432,6 +1445,7 @@ async function startSnoring() {
   } catch (_) {
     // Synth fallback — soft looping rumbles
     try {
+      if (typeof document !== 'undefined' && document.hidden) return;
       audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
       if (audioCtx.state === 'suspended') await audioCtx.resume();
       const ctx = audioCtx;
@@ -1446,6 +1460,7 @@ async function startSnoring() {
       // Pulse the gain forever while snoring
       const pulse = () => {
         if (!asleep || snoreHushed) return;
+        if (typeof document !== 'undefined' && document.hidden) return;
         const t = ctx.currentTime;
         gain.gain.cancelScheduledValues(t);
         gain.gain.setValueAtTime(0.0001, t);
@@ -3064,6 +3079,18 @@ if (DESKTOP_APP || useWhisperMic) {
 }
 bootGreeting();
 bumpIdle();
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) hushSnoreForHidden();
+  else maybeResumeSnore();
+});
+window.addEventListener('pagehide', () => {
+  stopSnoring();
+  try { sfxSource?.stop?.(); } catch (_) {}
+  try { sfxAudio?.pause(); } catch (_) {}
+});
+window.addEventListener('beforeunload', () => {
+  stopSnoring();
+});
 document.getElementById('amy-face-wrap')?.addEventListener('click', () => {
   unlockedAudio = true;
   if (asleep) wakeAmy('click');

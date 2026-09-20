@@ -1,4 +1,9 @@
-## 2026-09-20 Session update (WATCH actually sees you)
+## 2026-09-21 Session update (ghost snore hush)
+
+Latest commit: _(pending)_ — Zombie Amy windows were still asleep + snoring after relaunches. Killed orphans; snore pauses when window hidden; close kills audio; single-instance lock so a second launch can't leave another sawmill. **Relaunch Amy** if you want her back.
+
+---
+
 
 Latest commit: `07ac868` — CAMERA LIVE wasn’t enough: frames only went on narrow keywords, and capture could send a blank frame. Broader WATCH triggers, wait for real webcam pixels, reject black frames, webcam-specific `/see` prompt. **Relaunch Amy** (or hard refresh); turn WATCH on, wait a beat, ask **can you see me**.
 

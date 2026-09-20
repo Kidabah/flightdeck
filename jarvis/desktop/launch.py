@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Amy desktop launcher - wrap existing server + Hands.
 
 Hands and Amy run as separate console processes (visible Hands window).
@@ -42,6 +42,32 @@ HANDS_HEALTH = f"http://127.0.0.1:{HANDS_PORT}/health"
 AMY_HEALTH = f"http://127.0.0.1:{AMY_PORT}/api/health"
 
 _children: list[subprocess.Popen] = []
+_SINGLE_MUTEX = None
+
+
+def _acquire_single_instance() -> bool:
+    """Only one Amy desktop window — extras leave zombie snores in the WebView."""
+    global _SINGLE_MUTEX
+    if sys.platform != "win32":
+        return True
+    try:
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+        # Keep handle alive for process lifetime.
+        _SINGLE_MUTEX = kernel32.CreateMutexW(None, False, "Local\\AmyFlightdeckDesktop")
+        already = int(kernel32.GetLastError()) == 183  # ERROR_ALREADY_EXISTS
+        if already:
+            print(
+                "[amy-desktop] Amy is already running — refusing a second window "
+                "(that left ghost snores before). Close the existing Amy first.",
+                file=sys.stderr,
+            )
+            return False
+        return True
+    except Exception as exc:
+        print(f"[amy-desktop] single-instance check skipped: {exc}", file=sys.stderr)
+        return True
 
 
 def _clipboard_get() -> str:
@@ -203,7 +229,7 @@ def start_hands(env: dict[str, str]) -> None:
     if _http_ok(HANDS_HEALTH):
         print("[amy-desktop] Amy Hands already running on :4701 - reusing")
         return
-    # Background — no console window (logs go nowhere; health is on :4701)
+    # Background ΓÇö no console window (logs go nowhere; health is on :4701)
     _spawn(hands_script(), "Amy Hands", visible=False, env=env)
 
 
@@ -308,7 +334,7 @@ def _patch_webview2_auto_media() -> None:
 
 
 def _install_auto_media_permissions(window) -> None:
-    """PermissionRequested handler — backup if Chromium flags are ignored."""
+    """PermissionRequested handler ΓÇö backup if Chromium flags are ignored."""
 
     def attach() -> None:
         try:
@@ -370,6 +396,8 @@ def _install_auto_media_permissions(window) -> None:
 
 
 def main() -> int:
+    if not _acquire_single_instance():
+        return 2
     app_data_dir()
     env = _apply_env()
     print("[amy-desktop] root", jarvis_root())
@@ -521,7 +549,7 @@ def main() -> int:
 
     print(f"[amy-desktop] opening webview {AMY_URL}")
     print("[amy-desktop] mic uses OpenAI Whisper (Google speech is broken in WebView2)")
-    print("[amy-desktop] always on top — say 'minimise' to drop, 'come back' to restore")
+    print("[amy-desktop] always on top ΓÇö say 'minimise' to drop, 'come back' to restore")
     print("[amy-desktop] mic/camera prompts auto-allowed for localhost")
     print("[amy-desktop] clipboard: Ctrl+C / Ctrl+V / right-click (no menu bar)")
     storage = str(app_data_dir() / "webview")
