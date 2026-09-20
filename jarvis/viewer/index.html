@@ -417,6 +417,21 @@
       align-items: center;
       gap: 6px;
     }
+    /* Sleep in FOCUS: keep small window, calm the chrome, leave the talk box usable */
+    body.compact.asleep {
+      overflow: hidden;
+      justify-content: flex-start;
+    }
+    body.compact.asleep .modes,
+    body.compact.asleep .organs {
+      display: none !important;
+    }
+    body.compact.asleep #dock {
+      filter: none;
+    }
+    body.compact.asleep #chat-input {
+      pointer-events: auto;
+    }
     body.compact .face-card {
       width: 100%;
       /* HUD rings sit outside the face (~28–40px) — keep them inside the card */
@@ -1458,6 +1473,7 @@ function hushSnoring() {
   answerEl.textContent = lines[Math.floor(Math.random() * lines.length)];
   setStatus('asleep', 'Sleeping — (quiet now)');
   syncMicUi();
+  try { inputEl?.focus?.(); } catch (_) {}
   return true;
 }
 
@@ -1515,15 +1531,8 @@ function enterSleep() {
   isSpeaking = false;
   clearTimeout(finishTimer);
   pending = '';
-  // Full-bleed sleep — leave FOCUS/compact so lights-out isn't a tiny scroll column
-  if (compactMode) {
-    compactMode = false;
-    document.body.classList.remove('compact');
-    const focusBtn = document.getElementById('focus-btn');
-    if (focusBtn) focusBtn.classList.remove('active');
-    callAmyDesktop('go_big');
-  }
   // Soft second yawn as she actually drops off (short path if nudge was skipped).
+  // Stay in FOCUS size if already compact — resizing webview mid-sleep crashes it.
   if (!nudgedIdle) playSfx('yawn');
   document.body.classList.add('asleep');
   armSleepGif();
@@ -1536,6 +1545,7 @@ function enterSleep() {
   // Stay mic-armed so "wake up amy" / snore ribs work, but ignore normal chat.
   setStatus('asleep', 'Sleeping — say wake up Amy');
   syncMicUi();
+  try { inputEl?.focus?.(); } catch (_) {}
 }
 
 function armSleepGif() {
