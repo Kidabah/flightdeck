@@ -1782,7 +1782,7 @@ async function speak(text) {
 
 function submitChat() {
   unlockedAudio = true;
-  if (asleep) wakeAmy('force');
+  // Do NOT wake here — ask() handles sleep (hush vs wake phrase).
   const q = inputEl.value.trim();
   if (!q && !pendingFiles.length) return;
   inputEl.value = '';
@@ -1898,16 +1898,13 @@ function applySources(payload) {
 async function ask(question) {
   const q0 = String(question || '').trim();
   if (asleep) {
+    // Sleep is sealed: only an explicit wake opens chat. Anything else = hush/ignore.
     if (isWakePhrase(q0)) {
       wakeAmy('voice');
       return;
     }
-    if (shouldHushSnore(q0)) {
-      hushSnoring();
-      return;
-    }
-    // Real new question while asleep → wake, then answer below
-    wakeAmy('force');
+    if (q0) hushSnoring();
+    return;
   }
   const q = q0;
   if (!q) return;
@@ -2188,7 +2185,7 @@ function armRecognition() {
     if (!chunk) return;
     if (asleep) {
       if (isWakePhrase(chunk)) wakeAmy('voice');
-      else if (shouldHushSnore(chunk)) hushSnoring();
+      else if (chunk) hushSnoring();
       return;
     }
     if (isWakePhrase(chunk)) {
@@ -2415,7 +2412,7 @@ async function flushDesktopUtterance() {
   if (sleepWake) {
     if (isWakePhrase(text)) {
       wakeAmy('voice');
-    } else if (shouldHushSnore(text)) {
+    } else if (text && !looksLikeWhisperGarbage(text)) {
       hushSnoring();
     } else {
       setStatus('asleep', snoreHushed ? 'Sleeping — (quiet now)' : 'Sleeping — say wake up Amy');

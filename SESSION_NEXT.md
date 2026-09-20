@@ -1,4 +1,8 @@
-## 2026-09-20 Session update (snore hush stays asleep)
+## 2026-09-20 Session update (ASK no longer wakes for snore rib)
+
+Latest commit: _(pending)_ — Bug: ASK button force-woke before ask(), so snore ribs hit the LLM. Sleep is sealed; ASK/voice only hush unless **wake up Amy**. Reopen Amy.
+
+---# 2026-09-20 Session update (snore hush stays asleep)
 
 Latest commit: `477ec92` — Snore ribs no longer wake + LLM. Stay asleep, hush only. Broader phrases + any short interjection while snoring. Reopen Amy / hard refresh.
 
