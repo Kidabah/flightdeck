@@ -1,6 +1,6 @@
 ## 2026-09-20 Session update (sleep chrome stays SLEEPING)
 
-Latest commit: _(pending)_ — Soft-quiet/mute no longer overwrites sleep UI to STANDBY / Quiet — say talk. Good Night + SLEEPING stay until wake. Hard refresh / reopen Amy.
+Latest commit: `3c263ef` — Soft-quiet/mute no longer overwrites sleep UI to STANDBY / Quiet — say talk. Good Night + SLEEPING stay until wake. Hard refresh / reopen Amy.
 
 ---# 2026-09-20 Session update (sleep no longer resizes out of FOCUS)
 
