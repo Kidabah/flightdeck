@@ -546,7 +546,22 @@
       background: rgba(2, 12, 28, 0.9); border: 1px solid var(--line); border-radius: 16px;
       padding: 12px 16px; min-height: 2.8em; font-size: 0.95rem; line-height: 1.45;
       box-shadow: var(--glow); backdrop-filter: blur(12px);
+      user-select: text; -webkit-user-select: text; cursor: text; white-space: pre-wrap;
     }
+    #chat-input, #search {
+      user-select: text; -webkit-user-select: text;
+    }
+    #clip-menu {
+      display: none; position: fixed; z-index: 40; min-width: 140px;
+      background: rgba(2, 12, 28, 0.96); border: 1px solid var(--line); border-radius: 10px;
+      box-shadow: var(--glow); padding: 4px; backdrop-filter: blur(12px);
+    }
+    #clip-menu button {
+      display: block; width: 100%; text-align: left; border: 0; background: transparent;
+      color: var(--ink); font: inherit; font-size: 0.82rem; padding: 8px 12px;
+      border-radius: 8px; cursor: pointer;
+    }
+    #clip-menu button:hover { background: rgba(8, 145, 178, 0.25); color: var(--accent); }
     .row { display: flex; gap: 8px; align-items: stretch; }
     #chat-input {
       flex: 1; border-radius: 14px; border: 1px solid var(--line); background: rgba(2, 12, 28, 0.92);
@@ -674,6 +689,12 @@
       <button type="button" id="tray-file" title="Drop files">📎</button>
       <button type="button" id="tray-refresh" title="Refresh graph">↻</button>
     </div>
+  </div>
+  <div id="clip-menu" role="menu" aria-hidden="true">
+    <button type="button" data-clip="cut">Cut</button>
+    <button type="button" data-clip="copy">Copy</button>
+    <button type="button" data-clip="paste">Paste</button>
+    <button type="button" data-clip="selectAll">Select all</button>
   </div>
 
 <script>
@@ -1002,6 +1023,127 @@ async function callAmyDesktop(fn, ...args) {
   } catch (_) {}
   return false;
 }
+
+async function readSystemClipboard() {
+  try {
+    const viaApi = await callAmyDesktop('clipboard_get');
+    if (typeof viaApi === 'string') return viaApi;
+  } catch (_) {}
+  try {
+    if (navigator.clipboard?.readText) return await navigator.clipboard.readText();
+  } catch (_) {}
+  return '';
+}
+
+async function writeSystemClipboard(text) {
+  const t = String(text ?? '');
+  try {
+    if (await callAmyDesktop('clipboard_set', t)) return true;
+  } catch (_) {}
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(t);
+      return true;
+    }
+  } catch (_) {}
+  return false;
+}
+
+function insertTextAtCursor(el, text) {
+  if (!el) return;
+  const value = String(el.value ?? '');
+  const start = el.selectionStart ?? value.length;
+  const end = el.selectionEnd ?? value.length;
+  el.value = value.slice(0, start) + text + value.slice(end);
+  const pos = start + text.length;
+  try { el.setSelectionRange(pos, pos); } catch (_) {}
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  el.focus();
+}
+
+function selectedInputText(el) {
+  if (!el || el.selectionStart == null) return '';
+  return String(el.value || '').slice(el.selectionStart, el.selectionEnd);
+}
+
+function hideClipMenu() {
+  const menu = document.getElementById('clip-menu');
+  if (!menu) return;
+  menu.style.display = 'none';
+  menu.setAttribute('aria-hidden', 'true');
+}
+
+function showClipMenu(x, y) {
+  const menu = document.getElementById('clip-menu');
+  if (!menu) return;
+  menu.style.display = 'block';
+  menu.setAttribute('aria-hidden', 'false');
+  const pad = 8;
+  const w = menu.offsetWidth || 140;
+  const h = menu.offsetHeight || 140;
+  menu.style.left = `${Math.max(pad, Math.min(x, window.innerWidth - w - pad))}px`;
+  menu.style.top = `${Math.max(pad, Math.min(y, window.innerHeight - h - pad))}px`;
+}
+
+window.amyClipboard = {
+  async cut() {
+    const el = document.activeElement;
+    if (el === inputEl || el === searchEl) {
+      const sel = selectedInputText(el);
+      if (!sel) return false;
+      await writeSystemClipboard(sel);
+      insertTextAtCursor(el, '');
+      return true;
+    }
+    const sel = String(window.getSelection?.() || '');
+    if (sel) {
+      await writeSystemClipboard(sel);
+      try { document.execCommand('delete'); } catch (_) {}
+      return true;
+    }
+    return false;
+  },
+  async copy() {
+    const el = document.activeElement;
+    if (el === inputEl || el === searchEl) {
+      const sel = selectedInputText(el) || String(el.value || '');
+      if (!sel) return false;
+      return writeSystemClipboard(sel);
+    }
+    const sel = String(window.getSelection?.() || '').trim();
+    if (sel) return writeSystemClipboard(sel);
+    const ans = String(answerEl?.textContent || '').trim();
+    if (ans) return writeSystemClipboard(ans);
+    return false;
+  },
+  async paste() {
+    const text = await readSystemClipboard();
+    if (!text) return false;
+    const el = document.activeElement;
+    if (el === inputEl || el === searchEl) {
+      insertTextAtCursor(el, text);
+      return true;
+    }
+    // Default paste target is the chat box
+    inputEl.focus();
+    insertTextAtCursor(inputEl, text);
+    return true;
+  },
+  selectAll() {
+    const el = document.activeElement;
+    if (el === inputEl || el === searchEl) {
+      el.focus();
+      el.select();
+      return true;
+    }
+    const range = document.createRange();
+    range.selectNodeContents(answerEl);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    return true;
+  },
+};
 
 /** Explorer/files open behind always-on-top Amy — drop the pin so Chris can see them. */
 async function maybeDropOnTopForReveal(answer) {
@@ -2472,7 +2614,7 @@ fileInput.addEventListener('change', () => {
 window.addEventListener('dragover', (e) => e.preventDefault());
 window.addEventListener('drop', (e) => e.preventDefault());
 inputEl.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
+  if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.altKey) {
     e.preventDefault();
     submitChat();
   }
@@ -2481,8 +2623,50 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     unlockedAudio = true;
     handleInterrupt();
+    hideClipMenu();
+    return;
+  }
+  const mod = e.ctrlKey || e.metaKey;
+  if (!mod || e.altKey) return;
+  const key = String(e.key || '').toLowerCase();
+  if (key === 'v') {
+    e.preventDefault();
+    window.amyClipboard.paste();
+  } else if (key === 'c') {
+    e.preventDefault();
+    window.amyClipboard.copy();
+  } else if (key === 'x') {
+    e.preventDefault();
+    window.amyClipboard.cut();
+  } else if (key === 'a') {
+    const ae = document.activeElement;
+    if (ae === answerEl || ae === inputEl || ae === searchEl || answerEl.contains(ae)) {
+      e.preventDefault();
+      window.amyClipboard.selectAll();
+    }
   }
 });
+document.addEventListener('contextmenu', (e) => {
+  const t = e.target;
+  if (t === inputEl || t === searchEl || t === answerEl || answerEl.contains(t)) {
+    e.preventDefault();
+    showClipMenu(e.clientX, e.clientY);
+  } else {
+    hideClipMenu();
+  }
+});
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('clip-menu');
+  if (menu && !menu.contains(e.target)) hideClipMenu();
+});
+document.getElementById('clip-menu')?.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-clip]');
+  if (!btn) return;
+  const act = btn.getAttribute('data-clip');
+  hideClipMenu();
+  if (act && window.amyClipboard[act]) await window.amyClipboard[act]();
+});
+answerEl.addEventListener('dblclick', () => window.amyClipboard.selectAll());
 eyesBtn.addEventListener('click', toggleEyes);
 document.getElementById('tray-eyes').addEventListener('click', toggleEyes);
 document.getElementById('watch-btn')?.addEventListener('click', toggleWatch);

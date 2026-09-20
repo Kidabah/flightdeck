@@ -44,6 +44,102 @@ AMY_HEALTH = f"http://127.0.0.1:{AMY_PORT}/api/health"
 _children: list[subprocess.Popen] = []
 
 
+def _clipboard_get() -> str:
+    """Read Unicode text from the Windows clipboard."""
+    if sys.platform != "win32":
+        return ""
+    # tkinter is the most reliable stdlib clipboard bridge on Windows.
+    try:
+        import tkinter as tk
+
+        root = tk.Tk()
+        root.withdraw()
+        try:
+            root.update()
+            return str(root.clipboard_get())
+        except tk.TclError:
+            return ""
+        finally:
+            root.destroy()
+    except Exception:
+        pass
+    try:
+        import ctypes
+
+        user32 = ctypes.windll.user32
+        kernel32 = ctypes.windll.kernel32
+        CF_UNICODETEXT = 13
+        if not user32.OpenClipboard(None):
+            return ""
+        try:
+            handle = user32.GetClipboardData(CF_UNICODETEXT)
+            if not handle:
+                return ""
+            ptr = kernel32.GlobalLock(handle)
+            if not ptr:
+                return ""
+            try:
+                return ctypes.wstring_at(ptr)
+            finally:
+                kernel32.GlobalUnlock(handle)
+        finally:
+            user32.CloseClipboard()
+    except Exception:
+        return ""
+
+
+def _clipboard_set(text: str) -> bool:
+    """Write Unicode text to the Windows clipboard."""
+    if sys.platform != "win32":
+        return False
+    data = str(text or "")
+    try:
+        import tkinter as tk
+
+        root = tk.Tk()
+        root.withdraw()
+        try:
+            root.clipboard_clear()
+            root.clipboard_append(data)
+            root.update()
+            return True
+        finally:
+            root.destroy()
+    except Exception:
+        pass
+    try:
+        import ctypes
+
+        user32 = ctypes.windll.user32
+        kernel32 = ctypes.windll.kernel32
+        CF_UNICODETEXT = 13
+        GMEM_MOVEABLE = 0x0002
+        if not user32.OpenClipboard(None):
+            return False
+        try:
+            user32.EmptyClipboard()
+            encoded = data.encode("utf-16-le") + b"\x00\x00"
+            handle = kernel32.GlobalAlloc(GMEM_MOVEABLE, len(encoded))
+            if not handle:
+                return False
+            ptr = kernel32.GlobalLock(handle)
+            if not ptr:
+                kernel32.GlobalFree(handle)
+                return False
+            try:
+                ctypes.memmove(ptr, encoded, len(encoded))
+            finally:
+                kernel32.GlobalUnlock(handle)
+            if not user32.SetClipboardData(CF_UNICODETEXT, handle):
+                kernel32.GlobalFree(handle)
+                return False
+            return True
+        finally:
+            user32.CloseClipboard()
+    except Exception:
+        return False
+
+
 def _http_ok(url: str, timeout: float = 1.5) -> bool:
     try:
         with urllib.request.urlopen(url, timeout=timeout) as resp:
@@ -235,7 +331,10 @@ def _install_auto_media_permissions(window) -> None:
                         except Exception:
                             deferral = None
                         kind = str(getattr(args, "PermissionKind", ""))
-                        if any(tok in kind for tok in ("Microphone", "Camera", "Media")):
+                        if any(
+                            tok in kind
+                            for tok in ("Microphone", "Camera", "Media", "ClipboardRead", "Clipboard")
+                        ):
                             args.State = 1  # Allow
                             args.Handled = True
                             try:
@@ -392,6 +491,20 @@ def main() -> int:
                 print(f"[amy-desktop] on_top failed: {exc}", file=sys.stderr)
                 return False
 
+        def clipboard_get(self) -> str:
+            try:
+                return _clipboard_get()
+            except Exception as exc:
+                print(f"[amy-desktop] clipboard_get failed: {exc}", file=sys.stderr)
+                return ""
+
+        def clipboard_set(self, text: str = "") -> bool:
+            try:
+                return bool(_clipboard_set(str(text or "")))
+            except Exception as exc:
+                print(f"[amy-desktop] clipboard_set failed: {exc}", file=sys.stderr)
+                return False
+
     api = AmyApi()
     window = webview.create_window(
         "Amy - Flightdeck",
@@ -405,24 +518,63 @@ def main() -> int:
     )
     # Hook before start so events.loaded fires on the UI path.
     _install_auto_media_permissions(window)
+
+    def _js_clip(cmd: str) -> None:
+        try:
+            if webview.windows:
+                webview.windows[0].evaluate_js(f"window.amyClipboard && window.amyClipboard.{cmd}()")
+        except Exception as exc:
+            print(f"[amy-desktop] clipboard menu {cmd} failed: {exc}", file=sys.stderr)
+
+    edit_menu = None
+    try:
+        from webview.menu import Menu, MenuAction
+
+        edit_menu = [
+            Menu(
+                "Edit",
+                [
+                    MenuAction("Cut", lambda: _js_clip("cut")),
+                    MenuAction("Copy", lambda: _js_clip("copy")),
+                    MenuAction("Paste", lambda: _js_clip("paste")),
+                    MenuAction("Select All", lambda: _js_clip("selectAll")),
+                ],
+            )
+        ]
+    except Exception as exc:
+        print(f"[amy-desktop] Edit menu skipped: {exc}", file=sys.stderr)
+
     print(f"[amy-desktop] opening webview {AMY_URL}")
     print("[amy-desktop] mic uses OpenAI Whisper (Google speech is broken in WebView2)")
     print("[amy-desktop] always on top — say 'minimise' to drop, 'come back' to restore")
     print("[amy-desktop] mic/camera prompts auto-allowed for localhost")
+    print("[amy-desktop] clipboard: Ctrl+C / Ctrl+V (Edit menu + native bridge)")
     storage = str(app_data_dir() / "webview")
+    start_kwargs: dict = {"gui": "edgechromium", "private_mode": False, "storage_path": storage}
+    if edit_menu is not None:
+        start_kwargs["menu"] = edit_menu
     try:
-        webview.start(gui="edgechromium", private_mode=False, storage_path=storage)
+        webview.start(**start_kwargs)
     except TypeError:
-        # Older pywebview may not take storage_path
+        # Older pywebview may not take storage_path / menu
         try:
-            webview.start(gui="edgechromium", private_mode=False)
+            kw = {"gui": "edgechromium", "private_mode": False}
+            if edit_menu is not None:
+                kw["menu"] = edit_menu
+            webview.start(**kw)
         except Exception as exc:
             print(f"[amy-desktop] edgechromium failed ({exc}); default gui")
-            webview.start(private_mode=False)
+            try:
+                webview.start(private_mode=False, menu=edit_menu or [])
+            except TypeError:
+                webview.start(private_mode=False)
     except Exception as exc:
         print(f"[amy-desktop] edgechromium failed ({exc}); default gui")
         try:
-            webview.start(private_mode=False, storage_path=storage)
+            kw2: dict = {"private_mode": False, "storage_path": storage}
+            if edit_menu is not None:
+                kw2["menu"] = edit_menu
+            webview.start(**kw2)
         except TypeError:
             webview.start(private_mode=False)
     finally:

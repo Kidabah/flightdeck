@@ -1,4 +1,8 @@
-## 2026-09-19 Session update (Amy whistle actually plays)
+## 2026-09-20 Session update (Amy copy/paste)
+
+Latest commit: _(pending)_ — Native clipboard bridge (Ctrl+C/V/X, Edit menu, right-click) so Chris can copy between Cursor and Amy. **Must fully relaunch Amy desktop** (not just refresh) so launch.py loads.
+
+---# 2026-09-19 Session update (Amy whistle actually plays)
 
 Latest commit: `8b670fc` — Whistle was hitting the LLM (text "Fweeeet!") instead of SFX. Looser phrase match; play WAV via Web Audio decodeAudioData (HTML Audio fallback + louder synth); persona told not to fake whistles. Reopen Amy; say **whistle** — expect `♪` + sound, not banter.
 
