@@ -1,6 +1,6 @@
 ## 2026-09-20 Session update (Amy copy/paste)
 
-Latest commit: _(pending)_ — Native clipboard bridge (Ctrl+C/V/X, Edit menu, right-click) so Chris can copy between Cursor and Amy. **Must fully relaunch Amy desktop** (not just refresh) so launch.py loads.
+Latest commit: `85880a8` — Native clipboard bridge (Ctrl+C/V/X, Edit menu, right-click) so Chris can copy between Cursor and Amy. **Must fully relaunch Amy desktop** (not just refresh) so launch.py loads.
 
 ---# 2026-09-19 Session update (Amy whistle actually plays)
 
