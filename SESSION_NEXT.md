@@ -1,4 +1,8 @@
-## 2026-09-20 Session update (Amy talk_mode persist + chip)
+## 2026-09-20 Session update (casual mode workshop gate)
+
+Latest commit: _(pending)_ — In **CASUAL**, clear printer/Flightdeck asks get a wink + “hit PRINT / say 3D print mode” instead of answering. Notes + FD tools only in print mode. Restart Amy.
+
+---# 2026-09-20 Session update (Amy talk_mode persist + chip)
 
 Latest commit: `5c13a06` — Persist casual/print `talk_mode` in config.json; **CASUAL/PRINT** chip above status (click to toggle). Survives restart. Reopen Amy.
 

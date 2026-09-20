@@ -6,6 +6,7 @@ import base64
 import html as html_lib
 import json
 import os
+import random
 import re
 import threading
 import time
@@ -73,6 +74,8 @@ sign-offs, or nonsense names), say you didn't catch that — don't reply in that
 Do NOT volunteer 3D-printing, Flightdeck, printers, filament, AMS, or workshop banter
 unless he clearly asked about that stuff. No printer metaphors, no "bench" / "galaxy"
 flavour in casual chat. Just be a helpful human friend.
+If he asks a clear workshop / printer / Flightdeck question while you are in casual mode,
+do NOT answer it — tell him to hit PRINT or say "3D print mode" first.
 
 Answer in one witty beat plus the facts. Keep answers tight.
 Chris can drop files on you — read them and use what's in them.
@@ -602,6 +605,52 @@ KNOWN_PLACES: dict[str, tuple[float, float, str]] = {
 }
 
 
+WORKSHOP_TOPIC_RE = re.compile(
+    r"\b("
+    r"printers?|flightdeck|bambu|ams|spool|filament|bigboy|big\s*girl|greyhound|"
+    r"makerdeck|printshelf|calibrat\w*|voron|x1c|h2[dc]|nozzle|build\s*plate|"
+    r"3d\s*prints?|print\s*farm|gcode|slicer|orcaslicer|bambu\s*studio|"
+    r"print\s*job|queue\s*print|send\s+to\s+print"
+    r")\b",
+    re.I,
+)
+
+CASUAL_MODE_GATE_LINES = (
+    "Oops — print brain's off. Hit PRINT or say 3D print mode.",
+    "Wrong mode, Chris — flip to PRINT (or say 3D print mode) and ask me again.",
+    "I'm in casual mode — tap PRINT or say 3D print mode for workshop stuff.",
+)
+
+
+def is_workshop_topic(question: str) -> bool:
+    """True when the ask is clearly Flightdeck / printer / workshop flavoured."""
+    q = str(question or "").strip()
+    if not q:
+        return False
+    # Mode-switch phrases are handled elsewhere — don't treat as workshop Qs.
+    if re.search(r"\b(3d\s*print(ing)?|print(er)?|workshop|flightdeck)\s*mode\b", q, re.I):
+        return False
+    if re.search(r"\b(normal|casual|regular|chat|human)\s*mode\b", q, re.I):
+        return False
+    return bool(WORKSHOP_TOPIC_RE.search(q))
+
+
+def casual_mode_gate(question: str) -> dict[str, Any] | None:
+    """Hard-block workshop asks while Amy is in casual mode."""
+    if (RUNTIME.get("talk_mode") or "casual") == "print":
+        return None
+    if not is_workshop_topic(question):
+        return None
+    return {
+        "answer": random.choice(CASUAL_MODE_GATE_LINES),
+        "nodes": [],
+        "move_camera": False,
+        "tool": "mode_gate",
+        "ok": True,
+        "talk_mode": "casual",
+    }
+
+
 def active_persona() -> str:
     return PERSONA_PRINT if (RUNTIME.get("talk_mode") or "casual") == "print" else PERSONA_CASUAL
 
@@ -631,16 +680,8 @@ def set_talk_mode(mode: str) -> str:
 
 
 def workshop_intent(question: str) -> bool:
-    if (RUNTIME.get("talk_mode") or "casual") == "print":
-        return True
-    return bool(
-        re.search(
-            r"\b(printer|flightdeck|bambu|ams|spool|filament|bigboy|big\s*girl|greyhound|"
-            r"makerdeck|printshelf|calibrat|voron|x1c|h2[dc]|nozzle|plate|3d\s*print)\b",
-            question or "",
-            re.I,
-        )
-    )
+    """Pull workshop notes / workshop system prompt only in print mode."""
+    return (RUNTIME.get("talk_mode") or "casual") == "print"
 
 
 def load_config() -> dict[str, Any]:
@@ -2196,7 +2237,20 @@ def try_clock_weather(question: str) -> dict[str, Any] | None:
 
 
 def try_tools(question: str) -> dict[str, Any] | None:
-    for fn in (try_talk_mode, try_clock_weather, try_media_tools, tool_calibrate, tool_control, tool_status):
+    # Mode switch always works — then weather/media — then workshop gate — then FD tools.
+    mode_switch = try_talk_mode(question)
+    if mode_switch is not None:
+        mode_switch.setdefault("talk_mode", RUNTIME.get("talk_mode") or "casual")
+        return mode_switch
+    for fn in (try_clock_weather, try_media_tools):
+        result = fn(question)
+        if result is not None:
+            result.setdefault("talk_mode", RUNTIME.get("talk_mode") or "casual")
+            return result
+    gated = casual_mode_gate(question)
+    if gated is not None:
+        return gated
+    for fn in (tool_calibrate, tool_control, tool_status):
         result = fn(question)
         if result is not None:
             result.setdefault("talk_mode", RUNTIME.get("talk_mode") or "casual")
@@ -2227,6 +2281,10 @@ def chat_from_notes(question: str, attachments: list[dict[str, Any]] | None = No
         user_q = f"{question}\n\n--- Dropped files ---\n{att_text}"
     persona = active_persona()
     use_workshop = workshop_intent(question)
+
+    gated = casual_mode_gate(question)
+    if gated is not None and not files:
+        return gated
 
     if is_small_talk(question) and not files:
         with HISTORY_LOCK:
