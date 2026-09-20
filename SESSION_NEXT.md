@@ -1,6 +1,6 @@
 ## 2026-09-20 Session update (Amy talk_mode persist + chip)
 
-Latest commit: _(pending)_ — Persist casual/print `talk_mode` in config.json; **CASUAL/PRINT** chip above status (click to toggle). Survives restart. Reopen Amy.
+Latest commit: `5c13a06` — Persist casual/print `talk_mode` in config.json; **CASUAL/PRINT** chip above status (click to toggle). Survives restart. Reopen Amy.
 
 ---# 2026-09-20 Session update (Amy copy/paste)
 
