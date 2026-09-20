@@ -1515,6 +1515,14 @@ function enterSleep() {
   isSpeaking = false;
   clearTimeout(finishTimer);
   pending = '';
+  // Full-bleed sleep — leave FOCUS/compact so lights-out isn't a tiny scroll column
+  if (compactMode) {
+    compactMode = false;
+    document.body.classList.remove('compact');
+    const focusBtn = document.getElementById('focus-btn');
+    if (focusBtn) focusBtn.classList.remove('active');
+    callAmyDesktop('go_big');
+  }
   // Soft second yawn as she actually drops off (short path if nudge was skipped).
   if (!nudgedIdle) playSfx('yawn');
   document.body.classList.add('asleep');
@@ -2585,8 +2593,25 @@ async function startDesktopMic() {
 
 async function startMic() {
   unlockedAudio = true;
+  // While asleep: open ears only — do not wake or leave sleep layout.
   if (asleep) {
-    wakeAmy('click');
+    wantListen = true;
+    wakeListen = false;
+    useWhisperMic = true;
+    syncMicUi();
+    if (desktopMic.stream && desktopMic.audioCtx && desktopMic.analyser) {
+      if (!desktopMic.raf) watchDesktopLevels();
+    } else {
+      const ok = await startDesktopMic();
+      if (!ok) {
+        wantListen = false;
+        wakeListen = true;
+        syncMicUi();
+        return;
+      }
+    }
+    setStatus('asleep', snoreHushed ? 'Sleeping — (quiet now)' : 'Sleeping — say wake up Amy');
+    return;
   }
   if (!IS_SECURE) {
     answerEl.textContent = 'Chrome won’t give Amy the mic on plain HTTP — use the HTTPS link above.';

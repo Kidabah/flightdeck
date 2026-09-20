@@ -1,4 +1,8 @@
-## 2026-09-20 Session update (ASK no longer wakes for snore rib)
+## 2026-09-20 Session update (no Edit bar + sleep stays full-bleed)
+
+Latest commit: _(pending)_ — Removed white **Edit** menu (clipboard still Ctrl/right-click). Sleep exits FOCUS so lights-out is full window. **TALK** while asleep opens ears only — no wake. Reopen Amy desktop.
+
+---# 2026-09-20 Session update (ASK no longer wakes for snore rib)
 
 Latest commit: `d90d1d1` — Bug: ASK button force-woke before ask(), so snore ribs hit the LLM. Sleep is sealed; ASK/voice only hush unless **wake up Amy**. Reopen Amy.
 

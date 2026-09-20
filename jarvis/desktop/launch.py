@@ -519,62 +519,26 @@ def main() -> int:
     # Hook before start so events.loaded fires on the UI path.
     _install_auto_media_permissions(window)
 
-    def _js_clip(cmd: str) -> None:
-        try:
-            if webview.windows:
-                webview.windows[0].evaluate_js(f"window.amyClipboard && window.amyClipboard.{cmd}()")
-        except Exception as exc:
-            print(f"[amy-desktop] clipboard menu {cmd} failed: {exc}", file=sys.stderr)
-
-    edit_menu = None
-    try:
-        from webview.menu import Menu, MenuAction
-
-        edit_menu = [
-            Menu(
-                "Edit",
-                [
-                    MenuAction("Cut", lambda: _js_clip("cut")),
-                    MenuAction("Copy", lambda: _js_clip("copy")),
-                    MenuAction("Paste", lambda: _js_clip("paste")),
-                    MenuAction("Select All", lambda: _js_clip("selectAll")),
-                ],
-            )
-        ]
-    except Exception as exc:
-        print(f"[amy-desktop] Edit menu skipped: {exc}", file=sys.stderr)
-
     print(f"[amy-desktop] opening webview {AMY_URL}")
     print("[amy-desktop] mic uses OpenAI Whisper (Google speech is broken in WebView2)")
     print("[amy-desktop] always on top — say 'minimise' to drop, 'come back' to restore")
     print("[amy-desktop] mic/camera prompts auto-allowed for localhost")
-    print("[amy-desktop] clipboard: Ctrl+C / Ctrl+V (Edit menu + native bridge)")
+    print("[amy-desktop] clipboard: Ctrl+C / Ctrl+V / right-click (no menu bar)")
     storage = str(app_data_dir() / "webview")
     start_kwargs: dict = {"gui": "edgechromium", "private_mode": False, "storage_path": storage}
-    if edit_menu is not None:
-        start_kwargs["menu"] = edit_menu
     try:
         webview.start(**start_kwargs)
     except TypeError:
-        # Older pywebview may not take storage_path / menu
+        # Older pywebview may not take storage_path
         try:
-            kw = {"gui": "edgechromium", "private_mode": False}
-            if edit_menu is not None:
-                kw["menu"] = edit_menu
-            webview.start(**kw)
+            webview.start(gui="edgechromium", private_mode=False)
         except Exception as exc:
             print(f"[amy-desktop] edgechromium failed ({exc}); default gui")
-            try:
-                webview.start(private_mode=False, menu=edit_menu or [])
-            except TypeError:
-                webview.start(private_mode=False)
+            webview.start(private_mode=False)
     except Exception as exc:
         print(f"[amy-desktop] edgechromium failed ({exc}); default gui")
         try:
-            kw2: dict = {"private_mode": False, "storage_path": storage}
-            if edit_menu is not None:
-                kw2["menu"] = edit_menu
-            webview.start(**kw2)
+            webview.start(private_mode=False, storage_path=storage)
         except TypeError:
             webview.start(private_mode=False)
     finally:
