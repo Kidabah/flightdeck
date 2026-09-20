@@ -1,6 +1,6 @@
 ## 2026-09-20 Session update (WATCH actually sees you)
 
-Latest commit: _(pending)_ — CAMERA LIVE wasn’t enough: frames only went on narrow keywords, and capture could send a blank frame. Broader WATCH triggers, wait for real webcam pixels, reject black frames, webcam-specific `/see` prompt. **Relaunch Amy** (or hard refresh); turn WATCH on, wait a beat, ask **can you see me**.
+Latest commit: `07ac868` — CAMERA LIVE wasn’t enough: frames only went on narrow keywords, and capture could send a blank frame. Broader WATCH triggers, wait for real webcam pixels, reject black frames, webcam-specific `/see` prompt. **Relaunch Amy** (or hard refresh); turn WATCH on, wait a beat, ask **can you see me**.
 
 ---
 
