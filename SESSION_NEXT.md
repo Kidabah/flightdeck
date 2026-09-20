@@ -1,6 +1,6 @@
 ## 2026-09-20 Session update (casual mode workshop gate)
 
-Latest commit: _(pending)_ — In **CASUAL**, clear printer/Flightdeck asks get a wink + “hit PRINT / say 3D print mode” instead of answering. Notes + FD tools only in print mode. Restart Amy.
+Latest commit: `0d9749e` — In **CASUAL**, clear printer/Flightdeck asks get a wink + “hit PRINT / say 3D print mode” instead of answering. Notes + FD tools only in print mode. Restart Amy.
 
 ---# 2026-09-20 Session update (Amy talk_mode persist + chip)
 
