@@ -46,7 +46,7 @@ _SINGLE_MUTEX = None
 
 
 def _acquire_single_instance() -> bool:
-    """Only one Amy desktop window — extras leave zombie snores in the WebView."""
+    """Only one Amy desktop window  -  extras leave zombie snores in the WebView."""
     global _SINGLE_MUTEX
     if sys.platform != "win32":
         return True
@@ -59,7 +59,7 @@ def _acquire_single_instance() -> bool:
         already = int(kernel32.GetLastError()) == 183  # ERROR_ALREADY_EXISTS
         if already:
             print(
-                "[amy-desktop] Amy is already running — refusing a second window "
+                "[amy-desktop] Amy is already running  -  refusing a second window "
                 "(that left ghost snores before). Close the existing Amy first.",
                 file=sys.stderr,
             )
@@ -229,7 +229,7 @@ def start_hands(env: dict[str, str]) -> None:
     if _http_ok(HANDS_HEALTH):
         print("[amy-desktop] Amy Hands already running on :4701 - reusing")
         return
-    # Background ΓÇö no console window (logs go nowhere; health is on :4701)
+    # Background  -  no console window (logs go nowhere; health is on :4701)
     _spawn(hands_script(), "Amy Hands", visible=False, env=env)
 
 
@@ -334,7 +334,7 @@ def _patch_webview2_auto_media() -> None:
 
 
 def _install_auto_media_permissions(window) -> None:
-    """PermissionRequested handler ΓÇö backup if Chromium flags are ignored."""
+    """PermissionRequested handler  -  backup if Chromium flags are ignored."""
 
     def attach() -> None:
         try:
@@ -398,6 +398,13 @@ def _install_auto_media_permissions(window) -> None:
 def main() -> int:
     if not _acquire_single_instance():
         return 2
+    # Windows consoles are often cp1252 — a fancy dash in a print() used to crash
+    # Amy before the window opened. Force UTF-8 (or replace) so that can't happen.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
+        except Exception:
+            pass
     app_data_dir()
     env = _apply_env()
     print("[amy-desktop] root", jarvis_root())
@@ -549,7 +556,7 @@ def main() -> int:
 
     print(f"[amy-desktop] opening webview {AMY_URL}")
     print("[amy-desktop] mic uses OpenAI Whisper (Google speech is broken in WebView2)")
-    print("[amy-desktop] always on top ΓÇö say 'minimise' to drop, 'come back' to restore")
+    print("[amy-desktop] always on top - say 'minimise' to drop, 'come back' to restore")
     print("[amy-desktop] mic/camera prompts auto-allowed for localhost")
     print("[amy-desktop] clipboard: Ctrl+C / Ctrl+V / right-click (no menu bar)")
     storage = str(app_data_dir() / "webview")

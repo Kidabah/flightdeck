@@ -1,3 +1,9 @@
+## 2026-09-21 Session update (Amy start crash fix)
+
+Latest commit: _(pending)_ - launch.py had a mangled em-dash that crashed print() on Windows cp1252 before the window opened (brain still up). ASCII + UTF-8 stdout. Amy is running again.
+
+---
+
 ## 2026-09-21 Session update (ghost snore hush)
 
 Latest commit: `3c36a3e` - Zombie Amy windows were still asleep + snoring after relaunches. Killed orphans; snore pauses when window hidden; close kills audio; single-instance lock so a second launch cannot leave another sawmill. **Relaunch Amy** if you want her back.
