@@ -1,6 +1,6 @@
 ## 2026-09-21 Session update (drawer label print menus)
 
-Latest commit: _(pending)_ - Cabinet: click D# / R# for drawer banner + row strip print. Slot menu: Spool label + Home location label. QL-700 layouts match the approved samples. Hard refresh Spools (`storage-*.js?v=2`).
+Latest commit: `3a6ad1b` - Cabinet: click D# / R# for drawer banner + row strip print. Slot menu: Spool label + Home location label. QL-700 layouts match the approved samples. Hard refresh Spools (`storage-*.js?v=2`).
 
 ---
 
