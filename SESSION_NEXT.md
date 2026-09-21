@@ -1,6 +1,6 @@
 ## 2026-09-21 Session update (Amy start crash fix)
 
-Latest commit: _(pending)_ - launch.py had a mangled em-dash that crashed print() on Windows cp1252 before the window opened (brain still up). ASCII + UTF-8 stdout. Amy is running again.
+Latest commit: `a2a641c` - launch.py had a mangled em-dash that crashed print() on Windows cp1252 before the window opened (brain still up). ASCII + UTF-8 stdout. Amy is running again.
 
 ---
 
