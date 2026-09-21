@@ -99,10 +99,24 @@ async function markHome(spool, homeLocation) {
 
 async function printLabel(url, okMessage) {
   await json(url, { method: "POST" });
+  // Prefer Flightdeck toast; never use window.alert for successful prints.
   if (typeof window.showToast === "function") {
     window.showToast(okMessage, "QL-700", "success");
-  } else {
-    alert(`${okMessage}`);
+    return;
+  }
+  const root = document.getElementById("fd-drawer-storage");
+  if (root) {
+    let node = root.querySelector(".fd-storage-toast");
+    if (!node) {
+      node = document.createElement("div");
+      node.className = "fd-storage-toast";
+      root.append(node);
+    }
+    node.className = "fd-storage-toast ok";
+    node.textContent = okMessage;
+    node.hidden = false;
+    clearTimeout(node._hideTimer);
+    node._hideTimer = setTimeout(() => { node.hidden = true; }, 2800);
   }
 }
 

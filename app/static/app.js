@@ -443,6 +443,8 @@ function showToast(message, sub, type = 'info', opts = {}) {
   });
 }
 
+window.showToast = showToast;
+
 function _openNoteModal(printerId) {
   fetch(`/api/printers/${printerId}/prints/latest-finished`)
     .then(r => r.ok ? r.json() : null)
