@@ -253,6 +253,88 @@ class LabelPrinter:
         image = self.render_location_label(location, base_url=base_url)
         return self._print_image(image)
 
+    def render_drawer_banner(self, drawer: int) -> Image.Image:
+        """Large face sticker: DRAWER D1 / SPOOLS 1–27."""
+        drawer = int(drawer)
+        first, last = _drawer_number_range(drawer)
+        img = Image.new("RGB", (self.LABEL_WIDTH_PX, 280), "white")
+        draw = ImageDraw.Draw(img)
+        draw.rectangle((8, 8, self.LABEL_WIDTH_PX - 9, 271), outline="black", width=4)
+        title = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 64)
+        body = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 52)
+        small = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 26)
+        _draw_centered(draw, f"DRAWER D{drawer}", 28, title)
+        _draw_centered(draw, f"SPOOLS  {first} – {last}", 120, body)
+        _draw_centered(draw, "9 per row  ·  3 rows", 200, small)
+        return img
+
+    def render_drawer_row_label(self, drawer: int, row: int) -> Image.Image:
+        """Row strip: D1 · ROW 1 + 1 2 3 … 9 left→right."""
+        drawer = int(drawer)
+        row = int(row)
+        numbers = _drawer_row_numbers(drawer, row)
+        img = Image.new("RGB", (self.LABEL_WIDTH_PX, 220), "white")
+        draw = ImageDraw.Draw(img)
+        draw.rectangle((8, 8, self.LABEL_WIDTH_PX - 9, 211), outline="black", width=3)
+        title = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 48)
+        nums = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 34 if max(numbers) >= 100 else 36)
+        small = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 22)
+        _draw_centered(draw, f"D{drawer}  ·  ROW {row}", 24, title)
+        _draw_centered(draw, "   ".join(str(n) for n in numbers), 100, nums)
+        _draw_centered(draw, "left → right", 168, small)
+        return img
+
+    def render_home_slot_label(self, location: dict) -> Image.Image:
+        """Single home marker for an empty drawer slot (D2 R2 #42)."""
+        name = str(location.get("name") or "").strip()
+        match = re.match(r"^D([1-6]) R([1-3]) #(\d{1,3})$", name)
+        if not match:
+            # Fall back to generic location label if not a drawer slot.
+            return self.render_location_label(location)
+        drawer, row, number = (int(match.group(1)), int(match.group(2)), int(match.group(3)))
+        img = Image.new("RGB", (self.LABEL_WIDTH_PX, 210), "white")
+        draw = ImageDraw.Draw(img)
+        box = (24, 24, 200, 186)
+        draw.rounded_rectangle(box, radius=14, outline="black", width=4)
+        number_text = str(number)
+        font_number = _hero_number_font(draw, number_text, max_width=box[2] - box[0] - 24)
+        _draw_text_centered_in_box(draw, number_text, box, font_number)
+        draw.text((230, 40), "HOME", fill="black", font=_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28))
+        draw.text(
+            (230, 90),
+            name,
+            fill="black",
+            font=_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 44),
+        )
+        draw.text(
+            (230, 150),
+            f"Drawer {drawer}  ·  Row {row}",
+            fill="black",
+            font=_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 22),
+        )
+        return img
+
+    def print_drawer_banner(self, drawer: int) -> bool:
+        status = self.status()
+        if not status.available:
+            self.last_error = status.last_error
+            return False
+        return self._print_image(self.render_drawer_banner(drawer))
+
+    def print_drawer_row_label(self, drawer: int, row: int) -> bool:
+        status = self.status()
+        if not status.available:
+            self.last_error = status.last_error
+            return False
+        return self._print_image(self.render_drawer_row_label(drawer, row))
+
+    def print_home_slot_label(self, location: dict) -> bool:
+        status = self.status()
+        if not status.available:
+            self.last_error = status.last_error
+            return False
+        return self._print_image(self.render_home_slot_label(location))
+
     def _print_image(self, image: Image.Image) -> bool:
         try:
             from brother_ql.backends.helpers import send
@@ -288,6 +370,25 @@ class LabelPrinter:
             "added_at": datetime.utcnow().date().isoformat(),
         }
         return self.print_spool_label(spool)
+
+
+def _drawer_number_range(drawer: int) -> tuple[int, int]:
+    drawer = max(1, min(6, int(drawer)))
+    first = (drawer - 1) * 27 + 1
+    return first, first + 26
+
+
+def _drawer_row_numbers(drawer: int, row: int) -> list[int]:
+    drawer = max(1, min(6, int(drawer)))
+    row = max(1, min(3, int(row)))
+    start = (drawer - 1) * 27 + (row - 1) * 9 + 1
+    return list(range(start, start + 9))
+
+
+def _draw_centered(draw: ImageDraw.ImageDraw, text: str, y: int, font) -> None:
+    bbox = draw.textbbox((0, 0), text, font=font)
+    x = (LabelPrinter.LABEL_WIDTH_PX - (bbox[2] - bbox[0])) // 2
+    draw.text((x, y), text, fill="black", font=font)
 
 
 def _font(path: str, size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:

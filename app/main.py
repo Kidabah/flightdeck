@@ -8013,6 +8013,49 @@ async def print_location_label(location_id: int):
     return {"ok": True}
 
 
+@app.post("/api/label_printer/home/{location_id}")
+async def print_home_slot_label(location_id: int):
+    location = next((loc for loc in db.get_spool_locations(include_archived=True) if int(loc["id"]) == int(location_id)), None)
+    if not location:
+        raise HTTPException(status_code=404, detail="Location not found")
+    ok = await asyncio.to_thread(_label_printer.print_home_slot_label, location)
+    if not ok:
+        message = _label_printer.last_error or "Label printer unavailable"
+        db.log_decision("system", "label_print_failed", f"Home {location.get('name') or location_id}: {message}")
+        _notify("warn", "Label print failed", f"{location.get('name') or location_id}: {message}", link="#/settings/hardware")
+        raise HTTPException(status_code=503, detail=message)
+    db.log_decision("system", "label_printed", f"Home {location.get('name') or location_id}")
+    return {"ok": True}
+
+
+@app.post("/api/label_printer/drawer/{drawer}")
+async def print_drawer_banner(drawer: int):
+    if drawer < 1 or drawer > 6:
+        raise HTTPException(status_code=400, detail="Drawer must be 1–6")
+    ok = await asyncio.to_thread(_label_printer.print_drawer_banner, drawer)
+    if not ok:
+        message = _label_printer.last_error or "Label printer unavailable"
+        db.log_decision("system", "label_print_failed", f"Drawer D{drawer}: {message}")
+        _notify("warn", "Label print failed", f"D{drawer}: {message}", link="#/settings/hardware")
+        raise HTTPException(status_code=503, detail=message)
+    db.log_decision("system", "label_printed", f"Drawer D{drawer} banner")
+    return {"ok": True}
+
+
+@app.post("/api/label_printer/drawer/{drawer}/row/{row}")
+async def print_drawer_row_label(drawer: int, row: int):
+    if drawer < 1 or drawer > 6 or row < 1 or row > 3:
+        raise HTTPException(status_code=400, detail="Drawer must be 1–6 and row 1–3")
+    ok = await asyncio.to_thread(_label_printer.print_drawer_row_label, drawer, row)
+    if not ok:
+        message = _label_printer.last_error or "Label printer unavailable"
+        db.log_decision("system", "label_print_failed", f"D{drawer} R{row}: {message}")
+        _notify("warn", "Label print failed", f"D{drawer} R{row}: {message}", link="#/settings/hardware")
+        raise HTTPException(status_code=503, detail=message)
+    db.log_decision("system", "label_printed", f"D{drawer} R{row} row label")
+    return {"ok": True}
+
+
 @app.post("/api/label_printer/test")
 async def print_test_label():
     ok = await asyncio.to_thread(_label_printer.print_test_label)

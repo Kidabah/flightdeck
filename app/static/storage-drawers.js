@@ -1,3 +1,5 @@
+import { openDrawerPrintMenu } from "./storage-position-menu.js";
+
 const DRAWER_RE = /^D([1-6]) R([1-3]) #(\d{1,3})$/;
 const SUNLU_NAME = "SUNLU Dryer";
 const UNDO_STORAGE_KEY = "flightdeck.storage.lastAssignment";
@@ -174,18 +176,18 @@ function drawerHtml(drawerNumber, rows, model) {
     const freeCount = slots.filter(item => !model.homeSpoolByLocation.has(Number(item.loc.id))).length;
     return `
       <div class="fd-storage-row">
-        <button type="button" class="fd-storage-row-label${bulkReady ? " bulk-target" : ""}"
-                data-bulk-row="${drawerNumber}:${rowNumber}" ${bulkReady ? "" : "disabled"}
-                title="${bulkReady ? `Fill D${drawerNumber} R${rowNumber} left-to-right (${freeCount} free)` : `D${drawerNumber} R${rowNumber}`}">R${rowNumber}</button>
+        <button type="button" class="fd-storage-row-label${bulkReady ? " bulk-target" : " print-target"}"
+                data-bulk-row="${drawerNumber}:${rowNumber}"
+                title="${bulkReady ? `Fill D${drawerNumber} R${rowNumber} left-to-right (${freeCount} free)` : `Print labels for D${drawerNumber} R${rowNumber}`}">R${rowNumber}</button>
         <div class="fd-storage-slots">${slots.map(item => slotHtml(item, model)).join("")}</div>
       </div>`;
   }).join("");
 
   return `
     <section class="fd-storage-drawer" data-drawer="${drawerNumber}">
-      <button type="button" class="fd-storage-drawer-head${bulkReady ? " bulk-target" : ""}"
-              data-bulk-drawer="${drawerNumber}" ${bulkReady ? "" : "disabled"}
-              title="${bulkReady ? `Fill D${drawerNumber} left-to-right` : `Drawer D${drawerNumber}`}">
+      <button type="button" class="fd-storage-drawer-head${bulkReady ? " bulk-target" : " print-target"}"
+              data-bulk-drawer="${drawerNumber}"
+              title="${bulkReady ? `Fill D${drawerNumber} left-to-right` : `Print labels for Drawer D${drawerNumber}`}">
         <div><strong>D${drawerNumber}</strong><span>#${first}–#${last}</span></div>
         <span class="fd-storage-count">${used}/27 home slots</span>
       </button>
@@ -455,13 +457,22 @@ function bindInteractions(root, snapshot) {
     const rowButton = event.target.closest("[data-bulk-row]");
     if (rowButton && root.contains(rowButton)) {
       const [drawer, row] = rowButton.dataset.bulkRow.split(":").map(Number);
-      await assignMany(targetLocations(model, drawer, row));
+      if (assigning && selectedSpoolIds.size > 0) {
+        await assignMany(targetLocations(model, drawer, row));
+      } else {
+        openDrawerPrintMenu(rowButton, { drawer, row });
+      }
       return;
     }
 
     const drawerButton = event.target.closest("[data-bulk-drawer]");
     if (drawerButton && root.contains(drawerButton)) {
-      await assignMany(targetLocations(model, Number(drawerButton.dataset.bulkDrawer)));
+      const drawer = Number(drawerButton.dataset.bulkDrawer);
+      if (assigning && selectedSpoolIds.size > 0) {
+        await assignMany(targetLocations(model, drawer));
+      } else {
+        openDrawerPrintMenu(drawerButton, { drawer });
+      }
       return;
     }
 
