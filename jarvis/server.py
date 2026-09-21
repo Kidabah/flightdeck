@@ -73,6 +73,8 @@ sign-offs, or nonsense names), say you didn't catch that — don't reply in that
 When he pastes text (codes, numbers, symbols, mixed scripts), still reply in clear
 English — summarise or spell out what matters; never switch your answer into Chinese
 or another language just because the paste looks weird.
+For spoken answers, prefer words over raw symbols (say "dollars" not "$", "percent"
+not "%", "at" not "@", "and" not "&"). Keep the on-screen text readable either way.
 
 Do NOT volunteer 3D-printing, Flightdeck, printers, filament, AMS, or workshop banter
 unless he clearly asked about that stuff. No printer metaphors, no "bench" / "galaxy"
@@ -107,6 +109,8 @@ sign-offs, or nonsense names), say you didn't catch that — don't reply in that
 When he pastes text (codes, numbers, symbols, mixed scripts), still reply in clear
 English — summarise or spell out what matters; never switch your answer into Chinese
 or another language just because the paste looks weird.
+For spoken answers, prefer words over raw symbols (say "dollars" not "$", "percent"
+not "%", "at" not "@", "and" not "&"). Keep the on-screen text readable either way.
 
 Answer in one witty beat plus the facts. Don't recite notes verbatim when they're
 on screen. Prefer workshop notes for Flightdeck/printer facts.
@@ -1612,8 +1616,11 @@ def tts_provider() -> str:
 
 
 def _spoken_text(text: str, limit: int = 2200) -> str:
-    # Normalize fancy punctuation so multilingual TTS doesn't flip language mid-sentence.
+    """Prep answer text for TTS — English-friendly, symbols spoken as words."""
+    import unicodedata
+
     spoken = str(text or "")
+    # Fancy punctuation → plain ASCII
     for src, dst in (
         ("\u2018", "'"),
         ("\u2019", "'"),
@@ -1625,9 +1632,85 @@ def _spoken_text(text: str, limit: int = 2200) -> str:
         ("\u00a0", " "),
         ("\u200b", ""),
         ("\ufeff", ""),
+        ("\u00b7", " "),
+        ("•", " "),
+        ("→", " to "),
+        ("←", " from "),
+        ("⇒", " to "),
+        ("≈", " about "),
+        ("≠", " not equal to "),
+        ("≤", " less than or equal to "),
+        ("≥", " greater than or equal to "),
+        ("×", " times "),
+        ("÷", " divided by "),
+        ("°", " degrees "),
+        ("©", " copyright "),
+        ("®", " registered "),
+        ("™", " trademark "),
+        ("€", " euros "),
+        ("£", " pounds "),
+        ("¥", " yen "),
+        ("§", " section "),
     ):
         spoken = spoken.replace(src, dst)
-    spoken = " ".join(spoken.split())
+
+    # Currency / common symbol patterns before bare-char pass
+    spoken = re.sub(r"\$(\d+(?:\.\d+)?)\b", r"\1 dollars", spoken)
+    spoken = re.sub(r"\b(\d+(?:\.\d+)?)\%", r"\1 percent", spoken)
+    spoken = re.sub(r"#(\d+)\b", r"number \1", spoken)
+    spoken = re.sub(r"@(\w+)", r"at \1", spoken)
+
+    # Bare symbols ElevenLabs often mangles or language-flips on
+    # (leave / and - alone — common in English prose and paths)
+    symbol_words = {
+        "$": " dollars ",
+        "%": " percent ",
+        "#": " hash ",
+        "@": " at ",
+        "&": " and ",
+        "*": " star ",
+        "=": " equals ",
+        "+": " plus ",
+        "~": " about ",
+        "^": " caret ",
+        "|": " pipe ",
+        "\\": " ",
+        "_": " ",
+        "{": " ",
+        "}": " ",
+        "[": " ",
+        "]": " ",
+        "`": " ",
+        "´": " ",
+        "<": " ",
+        ">": " ",
+    }
+    out: list[str] = []
+    for ch in spoken:
+        if ch in symbol_words:
+            out.append(symbol_words[ch])
+            continue
+        # Drop emoji / CJK / other scripts that nudge multilingual TTS off English
+        o = ord(ch)
+        cat = unicodedata.category(ch)
+        if cat.startswith("So") or cat.startswith("Sk"):  # symbols / emoji modifiers
+            out.append(" ")
+            continue
+        if (
+            0x1100 <= o <= 0x11FF  # Hangul Jamo
+            or 0x3040 <= o <= 0x30FF  # Hiragana/Katakana
+            or 0x3400 <= o <= 0x9FFF  # CJK
+            or 0xAC00 <= o <= 0xD7AF  # Hangul syllables
+            or 0xF900 <= o <= 0xFAFF
+            or 0xFF00 <= o <= 0xFFEF  # fullwidth
+            or 0x1F300 <= o <= 0x1FAFF  # emoji blocks
+        ):
+            out.append(" ")
+            continue
+        out.append(ch)
+    spoken = "".join(out)
+
+    spoken = re.sub(r"\s+", " ", spoken).strip()
     if not spoken:
         raise RuntimeError("Nothing to say.")
     if len(spoken) > limit:
@@ -1727,9 +1810,8 @@ def synthesize_elevenlabs(text: str) -> bytes:
     if not key or key.startswith("PUT-YOUR"):
         raise RuntimeError("ElevenLabs key not set — paste it into config.json (elevenlabs_api_key).")
     voice_id = str(cfg.get("elevenlabs_voice_id") or "FGY2WhTYpPnrIDTdsKH5").strip()
-    model = str(cfg.get("elevenlabs_model") or "eleven_turbo_v2_5").strip()
-    # turbo/flash v2.5 are multilingual — without language_code, numbers/symbols
-    # can flip auto-detect to Chinese/Korean mid-sentence.
+    model = str(cfg.get("elevenlabs_model") or "eleven_flash_v2").strip()
+    # Prefer English-only flash/turbo v2 when configured; v2.5 needs language_code.
     language = str(cfg.get("elevenlabs_language") or "en").strip().lower() or "en"
     spoken = _spoken_text(text)
     body: dict[str, Any] = {
@@ -1742,9 +1824,12 @@ def synthesize_elevenlabs(text: str) -> bytes:
             "use_speaker_boost": True,
         },
     }
-    # language_code is supported on turbo/flash v2.5; ignored/errored on some older models.
-    if language and ("v2_5" in model or "flash" in model or "turbo" in model):
+    # language_code: turbo/flash v2.5 multilingual only (English-only models reject it).
+    if language and "v2_5" in model:
         body["language_code"] = language
+    # English-only models accept apply_text_normalization; v2.5 does not allow "on".
+    if "v2_5" not in model:
+        body["apply_text_normalization"] = "on"
     req = urllib.request.Request(
         f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
         data=json.dumps(body).encode("utf-8"),

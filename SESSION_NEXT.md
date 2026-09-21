@@ -1,3 +1,9 @@
+## 2026-09-21 Session update (TTS symbols spoken)
+
+Latest commit: _(pending)_ - Special chars still mangled Laura. Expand $, %, #, @, etc. to English words; strip emoji/CJK; switch default to English-only eleven_flash_v2. Restart Amy.
+
+---
+
 ## 2026-09-21 Session update (zombie Amy recovers)
 
 Latest commit: `b7926b7` - Amy brain was up but window gone; single-instance lock blocked relaunch. Clear orphan launch.py when no Amy window, then start. Amy is up again.
