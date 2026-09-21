@@ -1,6 +1,6 @@
 ## 2026-09-21 Session update (Laura stays English)
 
-Latest commit: _(pending)_ - ElevenLabs turbo v2.5 was auto-detecting Chinese on pastes with numbers/symbols. Force language_code=en + normalize fancy punctuation. Restart Amy.
+Latest commit: `a2146c7` - ElevenLabs turbo v2.5 was auto-detecting Chinese on pastes with numbers/symbols. Force language_code=en + normalize fancy punctuation. Restart Amy.
 
 ---
 
