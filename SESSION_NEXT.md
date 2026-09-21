@@ -1,6 +1,6 @@
 ## 2026-09-21 Session update (no star-star from markdown)
 
-Latest commit: _(pending)_ - TTS was reading **bold** as "star star". Strip markdown before speak. Restart Amy.
+Latest commit: `9afbac6` - TTS was reading **bold** as "star star". Strip markdown before speak. Restart Amy.
 
 ---
 
