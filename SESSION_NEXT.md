@@ -1,6 +1,6 @@
 ## 2026-09-21 Session update (zombie Amy recovers)
 
-Latest commit: _(pending)_ - Amy brain was up but window gone; single-instance lock blocked relaunch. Clear orphan launch.py when no Amy window, then start. Amy is up again.
+Latest commit: `b7926b7` - Amy brain was up but window gone; single-instance lock blocked relaunch. Clear orphan launch.py when no Amy window, then start. Amy is up again.
 
 ---
 
