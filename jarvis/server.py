@@ -70,6 +70,9 @@ Call him Chris or Kidabah (mix it up). Never call him sir. You are Amy — alway
 ALWAYS answer in English unless Chris explicitly asks for another language.
 If his message looks like Whisper garbage (random Korean/Japanese/Chinese, streamer
 sign-offs, or nonsense names), say you didn't catch that — don't reply in that language.
+When he pastes text (codes, numbers, symbols, mixed scripts), still reply in clear
+English — summarise or spell out what matters; never switch your answer into Chinese
+or another language just because the paste looks weird.
 
 Do NOT volunteer 3D-printing, Flightdeck, printers, filament, AMS, or workshop banter
 unless he clearly asked about that stuff. No printer metaphors, no "bench" / "galaxy"
@@ -101,6 +104,9 @@ Call him Chris or Kidabah (mix it up). Never call him sir. You are Amy — alway
 ALWAYS answer in English unless Chris explicitly asks for another language.
 If his message looks like Whisper garbage (random Korean/Japanese/Chinese, streamer
 sign-offs, or nonsense names), say you didn't catch that — don't reply in that language.
+When he pastes text (codes, numbers, symbols, mixed scripts), still reply in clear
+English — summarise or spell out what matters; never switch your answer into Chinese
+or another language just because the paste looks weird.
 
 Answer in one witty beat plus the facts. Don't recite notes verbatim when they're
 on screen. Prefer workshop notes for Flightdeck/printer facts.
@@ -1606,11 +1612,26 @@ def tts_provider() -> str:
 
 
 def _spoken_text(text: str, limit: int = 2200) -> str:
-    spoken = " ".join(str(text or "").split())
+    # Normalize fancy punctuation so multilingual TTS doesn't flip language mid-sentence.
+    spoken = str(text or "")
+    for src, dst in (
+        ("\u2018", "'"),
+        ("\u2019", "'"),
+        ("\u201c", '"'),
+        ("\u201d", '"'),
+        ("\u2013", "-"),
+        ("\u2014", "-"),
+        ("\u2026", "..."),
+        ("\u00a0", " "),
+        ("\u200b", ""),
+        ("\ufeff", ""),
+    ):
+        spoken = spoken.replace(src, dst)
+    spoken = " ".join(spoken.split())
     if not spoken:
         raise RuntimeError("Nothing to say.")
     if len(spoken) > limit:
-        spoken = spoken[: limit - 10].rstrip() + "…"
+        spoken = spoken[: limit - 10].rstrip() + "..."
     return spoken
 
 
@@ -1707,8 +1728,11 @@ def synthesize_elevenlabs(text: str) -> bytes:
         raise RuntimeError("ElevenLabs key not set — paste it into config.json (elevenlabs_api_key).")
     voice_id = str(cfg.get("elevenlabs_voice_id") or "FGY2WhTYpPnrIDTdsKH5").strip()
     model = str(cfg.get("elevenlabs_model") or "eleven_turbo_v2_5").strip()
+    # turbo/flash v2.5 are multilingual — without language_code, numbers/symbols
+    # can flip auto-detect to Chinese/Korean mid-sentence.
+    language = str(cfg.get("elevenlabs_language") or "en").strip().lower() or "en"
     spoken = _spoken_text(text)
-    body = {
+    body: dict[str, Any] = {
         "text": spoken,
         "model_id": model,
         "voice_settings": {
@@ -1718,6 +1742,9 @@ def synthesize_elevenlabs(text: str) -> bytes:
             "use_speaker_boost": True,
         },
     }
+    # language_code is supported on turbo/flash v2.5; ignored/errored on some older models.
+    if language and ("v2_5" in model or "flash" in model or "turbo" in model):
+        body["language_code"] = language
     req = urllib.request.Request(
         f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
         data=json.dumps(body).encode("utf-8"),
@@ -1734,6 +1761,24 @@ def synthesize_elevenlabs(text: str) -> bytes:
             return resp.read()
     except urllib.error.HTTPError as exc:
         raw = exc.read().decode("utf-8", errors="replace")
+        # If an older English-only model rejects language_code, retry without it.
+        if language and "language" in raw.lower() and body.pop("language_code", None) is not None:
+            try:
+                req2 = urllib.request.Request(
+                    f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
+                    data=json.dumps(body).encode("utf-8"),
+                    headers={
+                        "xi-api-key": key,
+                        "Accept": "audio/mpeg",
+                        "Content-Type": "application/json",
+                        "User-Agent": "amy-workshop/1.0",
+                    },
+                    method="POST",
+                )
+                with urllib.request.urlopen(req2, timeout=60) as resp:
+                    return resp.read()
+            except urllib.error.HTTPError:
+                pass
         try:
             err = json.loads(raw)
             detail = err.get("detail") or err

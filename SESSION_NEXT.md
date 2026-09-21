@@ -1,3 +1,9 @@
+## 2026-09-21 Session update (Laura stays English)
+
+Latest commit: _(pending)_ - ElevenLabs turbo v2.5 was auto-detecting Chinese on pastes with numbers/symbols. Force language_code=en + normalize fancy punctuation. Restart Amy.
+
+---
+
 ## 2026-09-21 Session update (Amy start crash fix)
 
 Latest commit: `a2a641c` - launch.py had a mangled em-dash that crashed print() on Windows cp1252 before the window opened (brain still up). ASCII + UTF-8 stdout. Amy is running again.
