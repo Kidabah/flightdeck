@@ -45,22 +45,119 @@ _children: list[subprocess.Popen] = []
 _SINGLE_MUTEX = None
 
 
+def _amy_window_alive() -> bool:
+    """True if an Amy desktop window is actually on screen (not a headless zombie)."""
+    if sys.platform != "win32":
+        return False
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        user32 = ctypes.windll.user32  # type: ignore[attr-defined]
+        found = ctypes.c_int(0)
+
+        @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+        def _enum(hwnd, _lparam):  # type: ignore[misc]
+            if not user32.IsWindowVisible(hwnd):
+                return True
+            length = user32.GetWindowTextLengthW(hwnd)
+            if length <= 0:
+                return True
+            buf = ctypes.create_unicode_buffer(length + 1)
+            user32.GetWindowTextW(hwnd, buf, length + 1)
+            title = buf.value or ""
+            if "Amy - Flightdeck" in title or title.strip() == "Amy":
+                found.value = 1
+                return False
+            return True
+
+        user32.EnumWindows(_enum, 0)
+        return bool(found.value)
+    except Exception:
+        return False
+
+
+def _kill_orphan_launchers() -> int:
+    """Kill launch.py processes that hold the mutex but have no Amy window."""
+    killed = 0
+    if sys.platform != "win32":
+        return killed
+    try:
+        import os
+
+        me = os.getpid()
+        creationflags = subprocess.CREATE_NO_WINDOW  # type: ignore[attr-defined]
+        out = subprocess.check_output(
+            [
+                "powershell",
+                "-NoProfile",
+                "-Command",
+                "Get-CimInstance Win32_Process | "
+                "Where-Object { $_.CommandLine -and ($_.CommandLine -match 'desktop\\\\launch\\.py') } | "
+                "Select-Object -ExpandProperty ProcessId",
+            ],
+            text=True,
+            stderr=subprocess.DEVNULL,
+            creationflags=creationflags,
+            timeout=8,
+        )
+        for line in out.splitlines():
+            line = line.strip()
+            if not line.isdigit():
+                continue
+            pid = int(line)
+            if pid == me:
+                continue
+            try:
+                os.kill(pid, 9)
+                killed += 1
+                print(f"[amy-desktop] cleared orphan launch.py pid={pid}", file=sys.stderr)
+            except OSError:
+                pass
+    except Exception as exc:
+        print(f"[amy-desktop] orphan cleanup skipped: {exc}", file=sys.stderr)
+    return killed
+
+
 def _acquire_single_instance() -> bool:
-    """Only one Amy desktop window  -  extras leave zombie snores in the WebView."""
+    """Only one Amy desktop window - extras leave zombie snores in the WebView."""
     global _SINGLE_MUTEX
     if sys.platform != "win32":
         return True
     try:
         import ctypes
+        import time
 
         kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
-        # Keep handle alive for process lifetime.
-        _SINGLE_MUTEX = kernel32.CreateMutexW(None, False, "Local\\AmyFlightdeckDesktop")
-        already = int(kernel32.GetLastError()) == 183  # ERROR_ALREADY_EXISTS
-        if already:
+        for attempt in range(2):
+            # Keep handle alive for process lifetime.
+            _SINGLE_MUTEX = kernel32.CreateMutexW(None, False, "Local\\AmyFlightdeckDesktop")
+            already = int(kernel32.GetLastError()) == 183  # ERROR_ALREADY_EXISTS
+            if not already:
+                return True
+            if _amy_window_alive():
+                print(
+                    "[amy-desktop] Amy is already running - refusing a second window. "
+                    "Close the existing Amy first.",
+                    file=sys.stderr,
+                )
+                return False
+            # Mutex held but no window = zombie launcher from a crashed/closed WebView.
+            if attempt == 0:
+                print(
+                    "[amy-desktop] leftover Amy process with no window - clearing and retrying",
+                    file=sys.stderr,
+                )
+                try:
+                    kernel32.CloseHandle(_SINGLE_MUTEX)
+                except Exception:
+                    pass
+                _SINGLE_MUTEX = None
+                _kill_orphan_launchers()
+                time.sleep(0.6)
+                continue
             print(
-                "[amy-desktop] Amy is already running  -  refusing a second window "
-                "(that left ghost snores before). Close the existing Amy first.",
+                "[amy-desktop] Amy lock still busy after cleanup - close any Amy process and retry",
                 file=sys.stderr,
             )
             return False
