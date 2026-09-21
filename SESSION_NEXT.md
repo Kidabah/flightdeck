@@ -1,6 +1,6 @@
 ## 2026-09-21 Session update (TTS symbols spoken)
 
-Latest commit: _(pending)_ - Special chars still mangled Laura. Expand $, %, #, @, etc. to English words; strip emoji/CJK; switch default to English-only eleven_flash_v2. Restart Amy.
+Latest commit: `0086fb4` - Special chars still mangled Laura. Expand $, %, #, @, etc. to English words; strip emoji/CJK; switch default to English-only eleven_flash_v2. Restart Amy.
 
 ---
 
