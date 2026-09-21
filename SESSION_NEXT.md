@@ -1,3 +1,9 @@
+## 2026-09-21 Session update (drawer homes = label numbers)
+
+Latest commit: _(pending)_ - Lined drawer homes to spool display_id (was off-by-one on internal id). Guard trigger + migrate use label number. Rack rows already archived. Hard refresh Spools / Cabinet.
+
+---
+
 ## 2026-09-21 Session update (no star-star from markdown)
 
 Latest commit: `9afbac6` - TTS was reading **bold** as "star star". Strip markdown before speak. Restart Amy.

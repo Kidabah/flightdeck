@@ -5,16 +5,16 @@ Creates 162 permanent drawer slots:
   D1..D6, three rows per drawer, nine positions per row.
 Global spool positions run #1..#162.
 
-Existing FlightDeck spool numbers are the physical drawer-home numbers. If a
-spool has already been assigned into drawer storage, this migration normalises
-it back to its matching numbered position. Spools that are currently loaded in
+Existing FlightDeck spool **display** numbers (the label) are the physical drawer-home
+numbers. If a spool has already been assigned into drawer storage, this migration
+normalises it back to its matching numbered position. Spools that are currently loaded in
 a printer, or visiting SUNLU, get their matching Home reserved without changing
 their Current location. Legacy-stored spools that have not been assigned yet are
 left alone for Fast Assign.
 
 Drawer moves are also guarded at the database layer. Once a numbered spool is
 sent to drawer storage, FlightDeck redirects it to the drawer position with the
-same number, regardless of which older storage UI path initiated the move.
+same **display_id**, regardless of which older storage UI path initiated the move.
 
 Also creates SUNLU Dryer as a temporary location. A small SQLite trigger keeps a
 spool's home_storage_location_id unchanged while its current storage location is
@@ -82,9 +82,9 @@ def normalise_numbered_homes(
     """Repair numbered drawer homes without auto-placing untouched legacy spools.
 
     Rules:
-      * An active spool whose numeric id is 1..162 owns the same numbered drawer home.
+      * An active spool's **display_id** (the number on the label) owns drawer home #N.
       * If it is already in any drawer slot, correct both Current and Home to that
-        matching numbered slot. This fixes compressed assignments such as S5 at #4.
+        matching numbered slot. This fixes id/display drift (S96 parked at #97).
       * If it is currently loaded in a printer or in SUNLU, reserve the matching
         Home only and leave Current untouched.
       * If it is still sitting in legacy storage and has never entered a drawer,
@@ -95,7 +95,10 @@ def normalise_numbered_homes(
         return 0, 0
 
     printer_col = "location_printer_id" if "location_printer_id" in cols else None
+    has_display = "display_id" in cols
     select_cols = ["id", "storage_location_id", "home_storage_location_id"]
+    if has_display:
+        select_cols.append("display_id")
     if printer_col:
         select_cols.append(printer_col)
 
@@ -106,16 +109,18 @@ def normalise_numbered_homes(
     repaired_drawer = 0
     reserved_away = 0
     for row in rows:
-        spool_id = int(row[0])
-        if spool_id < 1 or spool_id > TOTAL_SLOTS:
+        row = dict(zip(select_cols, row))
+        spool_id = int(row["id"])
+        number = int(row["display_id"]) if has_display and row.get("display_id") is not None else spool_id
+        if number < 1 or number > TOTAL_SLOTS:
             continue
-        target_id = slot_ids.get(spool_id)
+        target_id = slot_ids.get(number)
         if target_id is None:
             continue
 
-        current_id = int(row[1]) if row[1] is not None else None
-        home_id = int(row[2]) if row[2] is not None else None
-        printer_id = row[3] if printer_col else None
+        current_id = int(row["storage_location_id"]) if row["storage_location_id"] is not None else None
+        home_id = int(row["home_storage_location_id"]) if row["home_storage_location_id"] is not None else None
+        printer_id = row.get(printer_col) if printer_col else None
 
         if current_id in drawer_location_ids:
             if current_id != target_id or home_id != target_id:
@@ -133,6 +138,20 @@ def normalise_numbered_homes(
                 (target_id, spool_id),
             )
             reserved_away += 1
+        elif home_id is not None and home_id in drawer_location_ids and home_id != target_id:
+            # Already has a drawer home but it's the wrong number (id vs display drift).
+            # Keep Current if away/null; otherwise bring Current along to the correct home.
+            if current_id is None or is_away:
+                conn.execute(
+                    "UPDATE spools SET home_storage_location_id = ? WHERE id = ?",
+                    (target_id, spool_id),
+                )
+            else:
+                conn.execute(
+                    "UPDATE spools SET storage_location_id = ?, home_storage_location_id = ? WHERE id = ?",
+                    (target_id, target_id, spool_id),
+                )
+            repaired_drawer += 1
 
     return repaired_drawer, reserved_away
 
@@ -141,20 +160,21 @@ def install_numbered_drawer_guard(
     conn: sqlite3.Connection,
     slot_ids: dict[int, int],
 ) -> None:
-    """Redirect any numbered spool moved to a drawer back to its numbered home."""
+    """Redirect drawer moves to the home matching the spool's label number (display_id)."""
     drawer_ids_sql = ", ".join(str(value) for value in sorted(slot_ids.values()))
     cases = " ".join(
         f"WHEN {number} THEN {location_id}"
         for number, location_id in sorted(slot_ids.items())
     )
-    target_case = f"CASE NEW.id {cases} END"
+    # Prefer display_id (label); fall back to id for ancient rows.
+    target_case = f"CASE COALESCE(NEW.display_id, NEW.id) {cases} END"
 
     conn.execute("DROP TRIGGER IF EXISTS enforce_numbered_drawer_home")
     conn.execute(
         f"""
         CREATE TRIGGER enforce_numbered_drawer_home
         AFTER UPDATE OF storage_location_id ON spools
-        WHEN NEW.id BETWEEN 1 AND {TOTAL_SLOTS}
+        WHEN COALESCE(NEW.display_id, NEW.id) BETWEEN 1 AND {TOTAL_SLOTS}
          AND NEW.storage_location_id IN ({drawer_ids_sql})
          AND NEW.storage_location_id IS NOT ({target_case})
         BEGIN
