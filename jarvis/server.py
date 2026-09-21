@@ -75,6 +75,7 @@ English — summarise or spell out what matters; never switch your answer into C
 or another language just because the paste looks weird.
 For spoken answers, prefer words over raw symbols (say "dollars" not "$", "percent"
 not "%", "at" not "@", "and" not "&"). Keep the on-screen text readable either way.
+Do not wrap spoken emphasis in markdown asterisks (**bold**) — just write normal prose.
 
 Do NOT volunteer 3D-printing, Flightdeck, printers, filament, AMS, or workshop banter
 unless he clearly asked about that stuff. No printer metaphors, no "bench" / "galaxy"
@@ -111,6 +112,7 @@ English — summarise or spell out what matters; never switch your answer into C
 or another language just because the paste looks weird.
 For spoken answers, prefer words over raw symbols (say "dollars" not "$", "percent"
 not "%", "at" not "@", "and" not "&"). Keep the on-screen text readable either way.
+Do not wrap spoken emphasis in markdown asterisks (**bold**) — just write normal prose.
 
 Answer in one witty beat plus the facts. Don't recite notes verbatim when they're
 on screen. Prefer workshop notes for Flightdeck/printer facts.
@@ -1654,6 +1656,16 @@ def _spoken_text(text: str, limit: int = 2200) -> str:
     ):
         spoken = spoken.replace(src, dst)
 
+    # Strip markdown so **bold** doesn't become "star star"
+    spoken = re.sub(r"```[\s\S]*?```", " ", spoken)
+    spoken = re.sub(r"`([^`]+)`", r"\1", spoken)
+    spoken = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", spoken)
+    spoken = re.sub(r"\*\*\*(.+?)\*\*\*", r"\1", spoken)
+    spoken = re.sub(r"\*\*(.+?)\*\*", r"\1", spoken)
+    spoken = re.sub(r"(?<!\w)\*(?!\s)(.+?)(?<!\s)\*(?!\w)", r"\1", spoken)
+    spoken = re.sub(r"__(.+?)__", r"\1", spoken)
+    spoken = spoken.replace("**", " ").replace("*", " ")
+
     # Currency / common symbol patterns before bare-char pass
     spoken = re.sub(r"\$(\d+(?:\.\d+)?)\b", r"\1 dollars", spoken)
     spoken = re.sub(r"\b(\d+(?:\.\d+)?)\%", r"\1 percent", spoken)
@@ -1662,13 +1674,13 @@ def _spoken_text(text: str, limit: int = 2200) -> str:
 
     # Bare symbols ElevenLabs often mangles or language-flips on
     # (leave / and - alone — common in English prose and paths)
+    # Asterisks already stripped above — never speak them as "star"
     symbol_words = {
         "$": " dollars ",
         "%": " percent ",
         "#": " hash ",
         "@": " at ",
         "&": " and ",
-        "*": " star ",
         "=": " equals ",
         "+": " plus ",
         "~": " about ",
