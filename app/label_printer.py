@@ -275,12 +275,38 @@ class LabelPrinter:
         numbers = _drawer_row_numbers(drawer, row)
         img = Image.new("RGB", (self.LABEL_WIDTH_PX, 220), "white")
         draw = ImageDraw.Draw(img)
+        pad = 16
         draw.rectangle((8, 8, self.LABEL_WIDTH_PX - 9, 211), outline="black", width=3)
         title = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 48)
-        nums = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 34 if max(numbers) >= 100 else 36)
         small = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 22)
         _draw_centered(draw, f"D{drawer}  ·  ROW {row}", 24, title)
-        _draw_centered(draw, "   ".join(str(n) for n in numbers), 100, nums)
+
+        # Fit nine numbers inside the border — two/three-digit rows need a smaller size.
+        inner_left = pad + 8
+        inner_right = self.LABEL_WIDTH_PX - pad - 8
+        max_width = inner_right - inner_left
+        nums_font = None
+        line = ""
+        for size in (36, 32, 28, 26, 24, 22, 20):
+            candidate = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", size)
+            # Prefer even column layout; fall back to spaced string that fits.
+            gap = "  "
+            line = gap.join(str(n) for n in numbers)
+            if draw.textlength(line, font=candidate) <= max_width:
+                nums_font = candidate
+                break
+        if nums_font is None:
+            nums_font = _font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 18)
+            line = " ".join(str(n) for n in numbers)
+
+        # Draw as equal columns so wide digits never clip the outline.
+        col_w = max_width / len(numbers)
+        for i, n in enumerate(numbers):
+            text = str(n)
+            tw = draw.textlength(text, font=nums_font)
+            x = inner_left + i * col_w + (col_w - tw) / 2
+            draw.text((x, 102), text, fill="black", font=nums_font)
+
         _draw_centered(draw, "left → right", 168, small)
         return img
 
