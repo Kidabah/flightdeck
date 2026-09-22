@@ -1,3 +1,9 @@
+## 2026-09-22 Session update (row strip overflow fix)
+
+Latest commit: `30c5602` - D1 R2/R3 number strips were overflowing the label border. Equal columns + auto-shrink font. QL-700 samples printed for R1–R3.
+
+---
+
 ## 2026-09-21 Session update (drawer label print menus)
 
 Latest commit: `3a6ad1b` - Cabinet: click D# / R# for drawer banner + row strip print. Slot menu: Spool label + Home location label. QL-700 layouts match the approved samples. Hard refresh Spools (`storage-*.js?v=2`).
