@@ -248,6 +248,30 @@ def _flush_scan_progress(conn, run_id: int | None) -> None:
     conn.commit()
 
 
+def _clear_scan_issue(conn, abs_path: str) -> None:
+    conn.execute(
+        "UPDATE scan_issues SET resolved = 1, updated_at = ? WHERE abs_path = ?",
+        (utcnow(), abs_path),
+    )
+
+
+def _record_scan_issue(conn, *, root_id: str, abs_path: str, file_name: str, error: str) -> None:
+    now = utcnow()
+    row = conn.execute("SELECT id, attempts FROM scan_issues WHERE abs_path = ?", (abs_path,)).fetchone()
+    if row:
+        conn.execute(
+            "UPDATE scan_issues SET root_id = ?, file_name = ?, error = ?, attempts = ?, "
+            "resolved = 0, ignored = 0, last_seen = ?, updated_at = ? WHERE id = ?",
+            (root_id, file_name, error[:1000], int(row["attempts"] or 0) + 1, now, now, int(row["id"])),
+        )
+    else:
+        conn.execute(
+            "INSERT INTO scan_issues(root_id, abs_path, file_name, error, attempts, resolved, ignored, last_seen, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, 1, 0, 0, ?, ?, ?)",
+            (root_id, abs_path, file_name, error[:1000], now, now, now),
+        )
+
+
 def _design_name_for(path: Path, root: Path) -> str:
     try:
         rel = str(path.relative_to(root)).replace("\\", "/")
@@ -561,6 +585,7 @@ def run_scan(
                                 )
                                 SCAN_STATE["files_skipped"] += 1
                                 seen_paths.add(abs_path)
+                                _clear_scan_issue(conn, abs_path)
                                 conn.commit()
                             else:
                                 digest = file_hash(path, max_bytes=32_768 if kind == "zip" else 262_144, st=st)
@@ -568,10 +593,23 @@ def run_scan(
                                 upsert_asset(conn, folder, path, parsed, digest, thumbs)
                                 SCAN_STATE["files_upserted"] += 1
                                 seen_paths.add(abs_path)
+                                _clear_scan_issue(conn, abs_path)
                                 conn.commit()
                         except Exception as exc:
                             SCAN_STATE["files_failed"] += 1
                             SCAN_STATE["error"] = f"{name}: {exc}"
+                            try:
+                                abs_path = str(path.resolve())
+                            except Exception:
+                                abs_path = str(path)
+                            _record_scan_issue(
+                                conn,
+                                root_id=str(folder.get("id") or ""),
+                                abs_path=abs_path,
+                                file_name=name,
+                                error=str(exc),
+                            )
+                            conn.commit()
                             log.warning("Scan skip %s: %s", path, exc)
                             continue
 

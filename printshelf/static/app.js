@@ -3,6 +3,7 @@ const $ = (id) => document.getElementById(id);
 let folders = [];
 let collections = [];
 let filaments = [];
+let scanIssues = [];
 let editingCollectionId = null;
 let selectedId = null;
 let activeKind = "";
@@ -737,7 +738,9 @@ async function watchStatusTick() {
   const hiddenBit = s.hidden ? `<br><span class="pill">hidden ${s.hidden}</span>` : "";
   const collBit = s.collections ? `<br><span class="pill">collections ${s.collections}</span>` : "";
   const filamentBit = s.filaments ? `<br><span class="pill">filaments ${s.filaments}</span>` : "";
-  $("railStats").innerHTML = `<strong>${s.designs ?? "—"}</strong> designs · <strong>${s.assets}</strong> files<br>${kinds}${dupBit}${hiddenBit}${collBit}${filamentBit}`;
+  const issueBit = s.scan_issues ? `<br><span class="pill warn">scan issues ${s.scan_issues}</span>` : "";
+  $("railStats").innerHTML = `<strong>${s.designs ?? "—"}</strong> designs · <strong>${s.assets}</strong> files<br>${kinds}${dupBit}${hiddenBit}${collBit}${filamentBit}${issueBit}`;
+  updateScanIssuesBadge(s.scan_issues || 0);
   updateTypeTabCounts(byKind, s.assets || 0, s.duplicates || 0);
   updateScanBanner(scan, byKind, s.assets || 0);
   $("scanStatus").textContent = formatStatusLine(scan, thumbs);
@@ -773,7 +776,9 @@ async function refreshStats() {
   const hiddenBit = s.hidden ? `<br><span class="pill">hidden ${s.hidden}</span>` : "";
   const collBit = s.collections ? `<br><span class="pill">collections ${s.collections}</span>` : "";
   const filamentBit = s.filaments ? `<br><span class="pill">filaments ${s.filaments}</span>` : "";
-  $("railStats").innerHTML = `<strong>${s.designs ?? "—"}</strong> designs · <strong>${s.assets}</strong> files<br>${kinds}${dupBit}${hiddenBit}${collBit}${filamentBit}`;
+  const issueBit = s.scan_issues ? `<br><span class="pill warn">scan issues ${s.scan_issues}</span>` : "";
+  $("railStats").innerHTML = `<strong>${s.designs ?? "—"}</strong> designs · <strong>${s.assets}</strong> files<br>${kinds}${dupBit}${hiddenBit}${collBit}${filamentBit}${issueBit}`;
+  updateScanIssuesBadge(s.scan_issues || 0);
   updateTypeTabCounts(byKind, s.assets || 0, s.duplicates || 0);
   const scan = s.scan || {};
   const thumbs = s.thumbs || {};
@@ -2415,6 +2420,70 @@ async function loadFilaments() {
   fillFilamentFilter();
 }
 
+function renderScanIssues() {
+  const host = $("scanIssuesList");
+  if (!host) return;
+  if (!scanIssues.length) {
+    host.innerHTML = `<p class="lede">No unresolved scan issues.</p>`;
+    return;
+  }
+  host.innerHTML = scanIssues.map((i) => `
+    <div class="scan-issue-row">
+      <div class="scan-issue-title">${escapeHtml(i.file_name || "file")}</div>
+      <div class="scan-issue-meta">
+        ${escapeHtml(i.error || "Unknown error")}<br>
+        ${escapeHtml(i.abs_path || "")}<br>
+        root: ${escapeHtml(i.root_id || "—")} · attempts: ${Number(i.attempts || 0)}
+      </div>
+      <div class="scan-issue-actions">
+        <button type="button" class="secondary retry-issue" data-id="${i.id}">Retry</button>
+        <button type="button" class="secondary ignore-issue" data-id="${i.id}">Ignore</button>
+      </div>
+    </div>
+  `).join("");
+  host.querySelectorAll(".retry-issue").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = Number(btn.dataset.id);
+      try {
+        await api("/api/scan_issues/retry", { method: "POST", body: JSON.stringify({ ids: [id] }) });
+        psToast("Retry started", "Rescanning source for this issue.", "ok");
+        await loadScanIssues();
+        await refreshStats();
+      } catch (err) {
+        psToast("Retry failed", String(err.message || err), "error");
+      }
+    });
+  });
+  host.querySelectorAll(".ignore-issue").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = Number(btn.dataset.id);
+      try {
+        await api(`/api/scan_issues/${id}/ignore`, { method: "POST", body: "{}" });
+        psToast("Issue ignored", "Hidden from unresolved list.", "ok");
+        await loadScanIssues();
+        await refreshStats();
+      } catch (err) {
+        psToast("Ignore failed", String(err.message || err), "error");
+      }
+    });
+  });
+}
+
+function updateScanIssuesBadge(n) {
+  const btn = $("scanIssuesBtn");
+  if (!btn) return;
+  const count = Number(n || 0);
+  btn.hidden = count <= 0;
+  btn.textContent = count <= 0 ? "Scan issues" : `Scan issues (${count})`;
+}
+
+async function loadScanIssues() {
+  const out = await api("/api/scan_issues?unresolved_only=true&ignored=false&limit=200");
+  scanIssues = out.items || [];
+  renderScanIssues();
+  updateScanIssuesBadge(scanIssues.length);
+}
+
 async function saveCollectionFromForm() {
   const form = $("collectionForm");
   if (!form) return;
@@ -2671,6 +2740,21 @@ function bind() {
       $("rebuildThumbsBtn").disabled = false;
     }
   });
+  $("scanIssuesBtn")?.addEventListener("click", async () => {
+    switchView("settings");
+    await loadScanIssues();
+  });
+  $("refreshIssuesBtn")?.addEventListener("click", () => loadScanIssues().catch(console.error));
+  $("retryAllIssuesBtn")?.addEventListener("click", async () => {
+    try {
+      await api("/api/scan_issues/retry", { method: "POST", body: JSON.stringify({ ids: [] }) });
+      psToast("Retry started", "Rescanning roots with unresolved issues.", "ok");
+      await refreshStats();
+      await loadScanIssues();
+    } catch (err) {
+      psToast("Retry failed", String(err.message || err), "error");
+    }
+  });
   $("folderForm").addEventListener("submit", (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
@@ -2708,6 +2792,7 @@ async function boot() {
   await loadFolders();
   await loadCollections();
   await loadFilaments();
+  await loadScanIssues();
   await refreshStats();
   await loadLibrary();
 }

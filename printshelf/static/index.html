@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=64">
+  <link rel="stylesheet" href="style.css?v=65">
   <script type="importmap">
   {
     "imports": {
@@ -40,6 +40,7 @@
       <div class="rail-stats" id="railStats">Loading…</div>
       <button class="scan-btn" id="scanBtn">Rescan</button>
       <button class="scan-btn secondary" id="rebuildThumbsBtn" type="button">Rebuild thumbs</button>
+      <button class="scan-btn secondary" id="scanIssuesBtn" type="button" hidden>Scan issues</button>
       <div class="scan-status" id="scanStatus"></div>
     </aside>
 
@@ -150,6 +151,15 @@
           <textarea id="ignoreGlobsInput" class="meta-input meta-notes" rows="8" spellcheck="false" placeholder="**/__MACOSX/**&#10;**/node_modules/**"></textarea>
           <button class="secondary" id="saveIgnoreBtn" type="button" style="margin-top:10px">Save exclude patterns</button>
         </div>
+        <div class="settings-card" style="margin-top:16px">
+          <h2 class="settings-subhead">Scan issues</h2>
+          <p class="lede">Files that failed to parse/index. Retry after fixing the source file, or ignore to hide the alert.</p>
+          <div class="detail-actions" style="margin:8px 0 10px">
+            <button class="secondary" id="retryAllIssuesBtn" type="button">Retry all unresolved</button>
+            <button class="secondary" id="refreshIssuesBtn" type="button">Refresh issues</button>
+          </div>
+          <div id="scanIssuesList" class="scan-issues-list"></div>
+        </div>
       </section>
     </main>
   </div>
@@ -176,7 +186,7 @@
   </div>
 
   <script type="module" src="viewer.js?v=62"></script>
-  <script src="app.js?v=64"></script>
+  <script src="app.js?v=65"></script>
   <script src="design-selection.js?v=1"></script>
   <script src="root-filter.js?v=1"></script>
 </body>

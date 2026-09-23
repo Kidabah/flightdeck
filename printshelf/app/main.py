@@ -108,6 +108,10 @@ class AssetFilamentIn(BaseModel):
     filament_id: int | None = None
 
 
+class ScanIssueIdsIn(BaseModel):
+    ids: list[int] = Field(default_factory=list, max_length=2000)
+
+
 _ASSET_SORT = {
     "seen": "a.last_seen DESC, a.file_name ASC",
     "name": "a.file_name ASC, a.rel_path ASC",
@@ -244,6 +248,9 @@ def stats() -> dict[str, Any]:
         filaments = conn.execute(
             "SELECT COUNT(*) AS c FROM filaments"
         ).fetchone()["c"]
+        scan_issues = conn.execute(
+            "SELECT COUNT(*) AS c FROM scan_issues WHERE COALESCE(resolved, 0) = 0 AND COALESCE(ignored, 0) = 0"
+        ).fetchone()["c"]
     return {
         "designs": designs,
         "assets": assets,
@@ -252,6 +259,7 @@ def stats() -> dict[str, Any]:
         "duplicates": int(duplicates or 0),
         "collections": int(collections or 0),
         "filaments": int(filaments or 0),
+        "scan_issues": int(scan_issues or 0),
         "scan": get_scan_state(),
         "thumbs": get_thumb_rebuild_state(),
     }
@@ -486,6 +494,103 @@ def set_asset_filament(asset_id: int, body: AssetFilamentIn) -> dict[str, Any]:
             (fid, asset_id),
         )
     return get_asset(asset_id)
+
+
+@app.get("/api/scan_issues")
+def list_scan_issues(
+    root_id: str | None = None,
+    unresolved_only: bool = Query(True),
+    ignored: bool | None = None,
+    limit: int = Query(200, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+) -> dict[str, Any]:
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    clauses: list[str] = ["1=1"]
+    params: list[Any] = []
+    if root_id:
+        clauses.append("root_id = ?")
+        params.append(root_id)
+    if unresolved_only:
+        clauses.append("COALESCE(resolved, 0) = 0")
+    if ignored is not None:
+        clauses.append("COALESCE(ignored, 0) = ?")
+        params.append(1 if ignored else 0)
+    where = " AND ".join(clauses)
+    with db_session(db_file) as conn:
+        rows = conn.execute(
+            f"""SELECT id, root_id, abs_path, file_name, error, attempts, resolved, ignored, last_seen, created_at, updated_at
+                FROM scan_issues
+                WHERE {where}
+                ORDER BY updated_at DESC, id DESC
+                LIMIT ? OFFSET ?""",
+            [*params, limit, offset],
+        ).fetchall()
+        total = int(
+            conn.execute(f"SELECT COUNT(*) AS c FROM scan_issues WHERE {where}", params).fetchone()["c"] or 0
+        )
+    items = [row_to_dict(r) for r in rows]
+    return {"total": total, "items": [i for i in items if i]}
+
+
+@app.post("/api/scan_issues/{issue_id}/ignore")
+def ignore_scan_issue(issue_id: int) -> dict[str, Any]:
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    with db_session(db_file) as conn:
+        row = conn.execute("SELECT id FROM scan_issues WHERE id = ?", (issue_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "Scan issue not found")
+        conn.execute(
+            "UPDATE scan_issues SET ignored = 1, updated_at = ? WHERE id = ?",
+            (utcnow(), issue_id),
+        )
+    return {"ok": True}
+
+
+@app.post("/api/scan_issues/ignore")
+def ignore_scan_issues(body: ScanIssueIdsIn) -> dict[str, Any]:
+    ids = [int(i) for i in body.ids if int(i) > 0]
+    if not ids:
+        return {"ok": True, "updated": 0}
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    with db_session(db_file) as conn:
+        placeholders = ",".join("?" for _ in ids)
+        cur = conn.execute(
+            f"UPDATE scan_issues SET ignored = 1, updated_at = ? WHERE id IN ({placeholders})",
+            [utcnow(), *ids],
+        )
+        updated = int(cur.rowcount or 0)
+    return {"ok": True, "updated": updated}
+
+
+@app.post("/api/scan_issues/retry")
+def retry_scan_issues(body: ScanIssueIdsIn | None = None) -> dict[str, Any]:
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    issue_ids = [int(i) for i in (body.ids if body else []) if int(i) > 0]
+    with db_session(db_file) as conn:
+        if issue_ids:
+            placeholders = ",".join("?" for _ in issue_ids)
+            rows = conn.execute(
+                f"SELECT DISTINCT root_id FROM scan_issues WHERE id IN ({placeholders})",
+                issue_ids,
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT DISTINCT root_id FROM scan_issues WHERE COALESCE(resolved, 0) = 0 AND COALESCE(ignored, 0) = 0"
+            ).fetchall()
+        roots = sorted({str(r["root_id"] or "").strip() for r in rows if str(r["root_id"] or "").strip()})
+        if issue_ids:
+            conn.execute(
+                f"UPDATE scan_issues SET ignored = 0, updated_at = ? WHERE id IN ({','.join('?' for _ in issue_ids)})",
+                [utcnow(), *issue_ids],
+            )
+    if not roots:
+        return {"ok": True, "restarted": False, "root_ids": []}
+    state = start_scan_background(root_ids=roots)
+    return {"ok": True, "restarted": True, "root_ids": roots, "scan": state}
 
 
 def _clean_collection_mode(raw: str | None) -> str:

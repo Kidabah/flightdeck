@@ -618,6 +618,33 @@ h1 {
   display: flex;
   gap: 8px;
 }
+.scan-issues-list {
+  display: grid;
+  gap: 10px;
+  max-height: 420px;
+  overflow: auto;
+}
+.scan-issue-row {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--bg-2);
+}
+.scan-issue-title {
+  font-weight: 600;
+  margin-bottom: 6px;
+  word-break: break-all;
+}
+.scan-issue-meta {
+  color: var(--muted);
+  font-size: .82rem;
+  margin-bottom: 8px;
+  word-break: break-all;
+}
+.scan-issue-actions {
+  display: flex;
+  gap: 8px;
+}
 .detail-actions {
   display: flex;
   flex-wrap: wrap;

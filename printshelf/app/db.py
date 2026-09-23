@@ -76,6 +76,20 @@ CREATE TABLE IF NOT EXISTS scan_runs (
   error TEXT
 );
 
+CREATE TABLE IF NOT EXISTS scan_issues (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  root_id TEXT NOT NULL DEFAULT '',
+  abs_path TEXT NOT NULL UNIQUE,
+  file_name TEXT NOT NULL,
+  error TEXT NOT NULL DEFAULT '',
+  attempts INTEGER NOT NULL DEFAULT 1,
+  resolved INTEGER NOT NULL DEFAULT 0,
+  ignored INTEGER NOT NULL DEFAULT 0,
+  last_seen TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS collections (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
@@ -96,6 +110,7 @@ CREATE INDEX IF NOT EXISTS idx_assets_kind ON assets(kind);
 CREATE INDEX IF NOT EXISTS idx_assets_hash ON assets(content_hash);
 CREATE INDEX IF NOT EXISTS idx_assets_design ON assets(design_id);
 CREATE INDEX IF NOT EXISTS idx_designs_hash ON designs(content_hash);
+CREATE INDEX IF NOT EXISTS idx_scan_issues_state ON scan_issues(resolved, ignored, root_id);
 CREATE INDEX IF NOT EXISTS idx_collections_mode ON collections(mode);
 CREATE INDEX IF NOT EXISTS idx_collection_assets_asset ON collection_assets(asset_id);
 """
@@ -124,6 +139,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
         )
     conn.execute("CREATE INDEX IF NOT EXISTS idx_assets_hidden ON assets(hidden)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_assets_assigned_filament ON assets(assigned_filament_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_scan_issues_state ON scan_issues(resolved, ignored, root_id)")
 
     design_cols = {row[1] for row in conn.execute("PRAGMA table_info(designs)").fetchall()}
     if "group_key" not in design_cols:
