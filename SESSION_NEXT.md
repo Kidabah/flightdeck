@@ -1,3 +1,9 @@
+## 2026-09-23 Session update (Amy links are clickable)
+
+Latest commit: _(pending)_ - Reply URLs stay on screen (not read aloud) and are clickable. Desktop opens them in the system browser. Relaunch Amy.
+
+---
+
 ## 2026-09-22 Session update (row strip overflow fix)
 
 Latest commit: `30c5602` - D1 R2/R3 number strips were overflowing the label border. Equal columns + auto-shrink font. QL-700 samples printed for R1–R3.

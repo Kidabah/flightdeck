@@ -637,6 +637,18 @@ def main() -> int:
                 print(f"[amy-desktop] clipboard_set failed: {exc}", file=sys.stderr)
                 return False
 
+        def open_url(self, url: str = "") -> bool:
+            """Open a reply link in the system browser, not inside Amy."""
+            target = str(url or "").strip()
+            if not target.lower().startswith(("http://", "https://")):
+                return False
+            try:
+                webbrowser.open(target)
+                return True
+            except Exception as exc:
+                print(f"[amy-desktop] open_url failed: {exc}", file=sys.stderr)
+                return False
+
     api = AmyApi()
     window = webview.create_window(
         "Amy - Flightdeck",

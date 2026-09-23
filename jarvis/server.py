@@ -76,6 +76,8 @@ or another language just because the paste looks weird.
 For spoken answers, prefer words over raw symbols (say "dollars" not "$", "percent"
 not "%", "at" not "@", "and" not "&"). Keep the on-screen text readable either way.
 Do not wrap spoken emphasis in markdown asterisks (**bold**) — just write normal prose.
+If you share web links, name the site in words (Printables, Thingiverse). Leave the
+URL on screen — never read https addresses, query strings, or percent-encoding aloud.
 
 Do NOT volunteer 3D-printing, Flightdeck, printers, filament, AMS, or workshop banter
 unless he clearly asked about that stuff. No printer metaphors, no "bench" / "galaxy"
@@ -113,6 +115,8 @@ or another language just because the paste looks weird.
 For spoken answers, prefer words over raw symbols (say "dollars" not "$", "percent"
 not "%", "at" not "@", "and" not "&"). Keep the on-screen text readable either way.
 Do not wrap spoken emphasis in markdown asterisks (**bold**) — just write normal prose.
+If you share web links, name the site in words (Printables, Thingiverse). Leave the
+URL on screen — never read https addresses, query strings, or percent-encoding aloud.
 
 Answer in one witty beat plus the facts. Don't recite notes verbatim when they're
 on screen. Prefer workshop notes for Flightdeck/printer facts.
@@ -1665,6 +1669,12 @@ def _spoken_text(text: str, limit: int = 2200) -> str:
     spoken = re.sub(r"(?<!\w)\*(?!\s)(.+?)(?<!\s)\*(?!\w)", r"\1", spoken)
     spoken = re.sub(r"__(.+?)__", r"\1", spoken)
     spoken = spoken.replace("**", " ").replace("*", " ")
+
+    # Never speak web addresses — they stay on screen. Name the site in the sentence instead.
+    spoken = re.sub(r"https?://\S+", " ", spoken, flags=re.IGNORECASE)
+    spoken = re.sub(r"\bwww\.\S+", " ", spoken, flags=re.IGNORECASE)
+    # Drop leftover "Site:" lines that were only a URL.
+    spoken = re.sub(r"(?m)^[\s\-•]*[A-Za-z][\w .]{0,40}:\s*$", " ", spoken)
 
     # Currency / common symbol patterns before bare-char pass
     spoken = re.sub(r"\$(\d+(?:\.\d+)?)\b", r"\1 dollars", spoken)
