@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from .imagefile import parse_image
 from .obj import parse_obj
 from .stl import parse_stl
 from .threemf import parse_3mf
@@ -60,4 +61,6 @@ def parse_asset(path: Path, kind: str | None = None) -> dict[str, Any]:
         return parse_obj(path)
     if kind == "zip":
         return parse_zip(path)
+    if kind in {"jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"}:
+        return parse_image(path, kind)
     return {"kind": kind or "unknown", "meta": {}, "sidecars": [], "error": "unsupported"}
