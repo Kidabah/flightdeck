@@ -58,6 +58,8 @@ THUMB_STATE: dict[str, Any] = {
     "finished_at": None,
 }
 
+IMAGE_KINDS_WITH_THUMBS = frozenset({"jpg", "jpeg", "png", "gif", "webp", "bmp"})
+
 
 def get_scan_state() -> dict[str, Any]:
     return dict(SCAN_STATE)
@@ -246,6 +248,26 @@ def _name_may_be_printable(name: str) -> bool:
         ".txt",
         ".md",
     ))
+
+
+def _has_image_dimensions(meta_json: Any) -> bool:
+    if not meta_json:
+        return False
+    try:
+        meta = json.loads(meta_json) if isinstance(meta_json, str) else dict(meta_json)
+    except Exception:
+        return False
+    try:
+        return int(meta.get("width") or 0) > 0 and int(meta.get("height") or 0) > 0
+    except Exception:
+        return False
+
+
+def _needs_image_backfill(existing_row: Any, kind: str) -> bool:
+    if kind not in IMAGE_KINDS_WITH_THUMBS:
+        return False
+    # Older image rows were indexed with placeholders and empty meta.
+    return not _has_image_dimensions(existing_row["meta_json"])
 
 
 def mark_orphaned_scans(db_file: Path | None = None) -> int:
@@ -597,14 +619,16 @@ def run_scan(
                             st = path.stat()
                             abs_path = str(path.resolve())
                             existing = conn.execute(
-                                "SELECT id, size_bytes, mtime FROM assets WHERE abs_path = ?",
+                                "SELECT id, size_bytes, mtime, meta_json FROM assets WHERE abs_path = ?",
                                 (abs_path,),
                             ).fetchone()
-                            if (
+                            unchanged = bool(
                                 existing
                                 and int(existing["size_bytes"] or 0) == int(st.st_size)
                                 and abs(float(existing["mtime"] or 0) - float(st.st_mtime)) < 0.001
-                            ):
+                            )
+                            needs_backfill = bool(existing and unchanged and _needs_image_backfill(existing, kind))
+                            if unchanged and not needs_backfill:
                                 conn.execute(
                                     "UPDATE assets SET last_seen = ?, missing = 0 WHERE id = ?",
                                     (utcnow(), existing["id"]),
@@ -767,7 +791,9 @@ def purge_junk_assets(conn) -> int:
     return cur.rowcount or 0
 
 
-def rebuild_stale_thumbs(kinds: tuple[str, ...] = ("stl", "obj", "3mf", "gcode.3mf", "zip")) -> dict[str, Any]:
+def rebuild_stale_thumbs(
+    kinds: tuple[str, ...] = ("stl", "obj", "3mf", "gcode.3mf", "zip", "jpg", "jpeg", "png", "gif", "webp", "bmp")
+) -> dict[str, Any]:
     if not THUMB_LOCK.acquire(blocking=False):
         return get_thumb_rebuild_state()
 
@@ -854,7 +880,9 @@ def rebuild_stale_thumbs(kinds: tuple[str, ...] = ("stl", "obj", "3mf", "gcode.3
     return get_thumb_rebuild_state()
 
 
-def start_thumb_rebuild_background(kinds: tuple[str, ...] = ("stl", "obj", "3mf", "gcode.3mf", "zip")) -> dict[str, Any]:
+def start_thumb_rebuild_background(
+    kinds: tuple[str, ...] = ("stl", "obj", "3mf", "gcode.3mf", "zip", "jpg", "jpeg", "png", "gif", "webp", "bmp")
+) -> dict[str, Any]:
     if THUMB_STATE.get("running"):
         return get_thumb_rebuild_state()
 

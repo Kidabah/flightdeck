@@ -199,8 +199,10 @@ def scan_status() -> dict[str, Any]:
 
 @app.post("/api/thumbs/rebuild")
 def trigger_thumb_rebuild() -> dict[str, Any]:
-    """Rebuild stale STL/OBJ/3MF/ZIP thumbs without re-walking the whole NAS."""
-    return start_thumb_rebuild_background(kinds=("stl", "obj", "3mf", "gcode.3mf", "zip"))
+    """Rebuild stale model + image thumbs without re-walking the whole NAS."""
+    return start_thumb_rebuild_background(
+        kinds=("stl", "obj", "3mf", "gcode.3mf", "zip", "jpg", "jpeg", "png", "gif", "webp", "bmp")
+    )
 
 
 @app.get("/api/thumbs/rebuild")
