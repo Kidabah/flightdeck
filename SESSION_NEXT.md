@@ -1,6 +1,6 @@
 ## 2026-09-23 Session update (Amy links are clickable)
 
-Latest commit: _(pending)_ - Reply URLs stay on screen (not read aloud) and are clickable. Desktop opens them in the system browser. Relaunch Amy.
+Latest commit: `f16eb68` - Reply URLs stay on screen (not read aloud) and are clickable. Desktop opens them in the system browser. Relaunch Amy.
 
 ---
 
