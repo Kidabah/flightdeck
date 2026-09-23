@@ -2473,8 +2473,8 @@ function updateScanIssuesBadge(n) {
   const btn = $("scanIssuesBtn");
   if (!btn) return;
   const count = Number(n || 0);
-  btn.hidden = count <= 0;
-  btn.textContent = count <= 0 ? "Scan issues" : `Scan issues (${count})`;
+  btn.hidden = false;
+  btn.textContent = `Scan issues (${count})`;
 }
 
 async function loadScanIssues() {
