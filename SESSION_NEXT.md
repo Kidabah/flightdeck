@@ -1,3 +1,17 @@
+## 2026-09-24 Session update (Image tile thumbnails fixed)
+
+Latest commit: 1e8f728 - MeshFinder now generates thumbnail previews for image files so image tiles are no longer blank.
+
+- Added `printshelf/app/parsers/imagefile.py` with `parse_image(...)`:
+  - Creates PNG thumbnail bytes for raster formats (jpg/jpeg/png/gif/webp/bmp) using PIL.
+  - Keeps SVG indexed; SVG currently falls back without rendered thumbnail bytes.
+- Wired image kinds into `parse_asset(...)` dispatch in `printshelf/app/parsers/__init__.py`.
+- Existing indexed image entries may need thumbnail regeneration (rescan/refresh thumbs) to backfill previews.
+- Backend restart required: yes (parser changes).
+- Hard refresh recommended once.
+
+---
+
 ## 2026-09-24 Session update (Enable image/doc/archive indexing)
 
 Latest commit: <built-in function hash> - MeshFinder now scans and indexes image/document and extra archive/model file types.
