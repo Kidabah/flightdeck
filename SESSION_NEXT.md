@@ -1,3 +1,17 @@
+## 2026-09-23 Session update (Collapsible watched folders)
+
+Latest commit: <built-in function hash> - Added collapsible Watched folders card and auto-collapse when opening Scan issues.
+
+- Added watchedFoldersToggle and collapsible body wrapper in printshelf/static/index.html.
+- Added collapse styles (settings-card-head, settings-collapsed) in printshelf/static/style.css.
+- Added collapse state logic and persistence in printshelf/static/app.js (localStorage key: meshfinder.settings.watchedFoldersCollapsed.v1).
+- Clicking Scan issues now switches to Folders, collapses Watched folders, and scrolls to the issues panel.
+- Cache-bust bumped to style.css?v=66 and pp.js?v=67.
+- Backend restart required: no (UI-only).
+- Hard refresh recommended once.
+
+---
+
 ## 2026-09-23 Session update (Scan issues button visibility fix)
 
 Latest commit: <built-in function hash> - Scan issues button now always visible with count, including zero.
