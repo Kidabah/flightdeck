@@ -1,3 +1,24 @@
+## 2026-09-23 Session update (MeshFinder filament assignments)
+
+Latest commit: <built-in function hash> - Added filament library + per-file assignment + filter in MeshFinder.
+
+- Backend:
+  - Added ilaments table and ssets.assigned_filament_id migration in printshelf/app/db.py.
+  - Added filament APIs in printshelf/app/main.py:
+    - GET/POST/PATCH/DELETE /api/filaments
+    - POST /api/assets/{asset_id}/filament
+  - Added ilament_id filtering support to browse/designs/assets queries.
+  - Stats now include ilaments count.
+- Frontend:
+  - Added Assigned filament library filter in printshelf/static/index.html.
+  - Added detail panel filament assign UI (+ quick create) in printshelf/static/app.js.
+  - Added rail stat badge for filament count.
+  - Bumped cache-bust versions in printshelf/static/index.html to pp.js?v=64 / style.css?v=64.
+- Backend restart required: yes (API + DB migration).
+- Hard refresh recommended after deploy (new JS/UI controls).
+
+---
+
 ## 2026-09-23 Session update (MeshFinder icon refresh)
 
 Latest commit: <built-in function hash> - New MeshFinder icon set (SVG/PNG/ICO) and favicon cache-bust links.
