@@ -1,3 +1,20 @@
+## 2026-09-24 Session update (Enable image/doc/archive indexing)
+
+Latest commit: <built-in function hash> - MeshFinder now scans and indexes image/document and extra archive/model file types.
+
+- Updated kind detection in printshelf/app/parsers/__init__.py to recognize:
+  - Model: step/stp (as step), bx, 3dm
+  - Archives: 
+ar, 7z, 	ar, 	gz, 	ar.gz
+  - Images: jpg, jpeg, png, gif, webp, mp, svg
+  - Documents: pdf, 	xt, md
+- Expanded scanner filename prefilter in printshelf/app/scanner.py to include those extensions so they are actually walked/upserted.
+- Existing files require a rescan to appear in MeshFinder.
+- Backend restart required: yes (scanner/parser changes).
+- Hard refresh optional (UI unchanged).
+
+---
+
 ## 2026-09-23 Session update (Type menu categories expanded)
 
 Latest commit: <built-in function hash> - Expanded MeshFinder type dropdown to include Kinds categories and STEP entry.
