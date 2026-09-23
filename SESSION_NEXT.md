@@ -1,3 +1,19 @@
+## 2026-09-23 Session update (Type menu categories expanded)
+
+Latest commit: <built-in function hash> - Expanded MeshFinder type dropdown to include Kinds categories and STEP entry.
+
+- Updated More types dropdown in printshelf/static/app.js with:
+  - Kinds: Images, Documents, Archives
+  - Model formats: STEP, OBJ, FBX, 3DM (plus existing STL/3MF/Gcode 3MF)
+  - Archive formats: ZIP, TGZ, TAR.GZ, TAR, RAR, 7Z
+- Added preset label mapping for the new selections in the type menu button text.
+- Updated dropdown layout in printshelf/static/style.css to 3 columns (Kinds / Model formats / Archive formats).
+- Cache-bust bumped in printshelf/static/index.html to style.css?v=68 and pp.js?v=69.
+- Backend restart required: no (UI-only).
+- Hard refresh recommended once.
+
+---
+
 ## 2026-09-23 Session update (Type arrow dropdown menu)
 
 Latest commit: <built-in function hash> - Added Meshory-style type arrow dropdown with grouped file filters.
