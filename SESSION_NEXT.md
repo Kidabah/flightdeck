@@ -1,3 +1,22 @@
+## 2026-09-23 Session update (Type arrow dropdown menu)
+
+Latest commit: <built-in function hash> - Added Meshory-style type arrow dropdown with grouped file filters.
+
+- Frontend (printshelf/static/index.html, printshelf/static/style.css, printshelf/static/app.js):
+  - Added More types ▾ button beside type tabs.
+  - Added grouped dropdown menu (Kinds, Model formats, Archive formats).
+  - Added presets for Models (STL/OBJ/3MF/Gcode 3MF), Archives (ZIP), and Duplicates.
+  - Added menu state sync + active highlighting + close-on-outside-click.
+  - Kept quick tabs (All/STL/3MF/Gcode 3MF/OBJ/ZIP) unchanged.
+- Backend (printshelf/app/main.py):
+  - Added kinds CSV query support to browse/designs/assets filtering.
+  - Supports grouped multi-kind filter requests from the new dropdown presets.
+- Cache-bust bumped: style.css?v=67, pp.js?v=68.
+- Backend restart required: yes (API query support).
+- Hard refresh recommended after deploy.
+
+---
+
 ## 2026-09-23 Session update (Collapsible watched folders)
 
 Latest commit: <built-in function hash> - Added collapsible Watched folders card and auto-collapse when opening Scan issues.
