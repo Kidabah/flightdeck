@@ -1,3 +1,14 @@
+## 2026-09-23 Session update (Scan issues button visibility fix)
+
+Latest commit: <built-in function hash> - Scan issues button now always visible with count, including zero.
+
+- Updated printshelf/static/app.js to always render Scan issues (N) instead of hiding at zero.
+- Updated default button text in printshelf/static/index.html and bumped pp.js?v=66.
+- Backend restart required: no (UI-only).
+- Hard refresh recommended once to load latest app.js.
+
+---
+
 ## 2026-09-23 Session update (MeshFinder scan issues panel)
 
 Latest commit: <built-in function hash> - Added unresolved scan issues tracking + retry/ignore workflow in MeshFinder.
