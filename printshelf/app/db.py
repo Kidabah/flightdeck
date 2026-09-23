@@ -20,6 +20,17 @@ CREATE TABLE IF NOT EXISTS designs (
   updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS filaments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  brand TEXT NOT NULL DEFAULT '',
+  material TEXT NOT NULL DEFAULT '',
+  colour_hex TEXT NOT NULL DEFAULT '',
+  notes TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS assets (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   design_id INTEGER NOT NULL REFERENCES designs(id) ON DELETE CASCADE,
@@ -39,6 +50,7 @@ CREATE TABLE IF NOT EXISTS assets (
   thumb_path TEXT,
   has_textures INTEGER NOT NULL DEFAULT 0,
   is_sliced INTEGER NOT NULL DEFAULT 0,
+  assigned_filament_id INTEGER REFERENCES filaments(id) ON DELETE SET NULL,
   last_seen TEXT NOT NULL,
   missing INTEGER NOT NULL DEFAULT 0,
   hidden INTEGER NOT NULL DEFAULT 0
@@ -64,10 +76,29 @@ CREATE TABLE IF NOT EXISTS scan_runs (
   error TEXT
 );
 
+CREATE TABLE IF NOT EXISTS collections (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  mode TEXT NOT NULL DEFAULT 'auto',
+  rules_json TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS collection_assets (
+  collection_id INTEGER NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
+  asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (collection_id, asset_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_assets_kind ON assets(kind);
 CREATE INDEX IF NOT EXISTS idx_assets_hash ON assets(content_hash);
 CREATE INDEX IF NOT EXISTS idx_assets_design ON assets(design_id);
+CREATE INDEX IF NOT EXISTS idx_assets_assigned_filament ON assets(assigned_filament_id);
 CREATE INDEX IF NOT EXISTS idx_designs_hash ON designs(content_hash);
+CREATE INDEX IF NOT EXISTS idx_collections_mode ON collections(mode);
+CREATE INDEX IF NOT EXISTS idx_collection_assets_asset ON collection_assets(asset_id);
 """
 
 
@@ -88,12 +119,28 @@ def _migrate(conn: sqlite3.Connection) -> None:
     asset_cols = {row[1] for row in conn.execute("PRAGMA table_info(assets)").fetchall()}
     if "hidden" not in asset_cols:
         conn.execute("ALTER TABLE assets ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0")
+    if "assigned_filament_id" not in asset_cols:
+        conn.execute(
+            "ALTER TABLE assets ADD COLUMN assigned_filament_id INTEGER REFERENCES filaments(id) ON DELETE SET NULL"
+        )
     conn.execute("CREATE INDEX IF NOT EXISTS idx_assets_hidden ON assets(hidden)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_assets_assigned_filament ON assets(assigned_filament_id)")
 
     design_cols = {row[1] for row in conn.execute("PRAGMA table_info(designs)").fetchall()}
     if "group_key" not in design_cols:
         conn.execute("ALTER TABLE designs ADD COLUMN group_key TEXT")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_designs_group_key ON designs(group_key)")
+
+    collection_cols = {
+        row[1] for row in conn.execute("PRAGMA table_info(collections)").fetchall()
+    }
+    if collection_cols:
+        if "mode" not in collection_cols:
+            conn.execute("ALTER TABLE collections ADD COLUMN mode TEXT NOT NULL DEFAULT 'auto'")
+        if "rules_json" not in collection_cols:
+            conn.execute("ALTER TABLE collections ADD COLUMN rules_json TEXT NOT NULL DEFAULT '{}'")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_collections_mode ON collections(mode)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_collection_assets_asset ON collection_assets(asset_id)")
 
 
 def init_db(db_file: Path) -> None:

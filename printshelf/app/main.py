@@ -76,6 +76,38 @@ class DesignMetaIn(BaseModel):
     tags: list[str] | None = None
 
 
+class CollectionRuleIn(BaseModel):
+    q: str | None = None
+    kind: str | None = None
+    source_kind: str | None = None
+    root_id: str | None = None
+    has_textures: bool | None = None
+    is_sliced: bool | None = None
+    tags_any: list[str] | None = None
+
+
+class CollectionIn(BaseModel):
+    name: str
+    mode: str = "auto"
+    rules: CollectionRuleIn | None = None
+
+
+class CollectionAssetIdsIn(BaseModel):
+    ids: list[int] = Field(default_factory=list, max_length=2000)
+
+
+class FilamentIn(BaseModel):
+    name: str
+    brand: str = ""
+    material: str = ""
+    colour_hex: str = ""
+    notes: str = ""
+
+
+class AssetFilamentIn(BaseModel):
+    filament_id: int | None = None
+
+
 _ASSET_SORT = {
     "seen": "a.last_seen DESC, a.file_name ASC",
     "name": "a.file_name ASC, a.rel_path ASC",
@@ -206,15 +238,371 @@ def stats() -> dict[str, Any]:
                    GROUP BY content_hash HAVING COUNT(*) > 1
                  )"""
         ).fetchone()["c"]
+        collections = conn.execute(
+            "SELECT COUNT(*) AS c FROM collections"
+        ).fetchone()["c"]
+        filaments = conn.execute(
+            "SELECT COUNT(*) AS c FROM filaments"
+        ).fetchone()["c"]
     return {
         "designs": designs,
         "assets": assets,
         "hidden": hidden,
         "by_kind": by_kind,
         "duplicates": int(duplicates or 0),
+        "collections": int(collections or 0),
+        "filaments": int(filaments or 0),
         "scan": get_scan_state(),
         "thumbs": get_thumb_rebuild_state(),
     }
+
+
+@app.get("/api/collections")
+def list_collections() -> dict[str, Any]:
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    with db_session(db_file) as conn:
+        rows = conn.execute(
+            "SELECT id, name, mode, rules_json, created_at, updated_at FROM collections ORDER BY name COLLATE NOCASE ASC, id ASC"
+        ).fetchall()
+        items = [_serialize_collection_row(conn, r) for r in rows]
+    return {"items": items}
+
+
+@app.get("/api/collections/{collection_id}")
+def get_collection(collection_id: int) -> dict[str, Any]:
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    with db_session(db_file) as conn:
+        row = _get_collection_row(conn, collection_id)
+        return _serialize_collection_row(conn, row)
+
+
+@app.post("/api/collections")
+def create_collection(body: CollectionIn) -> dict[str, Any]:
+    mode = _clean_collection_mode(body.mode)
+    name = _clean_collection_name(body.name)
+    rules = _normalize_collection_rules(body.rules.model_dump() if body.rules else {})
+    now = utcnow()
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    with db_session(db_file) as conn:
+        cur = conn.execute(
+            "INSERT INTO collections(name, mode, rules_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+            (name, mode, json.dumps(rules), now, now),
+        )
+        row = _get_collection_row(conn, int(cur.lastrowid))
+        return _serialize_collection_row(conn, row)
+
+
+@app.patch("/api/collections/{collection_id}")
+def patch_collection(collection_id: int, body: CollectionIn) -> dict[str, Any]:
+    mode = _clean_collection_mode(body.mode)
+    name = _clean_collection_name(body.name)
+    rules = _normalize_collection_rules(body.rules.model_dump() if body.rules else {})
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    with db_session(db_file) as conn:
+        _get_collection_row(conn, collection_id)
+        conn.execute(
+            "UPDATE collections SET name = ?, mode = ?, rules_json = ?, updated_at = ? WHERE id = ?",
+            (name, mode, json.dumps(rules), utcnow(), collection_id),
+        )
+        row = _get_collection_row(conn, collection_id)
+        return _serialize_collection_row(conn, row)
+
+
+@app.delete("/api/collections/{collection_id}")
+def delete_collection(collection_id: int) -> dict[str, Any]:
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    with db_session(db_file) as conn:
+        _get_collection_row(conn, collection_id)
+        conn.execute("DELETE FROM collections WHERE id = ?", (collection_id,))
+    return {"ok": True}
+
+
+@app.post("/api/collections/{collection_id}/assets")
+def add_collection_assets(collection_id: int, body: CollectionAssetIdsIn) -> dict[str, Any]:
+    ids = [int(i) for i in body.ids if int(i) > 0]
+    if not ids:
+        return {"ok": True, "added": 0}
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    with db_session(db_file) as conn:
+        coll = _get_collection_row(conn, collection_id)
+        if _clean_collection_mode(coll.get("mode")) != "manual":
+            raise HTTPException(400, "Can only add assets to manual collections")
+        placeholders = ",".join("?" for _ in ids)
+        found = {
+            int(r["id"])
+            for r in conn.execute(
+                f"SELECT id FROM assets WHERE id IN ({placeholders}) AND missing = 0",
+                ids,
+            ).fetchall()
+        }
+        now = utcnow()
+        for asset_id in sorted(found):
+            conn.execute(
+                "INSERT OR IGNORE INTO collection_assets(collection_id, asset_id, created_at) VALUES (?, ?, ?)",
+                (collection_id, asset_id, now),
+            )
+    return {"ok": True, "added": len(ids)}
+
+
+@app.delete("/api/collections/{collection_id}/assets")
+def remove_collection_assets(collection_id: int, body: CollectionAssetIdsIn) -> dict[str, Any]:
+    ids = [int(i) for i in body.ids if int(i) > 0]
+    if not ids:
+        return {"ok": True, "removed": 0}
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    with db_session(db_file) as conn:
+        coll = _get_collection_row(conn, collection_id)
+        if _clean_collection_mode(coll.get("mode")) != "manual":
+            raise HTTPException(400, "Can only remove assets from manual collections")
+        placeholders = ",".join("?" for _ in ids)
+        conn.execute(
+            f"DELETE FROM collection_assets WHERE collection_id = ? AND asset_id IN ({placeholders})",
+            [collection_id, *ids],
+        )
+    return {"ok": True, "removed": len(ids)}
+
+
+def _clean_colour_hex(raw: str | None) -> str:
+    c = str(raw or "").strip()
+    if not c:
+        return ""
+    if not re.fullmatch(r"#?[0-9a-fA-F]{6}", c):
+        raise HTTPException(400, "Filament colour must be a 6-digit hex code")
+    return c if c.startswith("#") else f"#{c}"
+
+
+def _serialize_filament_row(conn, row) -> dict[str, Any]:
+    item = row_to_dict(row)
+    assert item
+    item["usage_count"] = int(
+        conn.execute(
+            "SELECT COUNT(*) AS c FROM assets WHERE missing = 0 AND COALESCE(hidden, 0) = 0 AND assigned_filament_id = ?",
+            (int(item["id"]),),
+        ).fetchone()["c"]
+    )
+    return item
+
+
+@app.get("/api/filaments")
+def list_filaments() -> dict[str, Any]:
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    with db_session(db_file) as conn:
+        rows = conn.execute(
+            "SELECT id, name, brand, material, colour_hex, notes, created_at, updated_at "
+            "FROM filaments ORDER BY name COLLATE NOCASE ASC, id ASC"
+        ).fetchall()
+        items = [_serialize_filament_row(conn, r) for r in rows]
+    return {"items": items}
+
+
+@app.post("/api/filaments")
+def create_filament(body: FilamentIn) -> dict[str, Any]:
+    name = " ".join(str(body.name or "").strip().split())
+    if not name:
+        raise HTTPException(400, "Filament name is required")
+    brand = " ".join(str(body.brand or "").strip().split())[:80]
+    material = " ".join(str(body.material or "").strip().split())[:40]
+    colour_hex = _clean_colour_hex(body.colour_hex)
+    notes = str(body.notes or "").strip()[:1000]
+    now = utcnow()
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    with db_session(db_file) as conn:
+        cur = conn.execute(
+            "INSERT INTO filaments(name, brand, material, colour_hex, notes, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (name[:120], brand, material, colour_hex, notes, now, now),
+        )
+        row = conn.execute(
+            "SELECT id, name, brand, material, colour_hex, notes, created_at, updated_at FROM filaments WHERE id = ?",
+            (int(cur.lastrowid),),
+        ).fetchone()
+        return _serialize_filament_row(conn, row)
+
+
+@app.patch("/api/filaments/{filament_id}")
+def patch_filament(filament_id: int, body: FilamentIn) -> dict[str, Any]:
+    name = " ".join(str(body.name or "").strip().split())
+    if not name:
+        raise HTTPException(400, "Filament name is required")
+    brand = " ".join(str(body.brand or "").strip().split())[:80]
+    material = " ".join(str(body.material or "").strip().split())[:40]
+    colour_hex = _clean_colour_hex(body.colour_hex)
+    notes = str(body.notes or "").strip()[:1000]
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    with db_session(db_file) as conn:
+        hit = conn.execute("SELECT id FROM filaments WHERE id = ?", (filament_id,)).fetchone()
+        if not hit:
+            raise HTTPException(404, "Filament not found")
+        conn.execute(
+            "UPDATE filaments SET name = ?, brand = ?, material = ?, colour_hex = ?, notes = ?, updated_at = ? "
+            "WHERE id = ?",
+            (name[:120], brand, material, colour_hex, notes, utcnow(), filament_id),
+        )
+        row = conn.execute(
+            "SELECT id, name, brand, material, colour_hex, notes, created_at, updated_at FROM filaments WHERE id = ?",
+            (filament_id,),
+        ).fetchone()
+        return _serialize_filament_row(conn, row)
+
+
+@app.delete("/api/filaments/{filament_id}")
+def delete_filament(filament_id: int) -> dict[str, Any]:
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    with db_session(db_file) as conn:
+        hit = conn.execute("SELECT id FROM filaments WHERE id = ?", (filament_id,)).fetchone()
+        if not hit:
+            raise HTTPException(404, "Filament not found")
+        conn.execute("UPDATE assets SET assigned_filament_id = NULL WHERE assigned_filament_id = ?", (filament_id,))
+        conn.execute("DELETE FROM filaments WHERE id = ?", (filament_id,))
+    return {"ok": True}
+
+
+@app.post("/api/assets/{asset_id}/filament")
+def set_asset_filament(asset_id: int, body: AssetFilamentIn) -> dict[str, Any]:
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    fid = int(body.filament_id) if body.filament_id is not None else None
+    with db_session(db_file) as conn:
+        hit = conn.execute("SELECT id FROM assets WHERE id = ?", (asset_id,)).fetchone()
+        if not hit:
+            raise HTTPException(404, "Asset not found")
+        if fid is not None:
+            f_hit = conn.execute("SELECT id FROM filaments WHERE id = ?", (fid,)).fetchone()
+            if not f_hit:
+                raise HTTPException(404, "Filament not found")
+        conn.execute(
+            "UPDATE assets SET assigned_filament_id = ? WHERE id = ?",
+            (fid, asset_id),
+        )
+    return get_asset(asset_id)
+
+
+def _clean_collection_mode(raw: str | None) -> str:
+    mode = str(raw or "auto").strip().lower()
+    if mode not in {"auto", "manual"}:
+        raise HTTPException(400, "Collection mode must be 'auto' or 'manual'")
+    return mode
+
+
+def _clean_collection_name(raw: str | None) -> str:
+    name = " ".join(str(raw or "").strip().split())
+    if not name:
+        raise HTTPException(400, "Collection name is required")
+    return name[:120]
+
+
+def _normalize_collection_rules(raw: dict[str, Any] | None) -> dict[str, Any]:
+    src = raw or {}
+    tags: list[str] = []
+    seen: set[str] = set()
+    for t in src.get("tags_any") or []:
+        tag = " ".join(str(t or "").strip().split())
+        if not tag:
+            continue
+        key = tag.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        tags.append(tag[:64])
+        if len(tags) >= 24:
+            break
+    out = {
+        "q": str(src.get("q") or "").strip()[:200],
+        "kind": str(src.get("kind") or "").strip()[:40],
+        "source_kind": str(src.get("source_kind") or "").strip()[:40],
+        "root_id": str(src.get("root_id") or "").strip()[:100],
+        "has_textures": src.get("has_textures") if src.get("has_textures") is not None else None,
+        "is_sliced": src.get("is_sliced") if src.get("is_sliced") is not None else None,
+        "tags_any": tags,
+    }
+    return out
+
+
+def _collection_where_clause(collection_row: dict[str, Any] | None) -> tuple[str, list[Any]]:
+    if not collection_row:
+        return "", []
+    mode = _clean_collection_mode(collection_row.get("mode"))
+    if mode == "manual":
+        cid = int(collection_row["id"])
+        return "a.id IN (SELECT asset_id FROM collection_assets WHERE collection_id = ?)", [cid]
+
+    rules = _normalize_collection_rules(
+        parse_json_field(collection_row.get("rules_json"), {}) if collection_row.get("rules_json") else {}
+    )
+    clauses: list[str] = []
+    params: list[Any] = []
+    if rules.get("kind"):
+        clauses.append("a.kind = ?")
+        params.append(rules["kind"])
+    if rules.get("source_kind"):
+        clauses.append("a.source_kind = ?")
+        params.append(rules["source_kind"])
+    if rules.get("root_id"):
+        clauses.append("a.root_id = ?")
+        params.append(rules["root_id"])
+    if rules.get("has_textures") is not None:
+        clauses.append("a.has_textures = ?")
+        params.append(1 if rules["has_textures"] else 0)
+    if rules.get("is_sliced") is not None:
+        clauses.append("a.is_sliced = ?")
+        params.append(1 if rules["is_sliced"] else 0)
+    if rules.get("q"):
+        like = f"%{rules['q']}%"
+        clauses.append(
+            "(a.file_name LIKE ? OR a.rel_path LIKE ? OR d.name LIKE ? OR d.notes LIKE ? OR d.tags_json LIKE ?)"
+        )
+        params.extend([like, like, like, like, like])
+    for tag in rules.get("tags_any") or []:
+        clauses.append("d.tags_json LIKE ?")
+        params.append(f'%"{tag}"%')
+    if not clauses:
+        return "", []
+    return "(" + " AND ".join(clauses) + ")", params
+
+
+def _get_collection_row(conn, collection_id: int | None) -> dict[str, Any] | None:
+    if not collection_id:
+        return None
+    row = conn.execute(
+        "SELECT id, name, mode, rules_json, created_at, updated_at FROM collections WHERE id = ?",
+        (int(collection_id),),
+    ).fetchone()
+    if not row:
+        raise HTTPException(404, "Collection not found")
+    item = row_to_dict(row)
+    assert item
+    return item
+
+
+def _serialize_collection_row(conn, row) -> dict[str, Any]:
+    item = row_to_dict(row)
+    assert item
+    item["mode"] = _clean_collection_mode(item.get("mode"))
+    item["rules"] = _normalize_collection_rules(parse_json_field(item.pop("rules_json", "{}"), {}))
+    cid = int(item["id"])
+    c_where, c_params = _collection_where_clause(
+        {"id": cid, "mode": item["mode"], "rules_json": json.dumps(item["rules"])}
+    )
+    where = c_where or "1=1"
+    item["asset_count"] = int(
+        conn.execute(
+            f"SELECT COUNT(*) AS c FROM assets a JOIN designs d ON d.id = a.design_id "
+            f"WHERE a.missing = 0 AND COALESCE(a.hidden, 0) = 0 AND {where}",
+            c_params,
+        ).fetchone()["c"]
+    )
+    return item
 
 
 def _asset_visibility_clauses(
@@ -227,7 +615,10 @@ def _asset_visibility_clauses(
     is_sliced: bool | None = None,
     q: str | None = None,
     root_id: str | None = None,
+    filament_id: int | None = None,
     duplicates: bool = False,
+    collection_where: str | None = None,
+    collection_params: list[Any] | None = None,
 ) -> tuple[list[str], list[Any]]:
     clauses = ["a.missing = ?"]
     params: list[Any] = [1 if missing else 0]
@@ -252,6 +643,12 @@ def _asset_visibility_clauses(
     if root_id:
         clauses.append("a.root_id = ?")
         params.append(root_id)
+    if filament_id is not None:
+        clauses.append("a.assigned_filament_id = ?")
+        params.append(int(filament_id))
+    if collection_where:
+        clauses.append(collection_where)
+        params.extend(collection_params or [])
     if duplicates:
         clauses.append(
             """a.content_hash IS NOT NULL AND TRIM(a.content_hash) != ''
@@ -288,6 +685,8 @@ def browse_library(
     source_kind: str | None = None,
     has_textures: bool | None = None,
     is_sliced: bool | None = None,
+    filament_id: int | None = None,
+    collection_id: int | None = None,
     hidden: bool | None = False,
     limit: int = Query(500, ge=1, le=1000),
 ) -> dict[str, Any]:
@@ -297,6 +696,9 @@ def browse_library(
     folder = _normalize_folder(folder)
     watched = {f.get("id"): f for f in (cfg.get("watched_folders") or []) if f.get("id")}
 
+    with db_session(db_file) as conn:
+        coll = _get_collection_row(conn, collection_id) if collection_id else None
+    c_where, c_params = _collection_where_clause(coll)
     clauses, params = _asset_visibility_clauses(
         hidden=hidden,
         kind=kind,
@@ -305,6 +707,9 @@ def browse_library(
         is_sliced=is_sliced,
         q=q,
         root_id=root_id,
+        filament_id=filament_id,
+        collection_where=c_where or None,
+        collection_params=c_params,
     )
     where = " AND ".join(clauses)
 
@@ -517,6 +922,8 @@ def list_designs(
     is_sliced: bool | None = None,
     hidden: bool | None = False,
     root_id: str | None = None,
+    filament_id: int | None = None,
+    collection_id: int | None = None,
     sort: str | None = None,
     limit: int = Query(200, ge=1, le=500),
     offset: int = Query(0, ge=0),
@@ -524,6 +931,9 @@ def list_designs(
     """Design-centric catalogue: one card per grouped printable pack."""
     cfg = load_config()
     db_file = data_dir(cfg) / "printshelf.sqlite3"
+    with db_session(db_file) as conn:
+        coll = _get_collection_row(conn, collection_id) if collection_id else None
+    c_where, c_params = _collection_where_clause(coll)
     # Visible assets drive which designs appear.
     asset_clauses = ["a.missing = 0"]
     params: list[Any] = []
@@ -548,6 +958,12 @@ def list_designs(
     if is_sliced is not None:
         asset_clauses.append("a.is_sliced = ?")
         params.append(1 if is_sliced else 0)
+    if filament_id is not None:
+        asset_clauses.append("a.assigned_filament_id = ?")
+        params.append(int(filament_id))
+    if c_where:
+        asset_clauses.append(c_where)
+        params.extend(c_params)
     where_assets = " AND ".join(asset_clauses)
 
     design_clauses = [f"EXISTS (SELECT 1 FROM assets a WHERE a.design_id = d.id AND {where_assets})"]
@@ -661,6 +1077,8 @@ def list_assets(
     missing: bool = False,
     hidden: bool | None = False,
     root_id: str | None = None,
+    filament_id: int | None = None,
+    collection_id: int | None = None,
     duplicates: bool = False,
     sort: str | None = None,
     limit: int = Query(200, ge=1, le=500),
@@ -668,6 +1086,9 @@ def list_assets(
 ) -> dict[str, Any]:
     cfg = load_config()
     db_file = data_dir(cfg) / "printshelf.sqlite3"
+    with db_session(db_file) as conn:
+        coll = _get_collection_row(conn, collection_id) if collection_id else None
+    c_where, c_params = _collection_where_clause(coll)
     clauses, params = _asset_visibility_clauses(
         missing=missing,
         hidden=hidden,
@@ -677,7 +1098,10 @@ def list_assets(
         is_sliced=is_sliced,
         q=q,
         root_id=root_id,
+        filament_id=filament_id,
         duplicates=duplicates,
+        collection_where=c_where or None,
+        collection_params=c_params,
     )
     where = " AND ".join(clauses)
     order = (
@@ -743,12 +1167,20 @@ def get_asset(asset_id: int) -> dict[str, Any]:
                 (asset_id,),
             ).fetchall()
         ]
+        filament_row = None
+        if row and row["assigned_filament_id"]:
+            filament_row = conn.execute(
+                "SELECT id, name, brand, material, colour_hex, notes, created_at, updated_at "
+                "FROM filaments WHERE id = ?",
+                (int(row["assigned_filament_id"]),),
+            ).fetchone()
     item = row_to_dict(row)
     assert item
     item["meta"] = parse_json_field(item.pop("meta_json", "{}"), {})
     item["bbox"] = parse_json_field(item.pop("bbox_json", None), None)
     item["tags"] = parse_json_field(item.pop("tags_json", "[]"), [])
     item["sidecars"] = sidecars
+    item["assigned_filament"] = row_to_dict(filament_row) if filament_row else None
     folders = list(cfg.get("watched_folders") or [])
     abs_path = str(item.get("abs_path") or "")
     item["windows_path"] = to_windows_path(abs_path, folders)

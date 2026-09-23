@@ -1,6 +1,9 @@
 const $ = (id) => document.getElementById(id);
 
 let folders = [];
+let collections = [];
+let filaments = [];
+let editingCollectionId = null;
 let selectedId = null;
 let activeKind = "";
 let libraryItems = [];
@@ -732,7 +735,9 @@ async function watchStatusTick() {
   const kinds = Object.entries(byKind).map(([k, v]) => `${k}: ${v}`).join(" · ") || "no files yet";
   const dupBit = s.duplicates ? `<br><span class="pill warn">duplicates ${s.duplicates}</span>` : "";
   const hiddenBit = s.hidden ? `<br><span class="pill">hidden ${s.hidden}</span>` : "";
-  $("railStats").innerHTML = `<strong>${s.designs ?? "—"}</strong> designs · <strong>${s.assets}</strong> files<br>${kinds}${dupBit}${hiddenBit}`;
+  const collBit = s.collections ? `<br><span class="pill">collections ${s.collections}</span>` : "";
+  const filamentBit = s.filaments ? `<br><span class="pill">filaments ${s.filaments}</span>` : "";
+  $("railStats").innerHTML = `<strong>${s.designs ?? "—"}</strong> designs · <strong>${s.assets}</strong> files<br>${kinds}${dupBit}${hiddenBit}${collBit}${filamentBit}`;
   updateTypeTabCounts(byKind, s.assets || 0, s.duplicates || 0);
   updateScanBanner(scan, byKind, s.assets || 0);
   $("scanStatus").textContent = formatStatusLine(scan, thumbs);
@@ -766,7 +771,9 @@ async function refreshStats() {
   const kinds = Object.entries(byKind).map(([k, v]) => `${k}: ${v}`).join(" · ") || "no files yet";
   const dupBit = s.duplicates ? `<br><span class="pill warn">duplicates ${s.duplicates}</span>` : "";
   const hiddenBit = s.hidden ? `<br><span class="pill">hidden ${s.hidden}</span>` : "";
-  $("railStats").innerHTML = `<strong>${s.designs ?? "—"}</strong> designs · <strong>${s.assets}</strong> files<br>${kinds}${dupBit}${hiddenBit}`;
+  const collBit = s.collections ? `<br><span class="pill">collections ${s.collections}</span>` : "";
+  const filamentBit = s.filaments ? `<br><span class="pill">filaments ${s.filaments}</span>` : "";
+  $("railStats").innerHTML = `<strong>${s.designs ?? "—"}</strong> designs · <strong>${s.assets}</strong> files<br>${kinds}${dupBit}${hiddenBit}${collBit}${filamentBit}`;
   updateTypeTabCounts(byKind, s.assets || 0, s.duplicates || 0);
   const scan = s.scan || {};
   const thumbs = s.thumbs || {};
@@ -805,7 +812,7 @@ function updateBulkBar() {
   bar.hidden = !selectable;
   if ($("bulkCount")) $("bulkCount").textContent = n ? `${n} selected` : "Select files";
   bar.classList.toggle("bulk-bar--idle", n === 0);
-  for (const id of ["bulkHideBtn", "bulkUnhideBtn", "bulkDeleteBtn", "bulkClearBtn"]) {
+  for (const id of ["bulkHideBtn", "bulkUnhideBtn", "bulkAddCollectionBtn", "bulkDeleteBtn", "bulkClearBtn"]) {
     const btn = $(id);
     if (btn) btn.disabled = n === 0;
   }
@@ -881,6 +888,10 @@ function filterParams() {
   if (source) params.set("source_kind", source);
   const root = $("filterRoot")?.value;
   if (root) params.set("root_id", root);
+  const filament = $("filterFilament")?.value;
+  if (filament) params.set("filament_id", filament);
+  const collectionId = $("filterCollection")?.value;
+  if (collectionId) params.set("collection_id", collectionId);
   const sort = $("sortBy")?.value;
   if (sort && sort !== "seen") params.set("sort", sort);
   else if (sort) params.set("sort", "seen");
@@ -896,6 +907,41 @@ function parseTagsInput(raw) {
     .split(/[,;\n]+/)
     .map((t) => t.trim())
     .filter(Boolean);
+}
+
+function fillCollectionFilter() {
+  const sel = $("filterCollection");
+  if (!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = `<option value="">All collections</option>`
+    + collections.map((c) => {
+      const id = String(c.id);
+      const n = Number(c.asset_count || 0);
+      return `<option value="${escapeHtml(id)}">${escapeHtml(c.name || `Collection ${id}`)} (${n})</option>`;
+    }).join("");
+  if (prev && [...sel.options].some((o) => o.value === prev)) sel.value = prev;
+}
+
+function filamentLabel(f) {
+  if (!f) return "";
+  const bits = [
+    String(f.brand || "").trim(),
+    String(f.material || "").trim(),
+    String(f.name || "").trim(),
+  ].filter(Boolean);
+  return bits.join(" · ") || `Filament ${f.id ?? ""}`.trim();
+}
+
+function fillFilamentFilter() {
+  const sel = $("filterFilament");
+  if (!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = `<option value="">All filaments</option>`
+    + filaments.map((f) => {
+      const id = String(f.id);
+      return `<option value="${escapeHtml(id)}">${escapeHtml(filamentLabel(f))}</option>`;
+    }).join("");
+  if (prev && [...sel.options].some((o) => o.value === prev)) sel.value = prev;
 }
 
 function fillRootFilter() {
@@ -1725,6 +1771,23 @@ async function selectAsset(id, { design = null } = {}) {
       <textarea id="designNotesInput" class="meta-input meta-notes" rows="3" placeholder="Anything useful about this design…">${escapeHtml(designCtx?.notes ?? item.design_notes ?? "")}</textarea>
       <button type="button" class="card-open secondary" id="saveDesignMetaBtn">Save tags &amp; notes</button>
     </div>
+    <div class="detail-section">
+      <h3>Library filament</h3>
+      <div class="detail-actions">
+        <select id="assetFilamentSelect" class="meta-input" style="min-width:220px">
+          <option value="">No filament assigned</option>
+          ${filaments.map((f) => `
+            <option value="${f.id}" ${Number(item.assigned_filament_id || 0) === Number(f.id) ? "selected" : ""}>
+              ${escapeHtml(filamentLabel(f))}
+            </option>`).join("")}
+        </select>
+        <button type="button" class="card-open secondary" id="assignFilamentBtn">Assign</button>
+        <button type="button" class="card-open secondary" id="newFilamentBtn">+ New filament</button>
+      </div>
+      <p class="detail-hint" id="assetFilamentHint">${item.assigned_filament
+        ? `Assigned: ${escapeHtml(filamentLabel(item.assigned_filament))}`
+        : "Assign a filament profile to this file so you can filter your library by material/colour."}</p>
+    </div>
     <div class="kv">
       <div><span>Design</span><span>${escapeHtml(item.design_name)}</span></div>
       ${item.suggested_printer?.label
@@ -1997,6 +2060,51 @@ async function selectAsset(id, { design = null } = {}) {
   $("copyWinPathBtn")?.addEventListener("click", () => copyText($("copyWinPathBtn"), winPath));
   $("copyWinFolderBtn")?.addEventListener("click", () => copyText($("copyWinFolderBtn"), winFolder, "Folder path copied"));
   $("copyPiPathBtn")?.addEventListener("click", () => copyText($("copyPiPathBtn"), item.abs_path));
+  $("assignFilamentBtn")?.addEventListener("click", async () => {
+    const sel = $("assetFilamentSelect");
+    const raw = sel ? String(sel.value || "").trim() : "";
+    const filamentId = raw ? Number(raw) : null;
+    const label = filamentId
+      ? (filaments.find((f) => Number(f.id) === filamentId)?.name || "filament")
+      : "none";
+    try {
+      await api(`/api/assets/${item.id}/filament`, {
+        method: "POST",
+        body: JSON.stringify({ filament_id: filamentId }),
+      });
+      psToast("Filament updated", `Assigned: ${label}`, "ok");
+      await loadFilaments();
+      await loadLibrary({ preserveScroll: true });
+      await selectAsset(item.id, { design: designCtx });
+    } catch (err) {
+      psToast("Filament assign failed", String(err.message || err), "error");
+    }
+  });
+  $("newFilamentBtn")?.addEventListener("click", async () => {
+    const name = String(window.prompt("Filament name", "") || "").trim();
+    if (!name) return;
+    const material = String(window.prompt("Material (optional, e.g. PLA/PETG)", "") || "").trim();
+    const brand = String(window.prompt("Brand (optional)", "") || "").trim();
+    const colour = String(window.prompt("Colour hex (optional, e.g. #60B4EB)", "") || "").trim();
+    try {
+      await api("/api/filaments", {
+        method: "POST",
+        body: JSON.stringify({
+          name,
+          material,
+          brand,
+          colour_hex: colour,
+        }),
+      });
+      await loadFilaments();
+      const sel = $("assetFilamentSelect");
+      const created = filaments.find((f) => String(f.name || "").toLowerCase() === name.toLowerCase());
+      if (sel && created) sel.value = String(created.id);
+      psToast("Filament created", filamentLabel(created || { name }), "ok");
+    } catch (err) {
+      psToast("Create filament failed", String(err.message || err), "error");
+    }
+  });
   $("saveDesignMetaBtn")?.addEventListener("click", async () => {
     const btn = $("saveDesignMetaBtn");
     const tags = parseTagsInput($("designTagsInput")?.value);
@@ -2205,6 +2313,180 @@ function renderIgnoreGlobs() {
   if (el) el.value = (ignoreGlobs || []).join("\n");
 }
 
+function collectionRulesLabel(item = {}) {
+  const mode = String(item.mode || "auto");
+  if (mode === "manual") return "manual list";
+  const r = item.rules || {};
+  const bits = [];
+  if (r.q) bits.push(`q:${r.q}`);
+  if (r.kind) bits.push(r.kind);
+  if (r.root_id) bits.push(r.root_id);
+  if (r.tags_any?.length) bits.push(`#${r.tags_any.join(", #")}`);
+  if (r.has_textures) bits.push("textures");
+  if (r.is_sliced) bits.push("sliced");
+  return bits.length ? bits.join(" · ") : "all files";
+}
+
+function resetCollectionForm() {
+  const form = $("collectionForm");
+  if (!form) return;
+  editingCollectionId = null;
+  form.reset();
+  const modeSel = form.querySelector('[name="mode"]');
+  if (modeSel) modeSel.value = "auto";
+  form.querySelector('[name="name"]')?.focus();
+}
+
+function fillCollectionForm(item) {
+  const form = $("collectionForm");
+  if (!form || !item) return;
+  editingCollectionId = Number(item.id);
+  form.querySelector('[name="name"]').value = item.name || "";
+  form.querySelector('[name="mode"]').value = item.mode || "auto";
+  form.querySelector('[name="q"]').value = item.rules?.q || "";
+  form.querySelector('[name="kind"]').value = item.rules?.kind || "";
+  form.querySelector('[name="tags_any"]').value = (item.rules?.tags_any || []).join(", ");
+  form.querySelector('[name="has_textures"]').checked = !!item.rules?.has_textures;
+  form.querySelector('[name="is_sliced"]').checked = !!item.rules?.is_sliced;
+}
+
+function renderCollections() {
+  const host = $("collectionList");
+  if (!host) return;
+  if (!collections.length) {
+    host.innerHTML = `<p class="lede">No collections yet.</p>`;
+    return;
+  }
+  host.innerHTML = collections.map((c) => `
+    <div class="collection-row">
+      <div>
+        <strong>${escapeHtml(c.name || `Collection ${c.id}`)}</strong>
+        <div class="meta">
+          <span class="pill">${escapeHtml(c.mode || "auto")}</span>
+          <span>${Number(c.asset_count || 0)} files</span>
+          <span>${escapeHtml(collectionRulesLabel(c))}</span>
+        </div>
+      </div>
+      <div class="collection-actions">
+        <button type="button" class="secondary edit-collection" data-id="${c.id}">Edit</button>
+        <button type="button" class="secondary delete-collection" data-id="${c.id}">Delete</button>
+      </div>
+    </div>
+  `).join("");
+  host.querySelectorAll(".edit-collection").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = Number(btn.dataset.id);
+      const item = collections.find((x) => Number(x.id) === id);
+      if (item) fillCollectionForm(item);
+    });
+  });
+  host.querySelectorAll(".delete-collection").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = Number(btn.dataset.id);
+      const item = collections.find((x) => Number(x.id) === id);
+      if (!item) return;
+      const ok = await psConfirm({
+        eyebrow: "Delete collection",
+        title: `Delete ${item.name}?`,
+        body: "This only removes the collection. Files stay where they are.",
+        confirmLabel: "Delete",
+        danger: true,
+      });
+      if (!ok) return;
+      await api(`/api/collections/${id}`, { method: "DELETE" });
+      if ($("filterCollection")?.value === String(id)) $("filterCollection").value = "";
+      await loadCollections();
+      await loadLibrary();
+      psToast("Collection deleted", item.name, "ok");
+    });
+  });
+}
+
+async function loadCollections() {
+  const out = await api("/api/collections");
+  collections = out.items || [];
+  fillCollectionFilter();
+  renderCollections();
+}
+
+async function loadFilaments() {
+  const out = await api("/api/filaments");
+  filaments = out.items || [];
+  fillFilamentFilter();
+}
+
+async function saveCollectionFromForm() {
+  const form = $("collectionForm");
+  if (!form) return;
+  const fd = new FormData(form);
+  const mode = String(fd.get("mode") || "auto");
+  const payload = {
+    name: String(fd.get("name") || "").trim(),
+    mode,
+    rules: {
+      q: String(fd.get("q") || "").trim(),
+      kind: String(fd.get("kind") || "").trim(),
+      tags_any: parseTagsInput(fd.get("tags_any") || ""),
+      has_textures: form.querySelector('[name="has_textures"]').checked ? true : null,
+      is_sliced: form.querySelector('[name="is_sliced"]').checked ? true : null,
+    },
+  };
+  if (mode === "manual") {
+    payload.rules = {};
+  }
+  if (!payload.name) {
+    psToast("Collection name required", "Add a name first.", "error");
+    return;
+  }
+  if (editingCollectionId) {
+    await api(`/api/collections/${editingCollectionId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+    psToast("Collection updated", payload.name, "ok");
+  } else {
+    await api("/api/collections", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    psToast("Collection created", payload.name, "ok");
+  }
+  resetCollectionForm();
+  await loadCollections();
+  await refreshStats();
+  await loadLibrary();
+}
+
+async function addSelectedToCollection() {
+  const ids = [...selectedIds];
+  if (!ids.length) {
+    psToast("Nothing selected", "Pick one or more files first.", "error");
+    return;
+  }
+  const manuals = collections.filter((c) => String(c.mode || "") === "manual");
+  if (!manuals.length) {
+    psToast("No manual collections", "Create a manual collection in Folders first.", "error");
+    return;
+  }
+  const choice = await psChoice({
+    eyebrow: "Manual collection",
+    title: "Add selected files to which collection?",
+    options: manuals.map((c, i) => ({
+      value: String(c.id),
+      label: c.name || `Collection ${c.id}`,
+      detail: `${Number(c.asset_count || 0)} files`,
+      last: i === manuals.length - 1,
+    })),
+  });
+  if (!choice) return;
+  await api(`/api/collections/${choice}/assets`, {
+    method: "POST",
+    body: JSON.stringify({ ids }),
+  });
+  await loadCollections();
+  psToast("Added to collection", `${ids.length} file${ids.length === 1 ? "" : "s"}`, "ok");
+}
+
 async function loadFolders() {
   const cfg = await api("/api/config");
   folders = cfg.watched_folders || [];
@@ -2294,7 +2576,7 @@ function bind() {
   document.querySelectorAll(".nav-btn").forEach((btn) => {
     btn.addEventListener("click", () => switchView(btn.dataset.view));
   });
-  ["search", "filterSource", "filterRoot", "sortBy", "filterTextures", "filterSliced", "filterHidden"].forEach((id) => {
+  ["search", "filterSource", "filterRoot", "filterFilament", "filterCollection", "sortBy", "filterTextures", "filterSliced", "filterHidden"].forEach((id) => {
     $(id)?.addEventListener("input", () => loadLibrary().catch(console.error));
     $(id)?.addEventListener("change", () => loadLibrary().catch(console.error));
   });
@@ -2349,6 +2631,9 @@ function bind() {
     } catch (err) {
       psToast("Unhide failed", String(err.message || err), "error");
     }
+  });
+  $("bulkAddCollectionBtn")?.addEventListener("click", () => {
+    addSelectedToCollection().catch((err) => psToast("Add to collection failed", String(err.message || err), "error"));
   });
   $("bulkDeleteBtn")?.addEventListener("click", async () => {
     try {
@@ -2411,11 +2696,18 @@ function bind() {
   });
   $("saveFoldersBtn").addEventListener("click", () => saveFolders().catch(console.error));
   $("saveIgnoreBtn")?.addEventListener("click", () => saveIgnoreGlobs().catch(console.error));
+  $("collectionForm")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    saveCollectionFromForm().catch((err) => psToast("Save collection failed", String(err.message || err), "error"));
+  });
+  $("collectionResetBtn")?.addEventListener("click", () => resetCollectionForm());
 }
 
 async function boot() {
   bind();
   await loadFolders();
+  await loadCollections();
+  await loadFilaments();
   await refreshStats();
   await loadLibrary();
 }

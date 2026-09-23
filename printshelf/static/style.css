@@ -594,6 +594,30 @@ h1 {
   color: #fca5a5;
   font-size: .82rem;
 }
+.collection-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+.collection-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-2);
+}
+.collection-row .meta {
+  color: var(--muted);
+  font-size: .84rem;
+  margin-top: 4px;
+}
+.collection-actions {
+  display: flex;
+  gap: 8px;
+}
 .detail-actions {
   display: flex;
   flex-wrap: wrap;
