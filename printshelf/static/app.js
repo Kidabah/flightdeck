@@ -35,6 +35,8 @@ const TYPE_PRESETS = [
     items: [
       { id: "__all__", label: "All files" },
       { id: "__models__", label: "Models" },
+      { id: "__images__", label: "Images" },
+      { id: "__documents__", label: "Documents" },
       { id: "__archives__", label: "Archives" },
       { id: "__duplicates__", label: "Duplicates" },
     ],
@@ -46,12 +48,20 @@ const TYPE_PRESETS = [
       { id: "3mf", label: "3MF" },
       { id: "gcode.3mf", label: "Gcode 3MF" },
       { id: "obj", label: "OBJ" },
+      { id: "__step__", label: "STEP" },
+      { id: "__fbx__", label: "FBX" },
+      { id: "__3dm__", label: "3DM" },
     ],
   },
   {
     title: "Archive formats",
     items: [
       { id: "zip", label: "ZIP" },
+      { id: "__tgz__", label: "TGZ" },
+      { id: "__targz__", label: "TAR.GZ" },
+      { id: "__tar__", label: "TAR" },
+      { id: "__rar__", label: "RAR" },
+      { id: "__7z__", label: "7Z" },
     ],
   },
 ];
@@ -847,7 +857,17 @@ function setActiveKind(kind) {
 function typePresetLabel() {
   if (activeKind === "__duplicates__") return "Duplicates";
   if (activeKind === "__models__") return "Models";
+  if (activeKind === "__images__") return "Images";
+  if (activeKind === "__documents__") return "Documents";
   if (activeKind === "__archives__") return "Archives";
+  if (activeKind === "__step__") return "STEP";
+  if (activeKind === "__fbx__") return "FBX";
+  if (activeKind === "__3dm__") return "3DM";
+  if (activeKind === "__tgz__") return "TGZ";
+  if (activeKind === "__targz__") return "TAR.GZ";
+  if (activeKind === "__tar__") return "TAR";
+  if (activeKind === "__rar__") return "RAR";
+  if (activeKind === "__7z__") return "7Z";
   if (activeKind && !activeKindsCsv) return activeKind.toUpperCase();
   if (activeKindsCsv) {
     const ks = activeKindsCsv.split(",").map((s) => s.trim()).filter(Boolean);
@@ -903,9 +923,79 @@ function renderTypeMenu() {
           x.classList.toggle("active", false);
           x.setAttribute("aria-selected", "false");
         });
+      } else if (id === "__images__") {
+        activeKind = "__images__";
+        activeKindsCsv = "jpg,jpeg,png,gif,webp,bmp,svg";
+        document.querySelectorAll(".type-tab").forEach((x) => {
+          x.classList.toggle("active", false);
+          x.setAttribute("aria-selected", "false");
+        });
+      } else if (id === "__documents__") {
+        activeKind = "__documents__";
+        activeKindsCsv = "pdf,txt,md";
+        document.querySelectorAll(".type-tab").forEach((x) => {
+          x.classList.toggle("active", false);
+          x.setAttribute("aria-selected", "false");
+        });
       } else if (id === "__archives__") {
         activeKind = "__archives__";
-        activeKindsCsv = "zip";
+        activeKindsCsv = "zip,rar,7z,tar,tgz,tar.gz";
+        document.querySelectorAll(".type-tab").forEach((x) => {
+          x.classList.toggle("active", false);
+          x.setAttribute("aria-selected", "false");
+        });
+      } else if (id === "__step__") {
+        activeKind = "__step__";
+        activeKindsCsv = "step,stp";
+        document.querySelectorAll(".type-tab").forEach((x) => {
+          x.classList.toggle("active", false);
+          x.setAttribute("aria-selected", "false");
+        });
+      } else if (id === "__fbx__") {
+        activeKind = "__fbx__";
+        activeKindsCsv = "fbx";
+        document.querySelectorAll(".type-tab").forEach((x) => {
+          x.classList.toggle("active", false);
+          x.setAttribute("aria-selected", "false");
+        });
+      } else if (id === "__3dm__") {
+        activeKind = "__3dm__";
+        activeKindsCsv = "3dm";
+        document.querySelectorAll(".type-tab").forEach((x) => {
+          x.classList.toggle("active", false);
+          x.setAttribute("aria-selected", "false");
+        });
+      } else if (id === "__tgz__") {
+        activeKind = "__tgz__";
+        activeKindsCsv = "tgz";
+        document.querySelectorAll(".type-tab").forEach((x) => {
+          x.classList.toggle("active", false);
+          x.setAttribute("aria-selected", "false");
+        });
+      } else if (id === "__targz__") {
+        activeKind = "__targz__";
+        activeKindsCsv = "tar.gz";
+        document.querySelectorAll(".type-tab").forEach((x) => {
+          x.classList.toggle("active", false);
+          x.setAttribute("aria-selected", "false");
+        });
+      } else if (id === "__tar__") {
+        activeKind = "__tar__";
+        activeKindsCsv = "tar";
+        document.querySelectorAll(".type-tab").forEach((x) => {
+          x.classList.toggle("active", false);
+          x.setAttribute("aria-selected", "false");
+        });
+      } else if (id === "__rar__") {
+        activeKind = "__rar__";
+        activeKindsCsv = "rar";
+        document.querySelectorAll(".type-tab").forEach((x) => {
+          x.classList.toggle("active", false);
+          x.setAttribute("aria-selected", "false");
+        });
+      } else if (id === "__7z__") {
+        activeKind = "__7z__";
+        activeKindsCsv = "7z";
         document.querySelectorAll(".type-tab").forEach((x) => {
           x.classList.toggle("active", false);
           x.setAttribute("aria-selected", "false");
