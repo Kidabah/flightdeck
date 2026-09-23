@@ -1,3 +1,20 @@
+## 2026-09-23 Session update (MeshFinder icon refresh)
+
+Latest commit: <built-in function hash> - New MeshFinder icon set (SVG/PNG/ICO) and favicon cache-bust links.
+
+- Replaced app icon artwork with MeshFinder monogram + search mark in:
+  - printshelf/static/printshelf-icon.svg
+  - printshelf/static/icon-192.png
+  - printshelf/static/icon-512.png
+  - printshelf/static/apple-touch-icon.png
+  - printshelf/static/printshelf.ico
+- Updated icon links in printshelf/static/index.html to ?v=2 for cache-busting.
+- Cache-bust versions currently served: pp.js?v=63, style.css?v=63 (unchanged).
+- Restart required: no (static UI-only), but deploy restart is harmless.
+- Hard refresh: recommended to pick up new favicon/PWA icon.
+
+---
+
 ## 2026-09-23 Session update (MeshFinder UI rename)
 
 Latest commit: <built-in function hash> - Rebranded PrintShelf app name and UI title to MeshFinder (safe UI-only pass).
