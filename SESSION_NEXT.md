@@ -1,3 +1,26 @@
+## 2026-09-23 Session update (MeshFinder scan issues panel)
+
+Latest commit: <built-in function hash> - Added unresolved scan issues tracking + retry/ignore workflow in MeshFinder.
+
+- Backend:
+  - Added scan_issues table/index in printshelf/app/db.py.
+  - Scanner now records per-file failures and auto-resolves an issue when a file later scans successfully (printshelf/app/scanner.py).
+  - Added API endpoints in printshelf/app/main.py:
+    - GET /api/scan_issues
+    - POST /api/scan_issues/{id}/ignore
+    - POST /api/scan_issues/ignore
+    - POST /api/scan_issues/retry
+  - Stats now include unresolved scan issue count (scan_issues).
+- Frontend:
+  - Added sidebar Scan issues button with unresolved count badge.
+  - Added Settings > Scan issues list with Retry / Ignore per file and Retry all unresolved.
+  - Added rail stat pill for scan issue count.
+  - Cache-bust versions bumped to pp.js?v=65 and style.css?v=65.
+- Backend restart required: yes (scanner/API + DB migration).
+- Hard refresh recommended after deploy.
+
+---
+
 ## 2026-09-23 Session update (MeshFinder hotfix: startup crash)
 
 Latest commit: <built-in function hash> - Fixed PrintShelf/MeshFinder startup crash after filament migration.
