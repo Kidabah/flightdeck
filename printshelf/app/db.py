@@ -95,7 +95,6 @@ CREATE TABLE IF NOT EXISTS collection_assets (
 CREATE INDEX IF NOT EXISTS idx_assets_kind ON assets(kind);
 CREATE INDEX IF NOT EXISTS idx_assets_hash ON assets(content_hash);
 CREATE INDEX IF NOT EXISTS idx_assets_design ON assets(design_id);
-CREATE INDEX IF NOT EXISTS idx_assets_assigned_filament ON assets(assigned_filament_id);
 CREATE INDEX IF NOT EXISTS idx_designs_hash ON designs(content_hash);
 CREATE INDEX IF NOT EXISTS idx_collections_mode ON collections(mode);
 CREATE INDEX IF NOT EXISTS idx_collection_assets_asset ON collection_assets(asset_id);
