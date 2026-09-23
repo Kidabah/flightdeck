@@ -1,3 +1,15 @@
+## 2026-09-23 Session update (MeshFinder UI rename)
+
+Latest commit: <built-in function hash> - Rebranded PrintShelf app name and UI title to MeshFinder (safe UI-only pass).
+
+- Changed UI branding from PrintShelf to MeshFinder in printshelf/static/index.html and printshelf/static/manifest.json.
+- Kept backend paths/service names unchanged to avoid deployment risk.
+- Cache-bust versions currently served: pp.js?v=63, style.css?v=63 (unchanged).
+- Restart required: no (UI-only), but service restart run during deploy is harmless.
+- Hard refresh: recommended once to refresh PWA/app name.
+
+---
+
 ## 2026-09-23 Session update (Amy links are clickable)
 
 Latest commit: `f16eb68` - Reply URLs stay on screen (not read aloud) and are clickable. Desktop opens them in the system browser. Relaunch Amy.
