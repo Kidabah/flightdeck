@@ -7,6 +7,7 @@ let scanIssues = [];
 let editingCollectionId = null;
 let selectedId = null;
 let activeKind = "";
+let activeKindsCsv = "";
 let libraryItems = [];
 let selectedIds = new Set();
 /** Last file selected without Shift — used as the start of a Shift range. */
@@ -27,6 +28,33 @@ let lastScanRunning = false;
 let lastThumbsRunning = false;
 let statusPollTimer = null;
 let psModalResolver = null;
+
+const TYPE_PRESETS = [
+  {
+    title: "Kinds",
+    items: [
+      { id: "__all__", label: "All files" },
+      { id: "__models__", label: "Models" },
+      { id: "__archives__", label: "Archives" },
+      { id: "__duplicates__", label: "Duplicates" },
+    ],
+  },
+  {
+    title: "Model formats",
+    items: [
+      { id: "stl", label: "STL" },
+      { id: "3mf", label: "3MF" },
+      { id: "gcode.3mf", label: "Gcode 3MF" },
+      { id: "obj", label: "OBJ" },
+    ],
+  },
+  {
+    title: "Archive formats",
+    items: [
+      { id: "zip", label: "ZIP" },
+    ],
+  },
+];
 
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({
@@ -807,11 +835,99 @@ async function refreshStats() {
 
 function setActiveKind(kind) {
   activeKind = kind || "";
+  activeKindsCsv = "";
   document.querySelectorAll(".type-tab").forEach((btn) => {
     const on = (btn.dataset.kind || "") === activeKind;
     btn.classList.toggle("active", on);
     btn.setAttribute("aria-selected", on ? "true" : "false");
   });
+  syncTypeMenuUi();
+}
+
+function typePresetLabel() {
+  if (activeKind === "__duplicates__") return "Duplicates";
+  if (activeKind === "__models__") return "Models";
+  if (activeKind === "__archives__") return "Archives";
+  if (activeKind && !activeKindsCsv) return activeKind.toUpperCase();
+  if (activeKindsCsv) {
+    const ks = activeKindsCsv.split(",").map((s) => s.trim()).filter(Boolean);
+    if (ks.length === 1) return ks[0].toUpperCase();
+    return `${ks.length} formats`;
+  }
+  return "More types";
+}
+
+function syncTypeMenuUi() {
+  const btn = $("typeMenuBtn");
+  const panel = $("typeMenuPanel");
+  const wrap = $("typeMenuWrap");
+  if (btn) btn.textContent = `${typePresetLabel()} ▾`;
+  const key = activeKind || "__all__";
+  panel?.querySelectorAll(".type-menu-item").forEach((el) => {
+    el.classList.toggle("active", el.getAttribute("data-type-id") === key);
+  });
+  const open = !!(wrap && wrap.classList.contains("open"));
+  if (btn) btn.setAttribute("aria-expanded", open ? "true" : "false");
+  if (panel) panel.hidden = !open;
+}
+
+function closeTypeMenu() {
+  const wrap = $("typeMenuWrap");
+  if (!wrap) return;
+  wrap.classList.remove("open");
+  syncTypeMenuUi();
+}
+
+function renderTypeMenu() {
+  const panel = $("typeMenuPanel");
+  if (!panel) return;
+  panel.innerHTML = `
+    <div class="type-menu-grid">
+      ${TYPE_PRESETS.map((group) => `
+        <div class="type-menu-col">
+          <h4>${escapeHtml(group.title)}</h4>
+          ${group.items.map((item) => {
+            return `<button type="button" class="type-menu-item" data-type-id="${escapeHtml(item.id)}">${escapeHtml(item.label)}</button>`;
+          }).join("")}
+        </div>`).join("")}
+    </div>`;
+  panel.querySelectorAll(".type-menu-item").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-type-id") || "__all__";
+      if (id === "__all__") {
+        setActiveKind("");
+      } else if (id === "__models__") {
+        activeKind = "__models__";
+        activeKindsCsv = "stl,obj,3mf,gcode.3mf";
+        document.querySelectorAll(".type-tab").forEach((x) => {
+          x.classList.toggle("active", false);
+          x.setAttribute("aria-selected", "false");
+        });
+      } else if (id === "__archives__") {
+        activeKind = "__archives__";
+        activeKindsCsv = "zip";
+        document.querySelectorAll(".type-tab").forEach((x) => {
+          x.classList.toggle("active", false);
+          x.setAttribute("aria-selected", "false");
+        });
+      } else if (id === "__duplicates__") {
+        setActiveKind("__duplicates__");
+      } else {
+        setActiveKind(id);
+      }
+      if (activeKind === "__duplicates__") {
+        browseMode = "all";
+        document.querySelectorAll(".view-mode").forEach((b) => {
+          b.classList.toggle("active", b.dataset.mode === "all");
+        });
+      }
+      clearSelection();
+      closeTypeMenu();
+      loadLibrary().catch(console.error);
+      syncTypeMenuUi();
+    });
+  });
+  syncTypeMenuUi();
 }
 
 function updateBulkBar() {
@@ -897,6 +1013,8 @@ function filterParams() {
   if (q) params.set("q", q);
   if (activeKind === "__duplicates__") {
     params.set("duplicates", "true");
+  } else if (activeKindsCsv) {
+    params.set("kinds", activeKindsCsv);
   } else if (activeKind) {
     params.set("kind", activeKind);
   }
@@ -2646,6 +2764,7 @@ function bind() {
   });
   document.addEventListener("click", (e) => {
     if (!e.target.closest(".card-menu, .detail-menu")) closeCardMenus();
+    if (!e.target.closest("#typeMenuWrap")) closeTypeMenu();
   });
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
@@ -2655,6 +2774,15 @@ function bind() {
   });
   document.querySelectorAll(".nav-btn").forEach((btn) => {
     btn.addEventListener("click", () => switchView(btn.dataset.view));
+  });
+  renderTypeMenu();
+  $("typeMenuBtn")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const wrap = $("typeMenuWrap");
+    if (!wrap) return;
+    wrap.classList.toggle("open");
+    syncTypeMenuUi();
   });
   ["search", "filterSource", "filterRoot", "filterFilament", "filterCollection", "sortBy", "filterTextures", "filterSliced", "filterHidden"].forEach((id) => {
     $(id)?.addEventListener("input", () => loadLibrary().catch(console.error));

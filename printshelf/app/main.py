@@ -715,6 +715,7 @@ def _asset_visibility_clauses(
     missing: bool = False,
     hidden: bool | None = False,
     kind: str | None = None,
+    kinds: list[str] | None = None,
     source_kind: str | None = None,
     has_textures: bool | None = None,
     is_sliced: bool | None = None,
@@ -736,6 +737,12 @@ def _asset_visibility_clauses(
     if kind:
         clauses.append("a.kind = ?")
         params.append(kind)
+    if kinds:
+        clean = [str(k).strip() for k in kinds if str(k).strip()]
+        if clean:
+            placeholders = ",".join("?" for _ in clean)
+            clauses.append(f"a.kind IN ({placeholders})")
+            params.extend(clean)
     if source_kind:
         clauses.append("a.source_kind = ?")
         params.append(source_kind)
@@ -781,12 +788,29 @@ def _normalize_folder(folder: str | None) -> str:
     return raw
 
 
+def _parse_kinds_csv(raw: str | None) -> list[str]:
+    if not raw:
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for part in str(raw).split(","):
+        k = part.strip().lower()
+        if not k or k in seen:
+            continue
+        seen.add(k)
+        out.append(k[:24])
+        if len(out) >= 24:
+            break
+    return out
+
+
 @app.get("/api/browse")
 def browse_library(
     root_id: str | None = None,
     folder: str = "",
     q: str | None = None,
     kind: str | None = None,
+    kinds: str | None = None,
     source_kind: str | None = None,
     has_textures: bool | None = None,
     is_sliced: bool | None = None,
@@ -804,9 +828,11 @@ def browse_library(
     with db_session(db_file) as conn:
         coll = _get_collection_row(conn, collection_id) if collection_id else None
     c_where, c_params = _collection_where_clause(coll)
+    kind_list = _parse_kinds_csv(kinds)
     clauses, params = _asset_visibility_clauses(
         hidden=hidden,
         kind=kind,
+        kinds=kind_list,
         source_kind=source_kind,
         has_textures=has_textures,
         is_sliced=is_sliced,
@@ -1022,6 +1048,7 @@ def _serialize_design_row(
 def list_designs(
     q: str | None = None,
     kind: str | None = None,
+    kinds: str | None = None,
     source_kind: str | None = None,
     has_textures: bool | None = None,
     is_sliced: bool | None = None,
@@ -1039,6 +1066,7 @@ def list_designs(
     with db_session(db_file) as conn:
         coll = _get_collection_row(conn, collection_id) if collection_id else None
     c_where, c_params = _collection_where_clause(coll)
+    kind_list = _parse_kinds_csv(kinds)
     # Visible assets drive which designs appear.
     asset_clauses = ["a.missing = 0"]
     params: list[Any] = []
@@ -1051,6 +1079,10 @@ def list_designs(
     if kind:
         asset_clauses.append("a.kind = ?")
         params.append(kind)
+    if kind_list:
+        placeholders = ",".join("?" for _ in kind_list)
+        asset_clauses.append(f"a.kind IN ({placeholders})")
+        params.extend(kind_list)
     if source_kind:
         asset_clauses.append("a.source_kind = ?")
         params.append(source_kind)
@@ -1176,6 +1208,7 @@ def patch_design(design_id: int, body: DesignMetaIn) -> dict[str, Any]:
 def list_assets(
     q: str | None = None,
     kind: str | None = None,
+    kinds: str | None = None,
     source_kind: str | None = None,
     has_textures: bool | None = None,
     is_sliced: bool | None = None,
@@ -1194,10 +1227,12 @@ def list_assets(
     with db_session(db_file) as conn:
         coll = _get_collection_row(conn, collection_id) if collection_id else None
     c_where, c_params = _collection_where_clause(coll)
+    kind_list = _parse_kinds_csv(kinds)
     clauses, params = _asset_visibility_clauses(
         missing=missing,
         hidden=hidden,
         kind=kind,
+        kinds=kind_list,
         source_kind=source_kind,
         has_textures=has_textures,
         is_sliced=is_sliced,
