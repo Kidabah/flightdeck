@@ -1,3 +1,18 @@
+## 2026-09-24 Session update (Image cards backfill on rescan)
+
+Latest commit: 8fbda6d - Rescan now backfills older image rows so PNG/JPG/etc cards get real thumbnails instead of placeholder tiles.
+
+- Updated `printshelf/app/scanner.py`:
+  - Detects unchanged raster image assets missing width/height metadata and reparses them during scan.
+  - Prevents historical "unchanged skip" logic from leaving older image rows on placeholder thumbs forever.
+  - Expanded thumb rebuild defaults to include raster image kinds (`jpg/jpeg/png/gif/webp/bmp`).
+- Updated `printshelf/app/main.py`:
+  - `/api/thumbs/rebuild` now includes image kinds so thumbnail rebuild can repair image cards without a full NAS walk.
+- Backend restart required: yes (scanner/API behavior changes).
+- Hard refresh recommended once.
+
+---
+
 ## 2026-09-24 Session update (Image tile thumbnails fixed)
 
 Latest commit: 1e8f728 - MeshFinder now generates thumbnail previews for image files so image tiles are no longer blank.
