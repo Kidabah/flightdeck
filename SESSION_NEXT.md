@@ -1,3 +1,15 @@
+## 2026-09-23 Session update (MeshFinder hotfix: startup crash)
+
+Latest commit: <built-in function hash> - Fixed PrintShelf/MeshFinder startup crash after filament migration.
+
+- Root cause: schema script created idx_assets_assigned_filament before old DBs had ssets.assigned_filament_id.
+- Fix: removed that index creation from base schema and kept it in migration flow after column-add in printshelf/app/db.py.
+- Result: service starts cleanly on existing DBs; filament feature remains intact.
+- Backend restart required: yes (done).
+- Hard refresh: recommended once backend is back up.
+
+---
+
 ## 2026-09-23 Session update (MeshFinder filament assignments)
 
 Latest commit: <built-in function hash> - Added filament library + per-file assignment + filter in MeshFinder.
