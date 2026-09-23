@@ -1,6 +1,6 @@
 {
-  "name": "PrintShelf",
-  "short_name": "PrintShelf",
+  "name": "MeshFinder",
+  "short_name": "MeshFinder",
   "description": "Private printable inventory",
   "start_url": "/",
   "scope": "/",
