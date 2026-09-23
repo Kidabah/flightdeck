@@ -219,7 +219,33 @@ def _name_may_be_printable(name: str) -> bool:
     lower = name.lower()
     if lower.endswith(".gcode.3mf"):
         return True
-    return lower.endswith((".stl", ".obj", ".3mf", ".gcode", ".gco", ".zip"))
+    return lower.endswith((
+        ".stl",
+        ".obj",
+        ".3mf",
+        ".gcode",
+        ".gco",
+        ".zip",
+        ".rar",
+        ".7z",
+        ".tar",
+        ".tgz",
+        ".tar.gz",
+        ".step",
+        ".stp",
+        ".fbx",
+        ".3dm",
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".gif",
+        ".webp",
+        ".bmp",
+        ".svg",
+        ".pdf",
+        ".txt",
+        ".md",
+    ))
 
 
 def mark_orphaned_scans(db_file: Path | None = None) -> int:

@@ -18,6 +18,8 @@ def detect_kind(path: Path) -> str | None:
     name = path.name.lower()
     if name.endswith(".gcode.3mf"):
         return "gcode.3mf"
+    if name.endswith(".tar.gz"):
+        return "tar.gz"
     suf = path.suffix.lower()
     if suf == ".stl":
         return "stl"
@@ -27,6 +29,24 @@ def detect_kind(path: Path) -> str | None:
         return "3mf"
     if suf == ".zip":
         return "zip"
+    if suf == ".step" or suf == ".stp":
+        return "step"
+    if suf == ".fbx":
+        return "fbx"
+    if suf == ".3dm":
+        return "3dm"
+    if suf == ".rar":
+        return "rar"
+    if suf == ".7z":
+        return "7z"
+    if suf == ".tar":
+        return "tar"
+    if suf == ".tgz":
+        return "tgz"
+    if suf in {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".svg"}:
+        return suf[1:]
+    if suf in {".pdf", ".txt", ".md"}:
+        return suf[1:]
     return None
 
 
