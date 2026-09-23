@@ -220,9 +220,20 @@ function closePsModal(value) {
 
 const SLICER_TARGET_KEY = "printshelf.slicerTarget.v1";
 const PRINT_PRINTER_KEY = "printshelf.printPrinter.v1";
+const WATCHED_FOLDERS_COLLAPSED_KEY = "meshfinder.settings.watchedFoldersCollapsed.v1";
 
 function slicerTargetLabel(target) {
   return target === "desktop_orca" ? "OrcaSlicer" : "Bambu Studio";
+}
+
+function setWatchedFoldersCollapsed(collapsed) {
+  const body = $("watchedFoldersBody");
+  const btn = $("watchedFoldersToggle");
+  if (body) body.classList.toggle("settings-collapsed", !!collapsed);
+  if (btn) btn.textContent = collapsed ? "Expand" : "Collapse";
+  try {
+    localStorage.setItem(WATCHED_FOLDERS_COLLAPSED_KEY, collapsed ? "1" : "0");
+  } catch (_) {}
 }
 
 function isPrintableName(name) {
@@ -2742,6 +2753,8 @@ function bind() {
   });
   $("scanIssuesBtn")?.addEventListener("click", async () => {
     switchView("settings");
+    setWatchedFoldersCollapsed(true);
+    $("scanIssuesList")?.scrollIntoView({ behavior: "smooth", block: "start" });
     await loadScanIssues();
   });
   $("refreshIssuesBtn")?.addEventListener("click", () => loadScanIssues().catch(console.error));
@@ -2780,6 +2793,16 @@ function bind() {
   });
   $("saveFoldersBtn").addEventListener("click", () => saveFolders().catch(console.error));
   $("saveIgnoreBtn")?.addEventListener("click", () => saveIgnoreGlobs().catch(console.error));
+  $("watchedFoldersToggle")?.addEventListener("click", () => {
+    const isCollapsed = $("watchedFoldersBody")?.classList.contains("settings-collapsed");
+    setWatchedFoldersCollapsed(!isCollapsed);
+  });
+  try {
+    const collapsed = localStorage.getItem(WATCHED_FOLDERS_COLLAPSED_KEY) === "1";
+    setWatchedFoldersCollapsed(collapsed);
+  } catch (_) {
+    setWatchedFoldersCollapsed(false);
+  }
   $("collectionForm")?.addEventListener("submit", (e) => {
     e.preventDefault();
     saveCollectionFromForm().catch((err) => psToast("Save collection failed", String(err.message || err), "error"));

@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=65">
+  <link rel="stylesheet" href="style.css?v=66">
   <script type="importmap">
   {
     "imports": {
@@ -129,7 +129,12 @@
             <p class="lede">Local disks and NAS mounts. Index in place — nothing is uploaded.</p>
           </div>
         </header>
-        <div class="settings-card">
+        <div class="settings-card" id="watchedFoldersCard">
+          <div class="settings-card-head">
+            <h2 class="settings-subhead" style="margin:0">Watched folders</h2>
+            <button class="secondary" id="watchedFoldersToggle" type="button">Collapse</button>
+          </div>
+          <div id="watchedFoldersBody">
           <div id="folderList"></div>
           <form id="folderForm" class="folder-form">
             <input name="id" placeholder="id (e.g. nas-models)" required>
@@ -144,6 +149,7 @@
           </form>
           <p class="lede" style="margin-top:10px">Pi path must exist on the Pi. Windows Downloads won’t scan — drop files on the NAS (already watched) or mount that folder under <code>/mnt/…</code>.</p>
           <button class="secondary" id="saveFoldersBtn">Save folders</button>
+          </div>
         </div>
         <div class="settings-card" style="margin-top:16px">
           <h2 class="settings-subhead">Exclude patterns</h2>
@@ -186,7 +192,7 @@
   </div>
 
   <script type="module" src="viewer.js?v=62"></script>
-  <script src="app.js?v=66"></script>
+  <script src="app.js?v=67"></script>
   <script src="design-selection.js?v=1"></script>
   <script src="root-filter.js?v=1"></script>
 </body>
