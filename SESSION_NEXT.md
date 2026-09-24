@@ -1,3 +1,16 @@
+## 2026-09-24 Session update (PNG path resolution follow-up)
+
+Latest commit: be062ce - Image endpoint now prefers indexed root-relative file paths before absolute paths, reducing false mismatches on mounted/symlinked NAS paths.
+
+- Updated `printshelf/app/main.py` (`GET /api/assets/{asset_id}/image`):
+  - Candidate path order changed to try `root_path + rel_path` first, then `abs_path`.
+  - If strict `root_path` lexical check fails for chosen candidate, fallback allows files still under watched folders.
+  - This targets remaining PNG cards that were still falling back to placeholder thumbs despite existing files.
+- Backend restart required: yes (API route behavior changed).
+- Hard refresh recommended once.
+
+---
+
 ## 2026-09-24 Session update (Image card resiliency pass)
 
 Latest commit: 6f20be1 - Image card loading is now more fault-tolerant for PNG-heavy libraries with mixed NAS path records.
