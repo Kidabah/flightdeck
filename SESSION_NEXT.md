@@ -1,3 +1,20 @@
+## 2026-09-24 Session update (Direct image file previews on cards)
+
+Latest commit: 9bed231 - MeshFinder now serves image cards from source files directly, so JPG/PNG/SVG previews still render even when thumb generation is stale or unavailable.
+
+- Backend (`printshelf/app/main.py`):
+  - Added `GET /api/assets/{asset_id}/image` for image kinds (`jpg/jpeg/png/gif/webp/bmp/svg`).
+  - Endpoint validates asset visibility and watched-folder safety, then streams the real image file with guessed MIME type.
+- Frontend (`printshelf/static/app.js`):
+  - Card image URL helper now uses `/api/assets/{id}/image` for image assets/covers.
+  - Non-image kinds still use `/api/thumbs/{name}` as before.
+- Cache-bust:
+  - Bumped `printshelf/static/index.html` to `app.js?v=70`.
+- Backend restart required: yes (new API route).
+- Hard refresh recommended once.
+
+---
+
 ## 2026-09-24 Session update (Image thumbnail cache-bust)
 
 Latest commit: 1a43da6 - Raster image cards now force-refresh to new thumbnail filenames, avoiding stale placeholder tile cache hits.
