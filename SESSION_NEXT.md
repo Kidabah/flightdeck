@@ -1,3 +1,21 @@
+## 2026-09-24 Session update (Image card resiliency pass)
+
+Latest commit: 6f20be1 - Image card loading is now more fault-tolerant for PNG-heavy libraries with mixed NAS path records.
+
+- Backend (`printshelf/app/main.py`):
+  - `GET /api/assets/{asset_id}/image` now reads `rel_path` and builds multiple candidate paths (`abs_path`, `root_path/rel_path`).
+  - Uses first existing file candidate before returning image response.
+  - Retains root-bound safety checks after candidate resolution.
+- Frontend (`printshelf/static/app.js`):
+  - On card image load error, retries once via `/api/thumbs/{thumb_path}` before falling back to kind pill tile.
+  - Applied to both design cards and asset cards.
+- Cache-bust:
+  - Bumped `printshelf/static/index.html` to `app.js?v=71`.
+- Backend restart required: yes (API route behavior changed).
+- Hard refresh recommended once.
+
+---
+
 ## 2026-09-24 Session update (PNG preview mount-path fix)
 
 Latest commit: d46262f - Image preview endpoint now accepts legitimate NAS/bind-mounted asset paths that were being falsely rejected for some PNG cards.
