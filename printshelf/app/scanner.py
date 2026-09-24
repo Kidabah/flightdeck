@@ -801,6 +801,10 @@ def purge_junk_assets(conn) -> int:
              OR lower(file_name) LIKE 'tiny_thumb\\_%' ESCAPE '\\'
              OR lower(rel_path) LIKE 'documents/%'
              OR lower(rel_path) LIKE '%/documents/%'
+             OR lower(rel_path) LIKE 'documents\\%'
+             OR lower(rel_path) LIKE '%\\documents\\%'
+             OR lower(abs_path) LIKE '%/documents/%'
+             OR lower(abs_path) LIKE '%\\documents\\%'
            )"""
     )
     return cur.rowcount or 0
