@@ -2129,11 +2129,11 @@ def get_asset_image(asset_id: int):
 
     # Build candidate on-disk paths defensively.
     candidates: list[Path] = []
-    if abs_path:
-        candidates.append(Path(abs_path))
     rel_path = str(row["rel_path"] or "").lstrip("/\\")
     if root_path and rel_path:
         candidates.append(Path(root_path) / rel_path)
+    if abs_path:
+        candidates.append(Path(abs_path))
 
     path = None
     for cand in candidates:
@@ -2151,7 +2151,8 @@ def get_asset_image(asset_id: int):
         try:
             path.relative_to(Path(root_path))
         except Exception:
-            raise HTTPException(403, "Path outside asset root")
+            if not path_under_watched(str(path), cfg):
+                raise HTTPException(403, "Path outside asset root")
     elif not path_under_watched(str(path), cfg):
         raise HTTPException(403, "Path outside watched folders")
 
