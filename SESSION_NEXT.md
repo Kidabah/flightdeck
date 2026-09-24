@@ -1,3 +1,19 @@
+## 2026-09-24 Session update (Pi memory safety hotfix for ZIP previews)
+
+Latest commit: 535e825 - Reduced ZIP thumbnail generation RAM pressure to avoid Pi instability during rescan/rebuild.
+
+- Updated `printshelf/app/parsers/ziparchive.py`:
+  - Lowered max in-memory ZIP preview entry size from 80MB to 24MB.
+  - ZIP preview candidate selection now prefers lightweight mesh kinds only (`stl`, `obj`).
+  - Skips heavy `3mf`/`gcode.3mf` decode during archive thumb backfill.
+- Impact:
+  - Greatly reduces memory spikes on Raspberry Pi when processing many ZIP assets.
+  - ZIPs without a safe preview candidate fall back to shared ZIP icon (stable behavior).
+- Backend restart required: yes.
+- Hard refresh optional.
+
+---
+
 ## 2026-09-24 Session update (ZIP thumb backfill trigger fix)
 
 Latest commit: 44620b5 - Existing ZIP rows with printable contents are now forced to regenerate per-asset ZIP previews instead of staying on shared archive icons.
