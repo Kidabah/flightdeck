@@ -271,6 +271,34 @@ def _needs_image_backfill(existing_row: Any, kind: str) -> bool:
     return not _has_image_dimensions(existing_row["meta_json"])
 
 
+def _zip_printable_count(meta_json: Any) -> int:
+    if not meta_json:
+        return -1
+    try:
+        meta = json.loads(meta_json) if isinstance(meta_json, str) else dict(meta_json)
+    except Exception:
+        return -1
+    try:
+        return int(meta.get("printable_count") or 0)
+    except Exception:
+        return -1
+
+
+def _needs_zip_thumb_backfill(existing_row: Any, kind: str) -> bool:
+    if kind != "zip":
+        return False
+    thumb_path = str(existing_row["thumb_path"] or "")
+    printable_n = _zip_printable_count(existing_row["meta_json"])
+    # Unknown legacy meta: force one reparse so we can compute preview_entry/printable_count.
+    if printable_n < 0:
+        return True
+    # No printables inside zip: shared icon is acceptable.
+    if printable_n == 0:
+        return False
+    # Printable zips should use per-asset zip3 thumbs.
+    return not thumb_path.endswith("_zip3.png")
+
+
 def mark_orphaned_scans(db_file: Path | None = None) -> int:
     """Mark scan_runs left as 'running' after a process restart."""
     cfg = load_config()
@@ -620,7 +648,7 @@ def run_scan(
                             st = path.stat()
                             abs_path = str(path.resolve())
                             existing = conn.execute(
-                                "SELECT id, size_bytes, mtime, meta_json FROM assets WHERE abs_path = ?",
+                                "SELECT id, size_bytes, mtime, meta_json, thumb_path FROM assets WHERE abs_path = ?",
                                 (abs_path,),
                             ).fetchone()
                             unchanged = bool(
@@ -628,7 +656,12 @@ def run_scan(
                                 and int(existing["size_bytes"] or 0) == int(st.st_size)
                                 and abs(float(existing["mtime"] or 0) - float(st.st_mtime)) < 0.001
                             )
-                            needs_backfill = bool(existing and unchanged and _needs_image_backfill(existing, kind))
+                            needs_backfill = bool(
+                                existing and unchanged and (
+                                    _needs_image_backfill(existing, kind)
+                                    or _needs_zip_thumb_backfill(existing, kind)
+                                )
+                            )
                             if unchanged and not needs_backfill:
                                 conn.execute(
                                     "UPDATE assets SET last_seen = ?, missing = 0 WHERE id = ?",
@@ -836,7 +869,7 @@ def rebuild_stale_thumbs(
             if purged:
                 THUMB_STATE["status"] = f"rebuilding (purged {purged} junk)"
             rows = conn.execute(
-                f"""SELECT id, abs_path, kind, content_hash, thumb_path
+                f"""SELECT id, abs_path, kind, content_hash, thumb_path, meta_json
                     FROM assets
                     WHERE missing = 0 AND COALESCE(hidden, 0) = 0 AND kind IN ({placeholders})
                     ORDER BY id""",
@@ -849,13 +882,22 @@ def rebuild_stale_thumbs(
                 kind = row["kind"]
                 thumb_file = thumbs / thumb_path if thumb_path else None
                 min_size = 800 if kind == "zip" else 2500
-                needs = (
-                    not thumb_path
-                    or not _thumb_is_current(kind, thumb_path)
-                    or thumb_file is None
-                    or not thumb_file.exists()
-                    or thumb_file.stat().st_size < min_size
-                )
+                if kind == "zip":
+                    needs = (
+                        _needs_zip_thumb_backfill(row, kind)
+                        or not thumb_path
+                        or thumb_file is None
+                        or not thumb_file.exists()
+                        or thumb_file.stat().st_size < min_size
+                    )
+                else:
+                    needs = (
+                        not thumb_path
+                        or not _thumb_is_current(kind, thumb_path)
+                        or thumb_file is None
+                        or not thumb_file.exists()
+                        or thumb_file.stat().st_size < min_size
+                    )
                 if not needs:
                     continue
                 path = Path(row["abs_path"])
