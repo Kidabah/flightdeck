@@ -1619,6 +1619,70 @@ def bulk_unhide(body: BulkIdsIn) -> dict[str, Any]:
     return {"ok": True, "updated": updated, "ids": ids}
 
 
+@app.post("/api/designs/{design_id}/hide")
+def hide_design(design_id: int) -> dict[str, Any]:
+    if design_id <= 0:
+        raise HTTPException(400, "Invalid design id")
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    with db_session(db_file) as conn:
+        row = conn.execute("SELECT id FROM designs WHERE id = ?", (design_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "Design not found")
+        cur = conn.execute("UPDATE assets SET hidden = 1 WHERE design_id = ?", (design_id,))
+        updated = cur.rowcount or 0
+    return {"ok": True, "updated": updated, "design_id": design_id}
+
+
+@app.post("/api/designs/{design_id}/unhide")
+def unhide_design(design_id: int) -> dict[str, Any]:
+    if design_id <= 0:
+        raise HTTPException(400, "Invalid design id")
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    with db_session(db_file) as conn:
+        row = conn.execute("SELECT id FROM designs WHERE id = ?", (design_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "Design not found")
+        cur = conn.execute("UPDATE assets SET hidden = 0 WHERE design_id = ?", (design_id,))
+        updated = cur.rowcount or 0
+    return {"ok": True, "updated": updated, "design_id": design_id}
+
+
+@app.post("/api/designs/bulk/hide")
+def bulk_hide_designs(body: BulkIdsIn) -> dict[str, Any]:
+    ids = sorted({int(i) for i in body.ids if int(i) > 0})
+    if not ids:
+        return {"ok": True, "updated": 0, "ids": []}
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    placeholders = ",".join("?" for _ in ids)
+    with db_session(db_file) as conn:
+        cur = conn.execute(
+            f"UPDATE assets SET hidden = 1 WHERE design_id IN ({placeholders})",
+            ids,
+        )
+        updated = cur.rowcount or 0
+    return {"ok": True, "updated": updated, "ids": ids}
+
+
+@app.post("/api/designs/bulk/unhide")
+def bulk_unhide_designs(body: BulkIdsIn) -> dict[str, Any]:
+    ids = sorted({int(i) for i in body.ids if int(i) > 0})
+    if not ids:
+        return {"ok": True, "updated": 0, "ids": []}
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    placeholders = ",".join("?" for _ in ids)
+    with db_session(db_file) as conn:
+        cur = conn.execute(
+            f"UPDATE assets SET hidden = 0 WHERE design_id IN ({placeholders})",
+            ids,
+        )
+        updated = cur.rowcount or 0
+    return {"ok": True, "updated": updated, "ids": ids}
+
+
 @app.post("/api/assets/bulk/delete")
 def bulk_delete(
     body: BulkIdsIn,

@@ -534,10 +534,17 @@ function idsForAction(fallbackId) {
 
 async function hideIds(ids) {
   if (!ids.length) return;
+  const isDesignView = libraryView === "designs";
   if (ids.length === 1) {
-    await api(`/api/assets/${ids[0]}/hide`, { method: "POST", body: "{}" });
+    await api(
+      isDesignView ? `/api/designs/${ids[0]}/hide` : `/api/assets/${ids[0]}/hide`,
+      { method: "POST", body: "{}" },
+    );
   } else {
-    await api("/api/assets/bulk/hide", { method: "POST", body: JSON.stringify({ ids }) });
+    await api(
+      isDesignView ? "/api/designs/bulk/hide" : "/api/assets/bulk/hide",
+      { method: "POST", body: JSON.stringify({ ids }) },
+    );
   }
   clearSelection();
   selectedId = null;
@@ -549,10 +556,17 @@ async function hideIds(ids) {
 
 async function unhideIds(ids) {
   if (!ids.length) return;
+  const isDesignView = libraryView === "designs";
   if (ids.length === 1) {
-    await api(`/api/assets/${ids[0]}/unhide`, { method: "POST", body: "{}" });
+    await api(
+      isDesignView ? `/api/designs/${ids[0]}/unhide` : `/api/assets/${ids[0]}/unhide`,
+      { method: "POST", body: "{}" },
+    );
   } else {
-    await api("/api/assets/bulk/unhide", { method: "POST", body: JSON.stringify({ ids }) });
+    await api(
+      isDesignView ? "/api/designs/bulk/unhide" : "/api/assets/bulk/unhide",
+      { method: "POST", body: JSON.stringify({ ids }) },
+    );
   }
   clearSelection();
   await refreshStats();
