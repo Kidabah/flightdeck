@@ -1,3 +1,25 @@
+## 2026-09-24 Session update (Design-selection hide/unhide fix)
+
+Latest commit: 2d241b1 - Bulk Hide/Unhide now correctly targets selected design cards (all assets under each design) instead of asset-id endpoints.
+
+- Backend (`printshelf/app/main.py`):
+  - Added design hide endpoints:
+    - `POST /api/designs/{design_id}/hide`
+    - `POST /api/designs/{design_id}/unhide`
+  - Added design bulk endpoints:
+    - `POST /api/designs/bulk/hide`
+    - `POST /api/designs/bulk/unhide`
+  - Each updates `assets.hidden` by `design_id`.
+- Frontend (`printshelf/static/app.js`):
+  - `hideIds(...)` and `unhideIds(...)` now route to design endpoints when library view is `designs`.
+  - Keeps asset endpoints for asset-view workflows.
+- Cache-bust:
+  - Bumped `printshelf/static/index.html` to `app.js?v=72`.
+- Backend restart required: yes (new API routes).
+- Hard refresh recommended once.
+
+---
+
 ## 2026-09-24 Session update (Narrow game-folder ignore)
 
 Latest commit: 95f79db - Added focused scan ignore for `Documents/My Games` so game-generated image assets are excluded without broadly dropping other Windows folders.
