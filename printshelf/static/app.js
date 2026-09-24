@@ -535,16 +535,20 @@ function idsForAction(fallbackId) {
 async function hideIds(ids) {
   if (!ids.length) return;
   const isDesignView = libraryView === "designs";
+  let result = null;
   if (ids.length === 1) {
-    await api(
+    result = await api(
       isDesignView ? `/api/designs/${ids[0]}/hide` : `/api/assets/${ids[0]}/hide`,
       { method: "POST", body: "{}" },
     );
   } else {
-    await api(
+    result = await api(
       isDesignView ? "/api/designs/hide-bulk" : "/api/assets/bulk/hide",
       { method: "POST", body: JSON.stringify({ ids }) },
     );
+  }
+  if (result && Number(result.updated || 0) <= 0) {
+    throw new Error("No files were updated by Hide.");
   }
   clearSelection();
   selectedId = null;
@@ -557,16 +561,20 @@ async function hideIds(ids) {
 async function unhideIds(ids) {
   if (!ids.length) return;
   const isDesignView = libraryView === "designs";
+  let result = null;
   if (ids.length === 1) {
-    await api(
+    result = await api(
       isDesignView ? `/api/designs/${ids[0]}/unhide` : `/api/assets/${ids[0]}/unhide`,
       { method: "POST", body: "{}" },
     );
   } else {
-    await api(
+    result = await api(
       isDesignView ? "/api/designs/unhide-bulk" : "/api/assets/bulk/unhide",
       { method: "POST", body: JSON.stringify({ ids }) },
     );
+  }
+  if (result && Number(result.updated || 0) <= 0) {
+    throw new Error("No files were updated by Unhide.");
   }
   clearSelection();
   await refreshStats();

@@ -1627,11 +1627,16 @@ def hide_design(design_id: int) -> dict[str, Any]:
     db_file = data_dir(cfg) / "printshelf.sqlite3"
     with db_session(db_file) as conn:
         row = conn.execute("SELECT id FROM designs WHERE id = ?", (design_id,)).fetchone()
-        if not row:
-            raise HTTPException(404, "Design not found")
-        cur = conn.execute("UPDATE assets SET hidden = 1 WHERE design_id = ?", (design_id,))
+        target_design_id = int(row["id"]) if row else 0
+        if not target_design_id:
+            # Compatibility fallback: older clients could send asset ids.
+            a = conn.execute("SELECT design_id FROM assets WHERE id = ?", (design_id,)).fetchone()
+            if not a:
+                raise HTTPException(404, "Design not found")
+            target_design_id = int(a["design_id"])
+        cur = conn.execute("UPDATE assets SET hidden = 1 WHERE design_id = ?", (target_design_id,))
         updated = cur.rowcount or 0
-    return {"ok": True, "updated": updated, "design_id": design_id}
+    return {"ok": True, "updated": updated, "design_id": target_design_id}
 
 
 @app.post("/api/designs/{design_id}/unhide")
@@ -1642,11 +1647,16 @@ def unhide_design(design_id: int) -> dict[str, Any]:
     db_file = data_dir(cfg) / "printshelf.sqlite3"
     with db_session(db_file) as conn:
         row = conn.execute("SELECT id FROM designs WHERE id = ?", (design_id,)).fetchone()
-        if not row:
-            raise HTTPException(404, "Design not found")
-        cur = conn.execute("UPDATE assets SET hidden = 0 WHERE design_id = ?", (design_id,))
+        target_design_id = int(row["id"]) if row else 0
+        if not target_design_id:
+            # Compatibility fallback: older clients could send asset ids.
+            a = conn.execute("SELECT design_id FROM assets WHERE id = ?", (design_id,)).fetchone()
+            if not a:
+                raise HTTPException(404, "Design not found")
+            target_design_id = int(a["design_id"])
+        cur = conn.execute("UPDATE assets SET hidden = 0 WHERE design_id = ?", (target_design_id,))
         updated = cur.rowcount or 0
-    return {"ok": True, "updated": updated, "design_id": design_id}
+    return {"ok": True, "updated": updated, "design_id": target_design_id}
 
 
 @app.post("/api/designs/hide-bulk")
@@ -1656,11 +1666,23 @@ def bulk_hide_designs(body: BulkIdsIn) -> dict[str, Any]:
         return {"ok": True, "updated": 0, "ids": []}
     cfg = load_config()
     db_file = data_dir(cfg) / "printshelf.sqlite3"
-    placeholders = ",".join("?" for _ in ids)
     with db_session(db_file) as conn:
-        cur = conn.execute(
-            f"UPDATE assets SET hidden = 1 WHERE design_id IN ({placeholders})",
+        design_ids: set[int] = set(ids)
+        placeholders = ",".join("?" for _ in ids)
+        # Compatibility fallback: if ids are actually asset ids, hide owning designs.
+        mapped = conn.execute(
+            f"SELECT DISTINCT design_id FROM assets WHERE id IN ({placeholders})",
             ids,
+        ).fetchall()
+        for r in mapped:
+            design_ids.add(int(r["design_id"]))
+        if not design_ids:
+            return {"ok": True, "updated": 0, "ids": ids}
+        dids = sorted(design_ids)
+        dplaceholders = ",".join("?" for _ in dids)
+        cur = conn.execute(
+            f"UPDATE assets SET hidden = 1 WHERE design_id IN ({dplaceholders})",
+            dids,
         )
         updated = cur.rowcount or 0
     return {"ok": True, "updated": updated, "ids": ids}
@@ -1673,11 +1695,23 @@ def bulk_unhide_designs(body: BulkIdsIn) -> dict[str, Any]:
         return {"ok": True, "updated": 0, "ids": []}
     cfg = load_config()
     db_file = data_dir(cfg) / "printshelf.sqlite3"
-    placeholders = ",".join("?" for _ in ids)
     with db_session(db_file) as conn:
-        cur = conn.execute(
-            f"UPDATE assets SET hidden = 0 WHERE design_id IN ({placeholders})",
+        design_ids: set[int] = set(ids)
+        placeholders = ",".join("?" for _ in ids)
+        # Compatibility fallback: if ids are actually asset ids, unhide owning designs.
+        mapped = conn.execute(
+            f"SELECT DISTINCT design_id FROM assets WHERE id IN ({placeholders})",
             ids,
+        ).fetchall()
+        for r in mapped:
+            design_ids.add(int(r["design_id"]))
+        if not design_ids:
+            return {"ok": True, "updated": 0, "ids": ids}
+        dids = sorted(design_ids)
+        dplaceholders = ",".join("?" for _ in dids)
+        cur = conn.execute(
+            f"UPDATE assets SET hidden = 0 WHERE design_id IN ({dplaceholders})",
+            dids,
         )
         updated = cur.rowcount or 0
     return {"ok": True, "updated": updated, "ids": ids}
