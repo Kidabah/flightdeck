@@ -2114,7 +2114,8 @@ def get_asset_image(asset_id: int):
     db_file = data_dir(cfg) / "printshelf.sqlite3"
     with db_session(db_file) as conn:
         row = conn.execute(
-            "SELECT id, abs_path, root_path, file_name, kind, mtime FROM assets WHERE id = ? AND missing = 0 AND COALESCE(hidden, 0) = 0",
+            "SELECT id, abs_path, root_path, rel_path, file_name, kind, mtime "
+            "FROM assets WHERE id = ? AND missing = 0 AND COALESCE(hidden, 0) = 0",
             (asset_id,),
         ).fetchone()
     if not row:
@@ -2122,18 +2123,38 @@ def get_asset_image(asset_id: int):
     kind = str(row["kind"] or "").lower()
     if kind not in IMAGE_PREVIEW_KINDS:
         raise HTTPException(400, "Asset is not an image")
+
     abs_path = str(row["abs_path"] or "")
-    # Use lexical root check from DB row; resolve()-based checks can false-negative
-    # on bind mounts/symlinked NAS paths even when the asset was indexed legitimately.
     root_path = str(row["root_path"] or "")
+
+    # Build candidate on-disk paths defensively.
+    candidates: list[Path] = []
+    if abs_path:
+        candidates.append(Path(abs_path))
+    rel_path = str(row["rel_path"] or "").lstrip("/\\")
+    if root_path and rel_path:
+        candidates.append(Path(root_path) / rel_path)
+
+    path = None
+    for cand in candidates:
+        try:
+            if cand.exists() and cand.is_file():
+                path = cand
+                break
+        except Exception:
+            continue
+    if path is None:
+        raise HTTPException(404, "Image file missing")
+
+    # Keep root-bound safety when root info exists; otherwise ensure file is under watched folders.
     if root_path:
         try:
-            Path(abs_path).relative_to(Path(root_path))
+            path.relative_to(Path(root_path))
         except Exception:
             raise HTTPException(403, "Path outside asset root")
-    elif not path_under_watched(abs_path, cfg):
+    elif not path_under_watched(str(path), cfg):
         raise HTTPException(403, "Path outside watched folders")
-    path = Path(abs_path)
+
     if not path.exists() or not path.is_file():
         raise HTTPException(404, "Image file missing")
     media_type = mimetypes.guess_type(str(path))[0] or "application/octet-stream"

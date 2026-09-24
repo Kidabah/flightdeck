@@ -1265,6 +1265,13 @@ function appendDesignCard(grid, item) {
   const img = card.querySelector(".card-thumb img");
   if (img) {
     img.addEventListener("error", () => {
+      if (!img.dataset.thumbFallbackTried && item.thumb_path) {
+        img.dataset.thumbFallbackTried = "1";
+        img.src = `/api/thumbs/${encodeURIComponent(item.thumb_path)}?v=${encodeURIComponent(
+          item.cover_kind === "zip" ? "zip2" : ((item.content_hash || item.thumb_path || "") + "").slice(0, 16)
+        )}`;
+        return;
+      }
       const host = card.querySelector(".card-thumb");
       if (host) host.innerHTML = `<span class="pill">${escapeHtml(item.cover_kind || "design")}</span>`;
     });
@@ -1371,6 +1378,13 @@ function appendAssetCard(grid, item) {
   const img = card.querySelector(".card-thumb img");
   if (img) {
     img.addEventListener("error", () => {
+      if (!img.dataset.thumbFallbackTried && item.thumb_path) {
+        img.dataset.thumbFallbackTried = "1";
+        img.src = `/api/thumbs/${encodeURIComponent(item.thumb_path)}?v=${encodeURIComponent(
+          item.kind === "zip" ? "zip2" : ((item.content_hash || item.thumb_path || "") + "").slice(0, 16)
+        )}`;
+        return;
+      }
       const host = card.querySelector(".card-thumb");
       if (host) host.innerHTML = `<span class="pill">${escapeHtml(item.kind)}</span>`;
     });
