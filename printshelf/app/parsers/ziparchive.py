@@ -8,7 +8,7 @@ from typing import Any
 
 PRINTABLE_SUFFIXES = (".stl", ".obj", ".3mf", ".gcode.3mf", ".gcode", ".gco")
 MAX_LISTED = 120
-MAX_THUMB_ENTRY_BYTES = 80 * 1024 * 1024
+MAX_THUMB_ENTRY_BYTES = 24 * 1024 * 1024
 
 
 def _is_printable(name: str) -> bool:
@@ -39,7 +39,9 @@ def _kind_inside(name: str) -> str | None:
 def _pick_preview_candidate(printables: list[dict[str, Any]]) -> dict[str, Any] | None:
     if not printables:
         return None
-    rank = {"stl": 0, "3mf": 1, "gcode.3mf": 2, "obj": 3}
+    # Keep ZIP preview generation lightweight on Pi: prefer mesh types with
+    # cheaper parsers and avoid heavy 3MF decode in archive backfills.
+    rank = {"stl": 0, "obj": 1}
     ordered = sorted(
         printables,
         key=lambda p: (
@@ -57,7 +59,9 @@ def _pick_preview_candidate(printables: list[dict[str, Any]]) -> dict[str, Any] 
 def _thumb_from_zip_printable(zf: zipfile.ZipFile, printable: dict[str, Any]) -> bytes | None:
     kind = str(printable.get("kind") or "")
     name = str(printable.get("name") or "")
-    if kind not in {"stl", "obj", "3mf", "gcode.3mf"} or not name:
+    if kind not in {"stl", "obj"} or not name:
+        return None
+    if int(printable.get("size_bytes") or 0) > MAX_THUMB_ENTRY_BYTES:
         return None
     try:
         raw = zf.read(name)
