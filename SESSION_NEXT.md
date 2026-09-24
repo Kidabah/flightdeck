@@ -1,3 +1,16 @@
+## 2026-09-24 Session update (Raster image decode rescue)
+
+Latest commit: 880b48e - Image preview API now normalizes raster files via Pillow before sending, rescuing odd/truncated PNG/JPG files that fail direct browser decode.
+
+- Updated `printshelf/app/main.py` (`GET /api/assets/{asset_id}/image`):
+  - Added raster-kind normalization path (`jpg/jpeg/png/gif/webp/bmp`) using Pillow.
+  - Enables `ImageFile.LOAD_TRUNCATED_IMAGES` and re-encodes to PNG bytes for response.
+  - Falls back to direct file streaming if Pillow decode/convert fails.
+- Backend restart required: yes (API route behavior changed).
+- Hard refresh recommended once.
+
+---
+
 ## 2026-09-24 Session update (PNG path resolution follow-up)
 
 Latest commit: be062ce - Image endpoint now prefers indexed root-relative file paths before absolute paths, reducing false mismatches on mounted/symlinked NAS paths.
