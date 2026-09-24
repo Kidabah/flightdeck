@@ -1,3 +1,16 @@
+## 2026-09-24 Session update (PNG preview mount-path fix)
+
+Latest commit: d46262f - Image preview endpoint now accepts legitimate NAS/bind-mounted asset paths that were being falsely rejected for some PNG cards.
+
+- Updated `printshelf/app/main.py` (`GET /api/assets/{asset_id}/image`):
+  - Switched from strict resolve-based watched-folder check to lexical validation against the asset's indexed `root_path`.
+  - Keeps fallback watched-folder validation when `root_path` is absent.
+  - Prevents false 403s on bind mounts/symlinked paths while preserving path-safety checks.
+- Backend restart required: yes (API route behavior changed).
+- Hard refresh recommended once.
+
+---
+
 ## 2026-09-24 Session update (Direct image file previews on cards)
 
 Latest commit: 9bed231 - MeshFinder now serves image cards from source files directly, so JPG/PNG/SVG previews still render even when thumb generation is stale or unavailable.
