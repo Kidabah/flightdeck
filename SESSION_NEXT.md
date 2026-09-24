@@ -1,3 +1,17 @@
+## 2026-09-24 Session update (Documents purge path-normalization fix)
+
+Latest commit: f067005 - Existing indexed `Documents/...` entries are now purged reliably even when stored paths mix slash styles.
+
+- Updated `printshelf/app/scanner.py` (`purge_junk_assets`):
+  - Expanded `Documents` path match rules to include:
+    - `rel_path` with forward slashes and backslashes
+    - `abs_path` with forward slashes and backslashes
+  - Ensures already-indexed game artifacts under `Documents/My Games` are marked missing on next scan regardless of stored path format.
+- Backend restart required: yes (scanner logic changed).
+- Hard refresh optional.
+
+---
+
 ## 2026-09-24 Session update (Exclude Documents folder from scan)
 
 Latest commit: 1880333 - MeshFinder now excludes `Documents` directories from scanning so game-generated junk (for example `Documents/My Games`) is not scraped into the library.
