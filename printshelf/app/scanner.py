@@ -764,6 +764,18 @@ def _thumb_is_current(kind: str, thumb_path: str) -> bool:
         return thumb_path.endswith("_3mf3.png")
     if kind == "zip":
         return thumb_path == "_shared_zip2.png" or thumb_path.endswith("_zip2.png")
+    if kind == "jpg":
+        return thumb_path.endswith("_jpg2.png")
+    if kind == "jpeg":
+        return thumb_path.endswith("_jpeg2.png")
+    if kind == "png":
+        return thumb_path.endswith("_png2.png")
+    if kind == "gif":
+        return thumb_path.endswith("_gif2.png")
+    if kind == "webp":
+        return thumb_path.endswith("_webp2.png")
+    if kind == "bmp":
+        return thumb_path.endswith("_bmp2.png")
     return bool(thumb_path)
 
 

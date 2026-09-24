@@ -25,6 +25,18 @@ def thumb_suffix(kind: str) -> str:
         return "gcode2"  # embedded image or top-down extrusion toolpath
     if kind == "zip":
         return "zip2"
+    if kind == "jpg":
+        return "jpg2"
+    if kind == "jpeg":
+        return "jpeg2"
+    if kind == "png":
+        return "png2"
+    if kind == "gif":
+        return "gif2"
+    if kind == "webp":
+        return "webp2"
+    if kind == "bmp":
+        return "bmp2"
     return kind or "file"
 
 
