@@ -2114,7 +2114,7 @@ def get_asset_image(asset_id: int):
     db_file = data_dir(cfg) / "printshelf.sqlite3"
     with db_session(db_file) as conn:
         row = conn.execute(
-            "SELECT id, abs_path, file_name, kind, mtime FROM assets WHERE id = ? AND missing = 0 AND COALESCE(hidden, 0) = 0",
+            "SELECT id, abs_path, root_path, file_name, kind, mtime FROM assets WHERE id = ? AND missing = 0 AND COALESCE(hidden, 0) = 0",
             (asset_id,),
         ).fetchone()
     if not row:
@@ -2123,7 +2123,15 @@ def get_asset_image(asset_id: int):
     if kind not in IMAGE_PREVIEW_KINDS:
         raise HTTPException(400, "Asset is not an image")
     abs_path = str(row["abs_path"] or "")
-    if not path_is_allowed(abs_path, cfg):
+    # Use lexical root check from DB row; resolve()-based checks can false-negative
+    # on bind mounts/symlinked NAS paths even when the asset was indexed legitimately.
+    root_path = str(row["root_path"] or "")
+    if root_path:
+        try:
+            Path(abs_path).relative_to(Path(root_path))
+        except Exception:
+            raise HTTPException(403, "Path outside asset root")
+    elif not path_under_watched(abs_path, cfg):
         raise HTTPException(403, "Path outside watched folders")
     path = Path(abs_path)
     if not path.exists() or not path.is_file():
