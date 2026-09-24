@@ -1,3 +1,19 @@
+## 2026-09-24 Session update (ZIP thumb backfill trigger fix)
+
+Latest commit: 44620b5 - Existing ZIP rows with printable contents are now forced to regenerate per-asset ZIP previews instead of staying on shared archive icons.
+
+- Updated `printshelf/app/scanner.py`:
+  - Added ZIP backfill detection logic that inspects stored `meta_json.printable_count` and current `thumb_path`.
+  - For unchanged ZIP assets, scanner now reparses when a printable archive is still on non-`zip3` thumb naming.
+  - Thumb rebuild flow now applies ZIP-specific need checks (uses `meta_json`) rather than generic current-thumb checks.
+  - Legacy/unknown ZIP metadata now triggers one reparse pass to populate proper preview metadata.
+- Result:
+  - `Rescan` and `Rebuild thumbs` can finally migrate old ZIP rows to per-archive model previews.
+- Backend restart required: yes (scanner behavior changed).
+- Hard refresh optional.
+
+---
+
 ## 2026-09-24 Session update (ZIP cards get real model thumbs)
 
 Latest commit: c3c7517 - ZIP assets now generate per-file thumbnails from contained printables, so ZIP cards look like regular model cards instead of generic archive tiles.
