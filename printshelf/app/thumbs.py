@@ -24,7 +24,7 @@ def thumb_suffix(kind: str) -> str:
     if kind == "gcode":
         return "gcode2"  # embedded image or top-down extrusion toolpath
     if kind == "zip":
-        return "zip2"
+        return "zip3"
     if kind == "jpg":
         return "jpg2"
     if kind == "jpeg":
@@ -42,8 +42,6 @@ def thumb_suffix(kind: str) -> str:
 
 def thumb_filename(content_hash: str, kind: str) -> str:
     # Version suffixes bust caches when preview quality improves.
-    if kind == "zip":
-        return SHARED_ZIP_THUMB
     return f"{content_hash[:16]}_{thumb_suffix(kind)}.png"
 
 
@@ -56,18 +54,10 @@ def resolve_thumb_name(
 ) -> str | None:
     """Return an on-disk thumb filename, or None if nothing usable exists."""
     thumbs_dir = Path(thumbs_dir)
-    if kind == "zip":
-        shared = thumbs_dir / SHARED_ZIP_THUMB
-        if shared.is_file() and shared.stat().st_size > 0:
-            return SHARED_ZIP_THUMB
     if thumb_path:
         p = thumbs_dir / thumb_path
         if p.is_file() and p.stat().st_size > 0:
-            # Prefer shared zip icon over old hash-colored squares.
-            if kind == "zip" and thumb_path != SHARED_ZIP_THUMB:
-                pass
-            else:
-                return thumb_path
+            return thumb_path
     if content_hash and kind:
         # Prefer current naming, then a few legacy names.
         candidates = [
@@ -92,6 +82,10 @@ def resolve_thumb_name(
             p = thumbs_dir / name
             if p.is_file() and p.stat().st_size > 0:
                 return name
+    if kind == "zip":
+        shared = thumbs_dir / SHARED_ZIP_THUMB
+        if shared.is_file() and shared.stat().st_size > 0:
+            return SHARED_ZIP_THUMB
     return None
 
 

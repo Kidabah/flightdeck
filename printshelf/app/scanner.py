@@ -764,7 +764,7 @@ def _thumb_is_current(kind: str, thumb_path: str) -> bool:
     if kind in ("3mf", "gcode.3mf"):
         return thumb_path.endswith("_3mf3.png")
     if kind == "zip":
-        return thumb_path == "_shared_zip2.png" or thumb_path.endswith("_zip2.png")
+        return thumb_path == "_shared_zip2.png" or thumb_path.endswith("_zip3.png")
     if kind == "jpg":
         return thumb_path.endswith("_jpg2.png")
     if kind == "jpeg":
@@ -866,7 +866,13 @@ def rebuild_stale_thumbs(
                     thumb_name = None
                     triangle_count = None
                     if kind == "zip":
-                        thumb_name = make_placeholder_thumb(thumbs, content_hash, kind, kind)
+                        if not path.is_file():
+                            continue
+                        parsed = parse_asset(path, kind)
+                        if parsed.get("thumb_bytes"):
+                            thumb_name = save_thumb_bytes(thumbs, content_hash, kind, parsed["thumb_bytes"])
+                        if not thumb_name:
+                            thumb_name = make_placeholder_thumb(thumbs, content_hash, kind, kind)
                     else:
                         if not path.is_file():
                             continue

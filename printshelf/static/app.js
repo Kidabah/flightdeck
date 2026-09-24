@@ -82,8 +82,7 @@ function thumbUrlFor(item, { cover = false } = {}) {
     return `/api/assets/${assetId}/image?v=${version}`;
   }
   if (item.thumb_path) {
-    const v = kind === "zip" ? "zip2" : version;
-    return `/api/thumbs/${encodeURIComponent(item.thumb_path)}?v=${v}`;
+    return `/api/thumbs/${encodeURIComponent(item.thumb_path)}?v=${version}`;
   }
   return "";
 }
@@ -1290,7 +1289,7 @@ function appendDesignCard(grid, item) {
       if (!img.dataset.thumbFallbackTried && item.thumb_path) {
         img.dataset.thumbFallbackTried = "1";
         img.src = `/api/thumbs/${encodeURIComponent(item.thumb_path)}?v=${encodeURIComponent(
-          item.cover_kind === "zip" ? "zip2" : ((item.content_hash || item.thumb_path || "") + "").slice(0, 16)
+          ((item.content_hash || item.thumb_path || "") + "").slice(0, 16)
         )}`;
         return;
       }
@@ -1403,7 +1402,7 @@ function appendAssetCard(grid, item) {
       if (!img.dataset.thumbFallbackTried && item.thumb_path) {
         img.dataset.thumbFallbackTried = "1";
         img.src = `/api/thumbs/${encodeURIComponent(item.thumb_path)}?v=${encodeURIComponent(
-          item.kind === "zip" ? "zip2" : ((item.content_hash || item.thumb_path || "") + "").slice(0, 16)
+          ((item.content_hash || item.thumb_path || "") + "").slice(0, 16)
         )}`;
         return;
       }

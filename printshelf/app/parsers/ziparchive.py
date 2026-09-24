@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import io
+import tempfile
 import zipfile
 from pathlib import Path
 from typing import Any
 
 PRINTABLE_SUFFIXES = (".stl", ".obj", ".3mf", ".gcode.3mf", ".gcode", ".gco")
 MAX_LISTED = 120
+MAX_THUMB_ENTRY_BYTES = 80 * 1024 * 1024
 
 
 def _is_printable(name: str) -> bool:
@@ -32,6 +34,62 @@ def _kind_inside(name: str) -> str | None:
     if lower.endswith((".gcode", ".gco")):
         return "gcode"
     return None
+
+
+def _pick_preview_candidate(printables: list[dict[str, Any]]) -> dict[str, Any] | None:
+    if not printables:
+        return None
+    rank = {"stl": 0, "3mf": 1, "gcode.3mf": 2, "obj": 3}
+    ordered = sorted(
+        printables,
+        key=lambda p: (
+            rank.get(str(p.get("kind") or ""), 99),
+            int(p.get("size_bytes") or 0),
+            str(p.get("name") or ""),
+        ),
+    )
+    for p in ordered:
+        if str(p.get("kind") or "") in rank:
+            return p
+    return None
+
+
+def _thumb_from_zip_printable(zf: zipfile.ZipFile, printable: dict[str, Any]) -> bytes | None:
+    kind = str(printable.get("kind") or "")
+    name = str(printable.get("name") or "")
+    if kind not in {"stl", "obj", "3mf", "gcode.3mf"} or not name:
+        return None
+    try:
+        raw = zf.read(name)
+    except Exception:
+        return None
+    if not raw or len(raw) > MAX_THUMB_ENTRY_BYTES:
+        return None
+    suffix = Path(name).suffix.lower() or ".bin"
+    if name.lower().endswith(".gcode.3mf"):
+        suffix = ".gcode.3mf"
+    try:
+        from .obj import parse_obj
+        from .stl import parse_stl
+        from .threemf import parse_3mf
+    except Exception:
+        return None
+    try:
+        with tempfile.TemporaryDirectory(prefix="printshelf-zip-thumb-") as td:
+            tmp = Path(td) / f"entry{suffix}"
+            tmp.write_bytes(raw)
+            if kind == "stl":
+                parsed = parse_stl(tmp)
+            elif kind in {"3mf", "gcode.3mf"}:
+                parsed = parse_3mf(tmp, kind=kind)
+            elif kind == "obj":
+                parsed = parse_obj(tmp)
+            else:
+                return None
+            tb = parsed.get("thumb_bytes")
+            return tb if isinstance(tb, (bytes, bytearray)) and tb else None
+    except Exception:
+        return None
 
 
 def _list_printables_from_zipfile(zf: zipfile.ZipFile) -> tuple[list[dict[str, Any]], dict[str, int], int, int]:
@@ -130,6 +188,8 @@ def parse_zip(path: Path) -> dict[str, Any]:
     total_files = 0
     total_uncompressed = 0
     error = None
+    thumb_bytes = None
+    preview_entry = None
 
     try:
         with zipfile.ZipFile(path, "r") as zf:
@@ -159,6 +219,10 @@ def parse_zip(path: Path) -> dict[str, Any]:
                     by_kind[pk] = by_kind.get(pk, 0) + 1
                     if len(printable) < MAX_LISTED:
                         printable.append({**row, "kind": pk})
+            candidate = _pick_preview_candidate(printable)
+            if candidate:
+                preview_entry = candidate.get("name")
+                thumb_bytes = _thumb_from_zip_printable(zf, candidate)
     except zipfile.BadZipFile as exc:
         error = f"Bad zip: {exc}"
     except Exception as exc:
@@ -171,7 +235,7 @@ def parse_zip(path: Path) -> dict[str, Any]:
         "bbox": None,
         "has_textures": False,
         "is_sliced": False,
-        "thumb_bytes": None,
+        "thumb_bytes": thumb_bytes,
         "sidecars": [],
         "error": error,
         "meta": {
@@ -184,6 +248,7 @@ def parse_zip(path: Path) -> dict[str, Any]:
             "printable_by_kind": by_kind,
             "entries": entries,
             "printables": printable,
+            "preview_entry": preview_entry,
             "nested_zips": nested_zips,
             "nested_zip_count": len(nested_zips),
             "error": error,
