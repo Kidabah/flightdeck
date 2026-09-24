@@ -1,3 +1,16 @@
+## 2026-09-24 Session update (Narrow game-folder ignore)
+
+Latest commit: 95f79db - Added focused scan ignore for `Documents/My Games` so game-generated image assets are excluded without broadly dropping other Windows folders.
+
+- Updated `printshelf/config.example.json` ignore globs:
+  - Added: `**/Documents/My Games/**`
+- Intent:
+  - Excludes noisy game-generated PNG/profile artifacts (for example Division reward thumbnail junk) while keeping other Windows content scanable.
+- Backend restart required: no (config value only; takes effect with next scan/config reload).
+- Hard refresh optional.
+
+---
+
 ## 2026-09-24 Session update (Raster image decode rescue)
 
 Latest commit: 880b48e - Image preview API now normalizes raster files via Pillow before sending, rescuing odd/truncated PNG/JPG files that fail direct browser decode.
