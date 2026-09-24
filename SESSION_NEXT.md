@@ -1,3 +1,21 @@
+## 2026-09-24 Session update (Hide/no-op hardening)
+
+Latest commit: 757b95d - Hide/Unhide now handles mixed design/asset id payloads defensively and no longer reports success when zero rows changed.
+
+- Backend (`printshelf/app/main.py`):
+  - Design hide/unhide single endpoints now fall back to resolving asset id -> design id when needed.
+  - Design bulk hide/unhide endpoints now also map incoming ids through `assets.id -> design_id` and hide by merged design-id set.
+  - Prevents stale/mixed frontend payloads from silently doing nothing.
+- Frontend (`printshelf/static/app.js`):
+  - `hideIds(...)` / `unhideIds(...)` now inspect response `updated`.
+  - If `updated <= 0`, throws a visible error instead of showing false “Hidden/Unhidden” success.
+- Cache-bust:
+  - Bumped `printshelf/static/index.html` to `app.js?v=74`.
+- Backend restart required: yes (route behavior changed).
+- Hard refresh required once.
+
+---
+
 ## 2026-09-24 Session update (Hide API route collision fix)
 
 Latest commit: 0ab7f39 - Fixed design bulk hide/unhide API path collision that caused `design_id` int parse errors when posting to `/api/designs/bulk/...`.
