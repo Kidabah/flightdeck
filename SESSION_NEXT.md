@@ -1,3 +1,21 @@
+## 2026-09-24 Session update (Hide API route collision fix)
+
+Latest commit: 0ab7f39 - Fixed design bulk hide/unhide API path collision that caused `design_id` int parse errors when posting to `/api/designs/bulk/...`.
+
+- Backend (`printshelf/app/main.py`):
+  - Renamed design bulk routes to unambiguous static paths:
+    - `POST /api/designs/hide-bulk`
+    - `POST /api/designs/unhide-bulk`
+  - Avoids conflict with dynamic route `POST /api/designs/{design_id}/hide`.
+- Frontend (`printshelf/static/app.js`):
+  - Updated design-view hide/unhide calls to new bulk endpoints.
+- Cache-bust:
+  - Bumped `printshelf/static/index.html` to `app.js?v=73`.
+- Backend restart required: yes (route changes).
+- Hard refresh required once.
+
+---
+
 ## 2026-09-24 Session update (Design-selection hide/unhide fix)
 
 Latest commit: 2d241b1 - Bulk Hide/Unhide now correctly targets selected design cards (all assets under each design) instead of asset-id endpoints.
