@@ -101,6 +101,7 @@
     "**/Euro Truck Simulator*/**",
     "**/steam_profiles*/**",
     "**/*.bak/**",
+    "**/Documents/**",
     "**/AppData/**",
     "**/Documents/My Games/**",
     "**/.cache/**",

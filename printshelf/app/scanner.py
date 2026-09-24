@@ -28,6 +28,7 @@ HARD_SKIP_DIR_NAMES = frozenset({
     ".trash",
     "$recycle.bin",
     "system volume information",
+    "documents",
     ".svn",
     ".hg",
 })
@@ -798,6 +799,8 @@ def purge_junk_assets(conn) -> int:
              OR lower(file_name) LIKE 'small_display\\_%' ESCAPE '\\'
              OR lower(file_name) LIKE 'small_thumb\\_%' ESCAPE '\\'
              OR lower(file_name) LIKE 'tiny_thumb\\_%' ESCAPE '\\'
+             OR lower(rel_path) LIKE 'documents/%'
+             OR lower(rel_path) LIKE '%/documents/%'
            )"""
     )
     return cur.rowcount or 0
