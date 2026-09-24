@@ -542,7 +542,7 @@ async function hideIds(ids) {
     );
   } else {
     await api(
-      isDesignView ? "/api/designs/bulk/hide" : "/api/assets/bulk/hide",
+      isDesignView ? "/api/designs/hide-bulk" : "/api/assets/bulk/hide",
       { method: "POST", body: JSON.stringify({ ids }) },
     );
   }
@@ -564,7 +564,7 @@ async function unhideIds(ids) {
     );
   } else {
     await api(
-      isDesignView ? "/api/designs/bulk/unhide" : "/api/assets/bulk/unhide",
+      isDesignView ? "/api/designs/unhide-bulk" : "/api/assets/bulk/unhide",
       { method: "POST", body: JSON.stringify({ ids }) },
     );
   }

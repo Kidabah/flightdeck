@@ -1649,7 +1649,7 @@ def unhide_design(design_id: int) -> dict[str, Any]:
     return {"ok": True, "updated": updated, "design_id": design_id}
 
 
-@app.post("/api/designs/bulk/hide")
+@app.post("/api/designs/hide-bulk")
 def bulk_hide_designs(body: BulkIdsIn) -> dict[str, Any]:
     ids = sorted({int(i) for i in body.ids if int(i) > 0})
     if not ids:
@@ -1666,7 +1666,7 @@ def bulk_hide_designs(body: BulkIdsIn) -> dict[str, Any]:
     return {"ok": True, "updated": updated, "ids": ids}
 
 
-@app.post("/api/designs/bulk/unhide")
+@app.post("/api/designs/unhide-bulk")
 def bulk_unhide_designs(body: BulkIdsIn) -> dict[str, Any]:
     ids = sorted({int(i) for i in body.ids if int(i) > 0})
     if not ids:
