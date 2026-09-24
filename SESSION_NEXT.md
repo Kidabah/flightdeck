@@ -1,3 +1,19 @@
+## 2026-09-24 Session update (Image thumbnail cache-bust)
+
+Latest commit: 1a43da6 - Raster image cards now force-refresh to new thumbnail filenames, avoiding stale placeholder tile cache hits.
+
+- Updated `printshelf/app/thumbs.py`:
+  - Added versioned thumbnail suffixes for raster image kinds:
+    - `jpg2`, `jpeg2`, `png2`, `gif2`, `webp2`, `bmp2`
+  - This changes generated thumb filenames so browsers fetch fresh images instead of reusing cached placeholder URLs.
+- Updated `printshelf/app/scanner.py`:
+  - `_thumb_is_current(...)` now validates the new raster suffixes.
+  - Rebuild thumbs now treats old raster suffixes as stale and regenerates upgraded filenames.
+- Backend restart required: yes (scanner/thumb logic changed).
+- Hard refresh recommended once.
+
+---
+
 ## 2026-09-24 Session update (Image cards backfill on rescan)
 
 Latest commit: 8fbda6d - Rescan now backfills older image rows so PNG/JPG/etc cards get real thumbnails instead of placeholder tiles.
