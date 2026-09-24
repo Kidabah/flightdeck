@@ -102,6 +102,7 @@
     "**/steam_profiles*/**",
     "**/*.bak/**",
     "**/AppData/**",
+    "**/Documents/My Games/**",
     "**/.cache/**",
     "**/Codex/**",
     "**/OrcaSlicer/**"
