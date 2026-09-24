@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import mimetypes
 import re
+from io import BytesIO
 from pathlib import Path
 from typing import Any, Iterator
 from urllib.parse import quote
@@ -11,6 +12,11 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+try:
+    from PIL import Image, ImageFile
+except Exception:  # pragma: no cover
+    Image = None
+    ImageFile = None
 
 from . import __version__
 from .config import data_dir, load_config, save_config
@@ -51,6 +57,7 @@ from .zip_extract import extract_all_zip_printables, extract_zip_printable
 ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "static"
 IMAGE_PREVIEW_KINDS = frozenset({"jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"})
+RASTER_IMAGE_KINDS = frozenset({"jpg", "jpeg", "png", "gif", "webp", "bmp"})
 
 app = FastAPI(title="PrintShelf", version=__version__)
 
@@ -2158,6 +2165,19 @@ def get_asset_image(asset_id: int):
 
     if not path.exists() or not path.is_file():
         raise HTTPException(404, "Image file missing")
+    if kind in RASTER_IMAGE_KINDS and Image is not None and ImageFile is not None:
+        try:
+            # Some exported/repacked image files are slightly non-compliant; PIL can
+            # often decode where browser direct decode fails.
+            ImageFile.LOAD_TRUNCATED_IMAGES = True
+            with Image.open(path) as im:
+                im = im.convert("RGBA")
+                bio = BytesIO()
+                im.save(bio, format="PNG", optimize=True)
+                data = bio.getvalue()
+            return Response(data, media_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
+        except Exception:
+            pass
     media_type = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
     return FileResponse(
         path,
