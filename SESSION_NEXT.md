@@ -1,3 +1,18 @@
+## 2026-09-24 Session update (Exclude Documents folder from scan)
+
+Latest commit: 1880333 - MeshFinder now excludes `Documents` directories from scanning so game-generated junk (for example `Documents/My Games`) is not scraped into the library.
+
+- Updated `printshelf/app/scanner.py`:
+  - Added `documents` to hard-skipped directory names (case-insensitive) so scanner will not descend into any `Documents` folder.
+  - Added purge rule to mark existing indexed assets under `Documents/...` as missing on next scan.
+- Updated `printshelf/config.example.json`:
+  - Added ignore glob: `**/Documents/**`.
+- Document file-type support remains intact for non-Documents paths.
+- Backend restart required: yes (scanner skip rules changed).
+- Hard refresh optional.
+
+---
+
 ## 2026-09-24 Session update (Hide/no-op hardening)
 
 Latest commit: 757b95d - Hide/Unhide now handles mixed design/asset id payloads defensively and no longer reports success when zero rows changed.
