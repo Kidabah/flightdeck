@@ -50,6 +50,7 @@ from .zip_extract import extract_all_zip_printables, extract_zip_printable
 
 ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "static"
+IMAGE_PREVIEW_KINDS = frozenset({"jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"})
 
 app = FastAPI(title="PrintShelf", version=__version__)
 
@@ -2105,6 +2106,35 @@ def get_thumb(name: str):
     if not path.exists():
         raise HTTPException(404, "Thumb not found")
     return FileResponse(path, headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/api/assets/{asset_id}/image")
+def get_asset_image(asset_id: int):
+    cfg = load_config()
+    db_file = data_dir(cfg) / "printshelf.sqlite3"
+    with db_session(db_file) as conn:
+        row = conn.execute(
+            "SELECT id, abs_path, file_name, kind, mtime FROM assets WHERE id = ? AND missing = 0 AND COALESCE(hidden, 0) = 0",
+            (asset_id,),
+        ).fetchone()
+    if not row:
+        raise HTTPException(404, "Asset not found")
+    kind = str(row["kind"] or "").lower()
+    if kind not in IMAGE_PREVIEW_KINDS:
+        raise HTTPException(400, "Asset is not an image")
+    abs_path = str(row["abs_path"] or "")
+    if not path_is_allowed(abs_path, cfg):
+        raise HTTPException(403, "Path outside watched folders")
+    path = Path(abs_path)
+    if not path.exists() or not path.is_file():
+        raise HTTPException(404, "Image file missing")
+    media_type = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
+    return FileResponse(
+        path,
+        media_type=media_type,
+        filename=str(row["file_name"] or path.name),
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
 
 
 app.mount("/", StaticFiles(directory=str(STATIC), html=True), name="static")

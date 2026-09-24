@@ -66,10 +66,26 @@ const TYPE_PRESETS = [
   },
 ];
 
+const IMAGE_KINDS = new Set(["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"]);
+
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   }[c]));
+}
+
+function thumbUrlFor(item, { cover = false } = {}) {
+  const kind = String(cover ? (item.cover_kind || "") : (item.kind || "")).toLowerCase();
+  const assetId = Number(cover ? (item.cover_asset_id || 0) : (item.id || 0));
+  const version = encodeURIComponent(String((item.content_hash || item.thumb_path || "")).slice(0, 16));
+  if (assetId && IMAGE_KINDS.has(kind)) {
+    return `/api/assets/${assetId}/image?v=${version}`;
+  }
+  if (item.thumb_path) {
+    const v = kind === "zip" ? "zip2" : version;
+    return `/api/thumbs/${encodeURIComponent(item.thumb_path)}?v=${v}`;
+  }
+  return "";
 }
 
 /** PrintShelf toast — replaces browser alert(). */
@@ -1226,15 +1242,14 @@ function appendDesignCard(grid, item) {
   const n = Number(item.asset_count) || 0;
   const coverId = item.cover_asset_id;
   const isZipCover = (item.cover_kind || kinds[0] || "") === "zip";
+  const thumbSrc = thumbUrlFor(item, { cover: true });
   card.innerHTML = `
     <div class="card-menu">
       <button type="button" class="card-menu-btn" aria-label="More actions">⋮</button>
       <div class="card-menu-panel" role="menu"></div>
     </div>
-    <div class="card-thumb">${item.thumb_path
-      ? `<img src="/api/thumbs/${encodeURIComponent(item.thumb_path)}?v=${encodeURIComponent(
-          ((item.content_hash || item.thumb_path) + "").slice(0, 12)
-        )}" alt="" loading="lazy">`
+    <div class="card-thumb">${thumbSrc
+      ? `<img src="${thumbSrc}" alt="" loading="lazy">`
       : `<span class="pill">${escapeHtml(item.cover_kind || "design")}</span>`}</div>
     <div class="card-body">
       <h3 class="card-title">${escapeHtml(item.name || "Design")}</h3>
@@ -1316,16 +1331,15 @@ function appendAssetCard(grid, item) {
     + (item.id === selectedId ? " active" : "")
     + (checked ? " selected" : "");
   card.dataset.id = String(item.id);
+  const thumbSrc = thumbUrlFor(item);
   card.innerHTML = `
     <input type="checkbox" class="card-check" ${checked ? "checked" : ""} aria-label="Select ${escapeHtml(item.file_name)}">
     <div class="card-menu">
       <button type="button" class="card-menu-btn" aria-label="More actions">⋮</button>
       <div class="card-menu-panel" role="menu"></div>
     </div>
-    <div class="card-thumb">${item.thumb_path
-      ? `<img src="/api/thumbs/${encodeURIComponent(item.thumb_path)}?v=${encodeURIComponent(
-          item.kind === "zip" ? "zip2" : ((item.content_hash || item.thumb_path).slice(0, 12))
-        )}" alt="" loading="lazy">`
+    <div class="card-thumb">${thumbSrc
+      ? `<img src="${thumbSrc}" alt="" loading="lazy">`
       : `<span class="pill">${escapeHtml(item.kind)}</span>`}</div>
     <div class="card-body">
       <h3 class="card-title">${escapeHtml(item.file_name)}</h3>
