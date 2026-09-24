@@ -1,3 +1,23 @@
+## 2026-09-24 Session update (ZIP cards get real model thumbs)
+
+Latest commit: c3c7517 - ZIP assets now generate per-file thumbnails from contained printables, so ZIP cards look like regular model cards instead of generic archive tiles.
+
+- Backend (`printshelf/app/parsers/ziparchive.py`):
+  - ZIP parser now chooses a preview candidate from contained printables (prefers STL/3MF/Gcode 3MF/OBJ).
+  - Reads that entry in-memory and reuses existing parsers to generate `thumb_bytes`.
+  - Stores selected `preview_entry` in ZIP meta for future viewer flow use.
+- Thumbnail pipeline (`printshelf/app/thumbs.py`, `printshelf/app/scanner.py`):
+  - ZIP thumbs now use per-asset hashed filenames (`*_zip3.png`) instead of one shared image filename.
+  - Shared `_shared_zip2.png` icon remains as fallback when a ZIP has no previewable printable.
+  - Thumb rebuild for ZIP now reparses ZIP and regenerates real preview thumbs when possible.
+- Frontend (`printshelf/static/app.js`, `printshelf/static/index.html`):
+  - ZIP thumb URLs now version by asset hash/path (not fixed `zip2` token), so per-ZIP previews refresh correctly.
+  - Cache-bust bumped to `app.js?v=75`.
+- Backend restart required: yes (parser/scanner/thumb behavior changed).
+- Hard refresh recommended once.
+
+---
+
 ## 2026-09-24 Session update (Documents purge path-normalization fix)
 
 Latest commit: f067005 - Existing indexed `Documents/...` entries are now purged reliably even when stored paths mix slash styles.
