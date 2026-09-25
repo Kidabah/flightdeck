@@ -71,6 +71,7 @@ Talk to Amy in normal English — this list is just reminders of what she can do
 
 ## Workshop / Flightdeck
 
+- “**Open the queue**” — switches the Flightdeck window to that page. Same for Spools, Fleet Wall, Flight Tower, Projects, a printer (“open BigBoy”), and the other sidebar pages. She does not start a print from that.
 - “**Pause the print on Big Girl**” — same for BigBoy, the X1C, Greyhound, or any printer you name. Resume and stop work the same way. She does not start a print from that.
 - “**Amy can you deploy pi**”, “deploy to the pi”, or “deploy pi again”. She pulls Flightdeck on the Pi and restarts it.
 - Ask about printers, AMS, MakerDeck, PrintShelf, notes in her galaxy

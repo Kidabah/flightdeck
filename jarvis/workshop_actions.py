@@ -31,6 +31,73 @@ def _clean(question: str) -> str:
     return q
 
 
+# Spoken page, hash, label. Longest names first so "print bay" beats "files".
+FLIGHTDECK_PAGES: tuple[tuple[str, str, str], ...] = (
+    ("global print bay", "#/files", "Global Print Bay"),
+    ("print vault", "#/files", "Global Print Bay"),
+    ("print bay", "#/files", "Global Print Bay"),
+    ("flight tower", "#/mission", "Flight Tower"),
+    ("fleet wall", "#/fleet", "Fleet Wall"),
+    ("fleet filament", "#/filament", "Fleet Filament"),
+    ("print memory", "#/memory", "Print Memory"),
+    ("stl painter", "#/painter", "STL Painter"),
+    ("mesh prep", "#/meshprep", "Mesh Prep"),
+    ("flight manual", "#/manual", "Flight Manual"),
+    ("makerworld", "#/makerworld", "MakerWorld"),
+    ("makerdeck", "#/makerdeck", "MakerDeck"),
+    ("walkthrough", "#/walkthrough", "Walkthrough"),
+    ("telemetry", "#/stats", "Telemetry"),
+    ("dashboard", "#/", "Dashboard"),
+    ("queue", "#/queue", "Queue"),
+    ("spools", "#/spools", "Spools"),
+    ("projects", "#/projects", "Projects"),
+    ("settings", "#/settings", "Settings"),
+    ("filament", "#/filament", "Fleet Filament"),
+    ("painter", "#/painter", "STL Painter"),
+    ("cameras", "#/fleet", "Fleet Wall"),
+    ("chop", "#/chop", "Chop"),
+    ("about", "#/about", "About"),
+    ("manual", "#/manual", "Flight Manual"),
+    ("stats", "#/stats", "Telemetry"),
+    ("files", "#/files", "Global Print Bay"),
+    ("mission", "#/mission", "Flight Tower"),
+    ("memory", "#/memory", "Print Memory"),
+)
+
+FLIGHTDECK_PRINTERS: tuple[tuple[str, str, str], ...] = (
+    ("big girl", "o1c2", "Big Girl"),
+    ("biggirl", "o1c2", "Big Girl"),
+    ("big boy", "h2d", "BigBoy"),
+    ("bigboy", "h2d", "BigBoy"),
+    ("greyhound", "greyhound", "Greyhound"),
+    ("voron", "greyhound", "Greyhound"),
+    ("little boy", "x1c", "Little Boy"),
+    ("o1c2", "o1c2", "Big Girl"),
+    ("h2d", "h2d", "BigBoy"),
+    ("x1c", "x1c", "X1C"),
+)
+
+
+def parse_flightdeck_page(question: str) -> dict[str, str] | None:
+    """Open a page inside the Flightdeck window. Never a print start."""
+    q = _clean(question)
+    if not q:
+        return None
+    if re.search(r"\b(pause|resume|stop|cancel|abort)\b", q):
+        return None
+    if re.search(r"\bgo\s+(small|big|large|away)\b", q):
+        return None
+    if not re.search(r"\b(open|show|switch|go|pull|bring)\b", q):
+        return None
+    for key, href, label in FLIGHTDECK_PAGES:
+        if re.search(rf"\b{re.escape(key)}\b", q):
+            return {"hash": href, "label": label}
+    for alias, pid, label in FLIGHTDECK_PRINTERS:
+        if re.search(rf"\b{re.escape(alias)}\b", q):
+            return {"hash": f"#/printer/{pid}", "label": label}
+    return None
+
+
 def parse_queue_load(question: str) -> str | None:
     """'open the queue in Flightdeck and load file <name>'."""
     q = _clean(question)

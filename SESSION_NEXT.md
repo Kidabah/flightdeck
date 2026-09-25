@@ -1,3 +1,13 @@
+## 2026-09-25 Session update (Flightdeck pages)
+
+Latest commit: pending — Amy opens a page inside Flightdeck.
+
+- “Open the queue” switches the Flightdeck window to the Queue. Same for Spools, Fleet Wall, Flight Tower, Projects, Settings, and a printer (“open BigBoy”). She does not start a print from that.
+- Files: `desktop/launch.py`, `jarvis/server.py`, `jarvis/workshop_actions.py`.
+- Flightdeck was reopened so the page switch is live. Ask her again if you want another page.
+
+---
+
 ## 2026-09-25 Session update (Amy stays up, and her icon)
 
 Latest commit: `8dee8d5` — Amy naps later, and the taskbar button is her face.

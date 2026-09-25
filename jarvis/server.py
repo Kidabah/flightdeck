@@ -9,6 +9,7 @@ import os
 import random
 import re
 import subprocess
+import sys
 import threading
 import time
 import urllib.error
@@ -2617,6 +2618,104 @@ def try_add_app(question: str) -> dict[str, Any] | None:
     }
 
 
+def _post_flightdeck_page(target: str) -> bool:
+    req = urllib.request.Request(
+        "http://127.0.0.1:4712/navigate",
+        data=json.dumps({"hash": target}).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            return resp.status == 200
+    except Exception:
+        return False
+
+
+def _flightdeck_desktop_pids() -> list[int]:
+    if os.name != "nt":
+        return []
+    script = (
+        "Get-CimInstance Win32_Process -Filter \"Name = 'pythonw.exe' OR Name = 'python.exe'\" | "
+        "Where-Object { $_.CommandLine -match 'flightdeck\\\\desktop\\\\launch.py' } | "
+        "Select-Object -ExpandProperty ProcessId"
+    )
+    try:
+        out = subprocess.check_output(
+            ["powershell", "-NoProfile", "-Command", script],
+            text=True,
+            timeout=15,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception:
+        return []
+    pids = []
+    for line in out.splitlines():
+        line = line.strip()
+        if line.isdigit():
+            pids.append(int(line))
+    return pids
+
+
+def _start_flightdeck_window() -> None:
+    if os.name != "nt":
+        return
+    py = Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Python" / "Python312" / "pythonw.exe"
+    script = Path(__file__).resolve().parents[1] / "desktop" / "launch.py"
+    if not py.is_file() or not script.is_file():
+        return
+    subprocess.Popen([str(py), str(script)], cwd=str(script.parent), close_fds=True)
+
+
+def _write_pending_page(target: str) -> None:
+    base = Path(os.environ.get("APPDATA") or Path.home()) / "Flightdeck"
+    base.mkdir(parents=True, exist_ok=True)
+    (base / "pending-hash.txt").write_text(target + "\n", encoding="utf-8")
+
+
+def _open_flightdeck_page(target: str) -> bool:
+    """Switch the desktop window to a hash route. Restarts it once if it predates the switch."""
+    if _post_flightdeck_page(target):
+        return True
+    _write_pending_page(target)
+    _start_flightdeck_window()
+    for _ in range(10):
+        time.sleep(0.25)
+        if _post_flightdeck_page(target):
+            return True
+    if os.name == "nt":
+        for pid in _flightdeck_desktop_pids():
+            subprocess.run(["taskkill", "/PID", str(pid), "/F"], capture_output=True, timeout=10)
+        time.sleep(0.4)
+        _write_pending_page(target)
+        _start_flightdeck_window()
+        for _ in range(40):
+            time.sleep(0.25)
+            if _post_flightdeck_page(target):
+                return True
+    return False
+
+
+def try_flightdeck_page(question: str) -> dict[str, Any] | None:
+    """Open Queue, Spools, a printer, and the other sidebar pages inside Flightdeck."""
+    try:
+        from workshop_actions import parse_flightdeck_page
+    except ImportError:
+        from jarvis.workshop_actions import parse_flightdeck_page
+    page = parse_flightdeck_page(question)
+    if not page:
+        return None
+    ok = _open_flightdeck_page(str(page["hash"]))
+    label = str(page["label"])
+    return {
+        "answer": f"Opened {label} in Flightdeck." if ok else f"Couldn't open {label} in Flightdeck.",
+        "nodes": [],
+        "move_camera": False,
+        "tool": "flightdeck_page",
+        "ok": ok,
+    }
+
+
 def try_launch_app(question: str) -> dict[str, Any] | None:
     """Launch means open the app and bring its window to the front."""
     name = _launch_target(question)
@@ -2655,6 +2754,10 @@ def try_tools(question: str) -> dict[str, Any] | None:
     if added is not None:
         added.setdefault("talk_mode", RUNTIME.get("talk_mode") or "casual")
         return added
+    page = try_flightdeck_page(question)
+    if page is not None:
+        page.setdefault("talk_mode", RUNTIME.get("talk_mode") or "casual")
+        return page
     launched = try_launch_app(question)
     if launched is not None:
         launched.setdefault("talk_mode", RUNTIME.get("talk_mode") or "casual")
