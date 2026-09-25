@@ -2145,10 +2145,11 @@ def tool_control(question: str) -> dict[str, Any] | None:
             "tool": action,
             "ok": False,
         }
+    api_action = "cancel" if action == "stop" else action
     code, payload = http_json(
         flightdeck_url(f"/api/printers/{printer_id}/control"),
         method="POST",
-        body={"action": action},
+        body={"action": api_action},
         timeout=20,
     )
     if code not in (200, 201):
@@ -2775,6 +2776,49 @@ def _reveal_file(path: Path) -> None:
     subprocess.Popen(["explorer.exe", f"/select,{path}"], close_fds=True)
 
 
+def _print_files_under(root: Path, depth: int = 6) -> list[Path]:
+    found: list[Path] = []
+    if depth < 0 or not root.is_dir():
+        return found
+    try:
+        children = list(root.iterdir())
+    except OSError:
+        return found
+    exts = (".gcode.3mf", ".gcode.gz", ".3mf", ".gcode", ".stl")
+    skip = {".git", "node_modules", "__pycache__"}
+    for child in children:
+        if child.is_file() and child.name.lower().endswith(exts):
+            found.append(child)
+        elif child.is_dir() and child.name.lower() not in skip and not child.name.startswith("."):
+            found.extend(_print_files_under(child, depth - 1))
+    return found
+
+
+def _candidate_print_files(folders: list[str]) -> tuple[list[Path], str]:
+    """Files to match. A spoken place narrows the search. Otherwise look on the Desktop."""
+    home = Path.home()
+    places = {
+        "desktop": home / "Desktop",
+        "documents": home / "Documents",
+        "docs": home / "Documents",
+        "downloads": home / "Downloads",
+        "download": home / "Downloads",
+        "pictures": home / "Pictures",
+        "videos": home / "Videos",
+        "music": home / "Music",
+        "onedrive": home / "OneDrive",
+    }
+    if folders:
+        start = _resolve_folder_chain(folders)
+        if start is None and folders[0].lower() in places:
+            start = places[folders[0].lower()]
+        if start is None or not start.is_dir():
+            return [], " ".join(folders)
+        return _print_files_under(start), str(start)
+    desktop = home / "Desktop"
+    return _print_files_under(desktop), str(desktop)
+
+
 def try_queue_local_file(question: str) -> dict[str, Any] | None:
     """Queue one named file from a folder Chris names. Does not start the print."""
     try:
@@ -2784,11 +2828,10 @@ def try_queue_local_file(question: str) -> dict[str, Any] | None:
     parsed = parse_queue_local_file(question)
     if not parsed:
         return None
-    folder = _resolve_folder_chain(list(parsed["folders"]))
+    files, place = _candidate_print_files(list(parsed["folders"]))
     label = str(parsed["printer_label"])
     spoken = str(parsed["file"])
-    if folder is None:
-        place = " ".join(parsed["folders"])
+    if not files and not Path(place).is_dir():
         return {
             "answer": f"I couldn't find the folder {place}.",
             "nodes": [],
@@ -2796,18 +2839,17 @@ def try_queue_local_file(question: str) -> dict[str, Any] | None:
             "tool": "queue_file",
             "ok": False,
         }
-    names = [item.name for item in folder.iterdir() if item.is_file()]
-    hits = match_named_files(names, spoken)
+    hits = [item for item in files if match_named_files([item.name], spoken)]
     if not hits:
         return {
-            "answer": f"I couldn't find {spoken} in {folder}.",
+            "answer": f"I couldn't find {spoken} in {place}.",
             "nodes": [],
             "move_camera": False,
             "tool": "queue_file",
             "ok": False,
         }
     if len(hits) > 1:
-        listed = ", ".join(hits[:4])
+        listed = ", ".join(f"{item.parent.name}\\{item.name}" for item in hits[:4])
         return {
             "answer": f"I found {len(hits)} files for {spoken}: {listed}. Say which one.",
             "nodes": [],
@@ -2815,7 +2857,7 @@ def try_queue_local_file(question: str) -> dict[str, Any] | None:
             "tool": "queue_file",
             "ok": False,
         }
-    chosen = folder / hits[0]
+    chosen = hits[0]
     ok, detail = _queue_local_on_printer(chosen, str(parsed["printer_id"]))
     if not ok:
         return {

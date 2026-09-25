@@ -9767,6 +9767,7 @@ async function renderPrinterDetail(id, subtab = 'live') {
 
 const _QUEUE_STATUS_LABEL = {
   pending:   'Pending',
+  held:      'Waiting',
   uploading: 'Uploading…',
   printing:  'Printing',
   done:      'Done',
@@ -12397,6 +12398,8 @@ function _queueReleaseConfirmMessage(job, printer) {
 
 function _queueJobCard(job, isFirst, isLast, printerKind = '') {
   const isPending   = job.status === 'pending';
+  const isHeld      = job.status === 'held';
+  const isQueued    = isPending || isHeld;
   const isActive    = job.status === 'printing' || job.status === 'uploading';
   const isRecoverable = job.status === 'failed' || job.status === 'cancelled';
   const isReprintable = job.status === 'done';
@@ -12418,13 +12421,13 @@ function _queueJobCard(job, isFirst, isLast, printerKind = '') {
   ].filter(Boolean).join(' · ');
 
   const readiness = _missionJobReadiness(job);
-  const calibrateToggle = isPending && printerKind === 'bambu'
+  const calibrateToggle = isQueued && printerKind === 'bambu'
     ? `<label class="queue-calibrate-toggle" title="Run printer calibration before this job starts">
         <input type="checkbox" data-action="calibrate" data-id="${job.id}" ${job.calibrate_before_start ? 'checked' : ''}>
         <span>Cal first</span>
       </label>`
     : '';
-  const shortFilamentToggle = isPending
+  const shortFilamentToggle = isQueued
     ? `<label class="queue-calibrate-toggle" title="Allow start even if loaded filament is short — you can swap rolls mid-print">
         <input type="checkbox" data-action="allow-short" data-id="${job.id}" ${job.allow_short_filament ? 'checked' : ''}>
         <span>Allow short</span>
@@ -12449,9 +12452,9 @@ function _queueJobCard(job, isFirst, isLast, printerKind = '') {
       <div class="queue-job-toggles">${calibrateToggle}${shortFilamentToggle}</div>
     </div>
     <div class="queue-job-actions">
-    ${isPending ? `
-        <button class="queue-act-btn" data-action="up"   data-id="${job.id}" title="Move up"   ${isFirst ? 'disabled' : ''}>▲</button>
-        <button class="queue-act-btn" data-action="down" data-id="${job.id}" title="Move down" ${isLast  ? 'disabled' : ''}>▼</button>
+    ${isQueued ? `
+        ${isPending ? `<button class="queue-act-btn" data-action="up"   data-id="${job.id}" title="Move up"   ${isFirst ? 'disabled' : ''}>▲</button>
+        <button class="queue-act-btn" data-action="down" data-id="${job.id}" title="Move down" ${isLast  ? 'disabled' : ''}>▼</button>` : ''}
         ${isSourceModel ? `<button class="queue-act-btn queue-act-slice" data-action="slice" data-id="${job.id}" data-printer-id="${esc(job.printer_id)}" data-filename="${esc(job.filename || '')}" title="Slice source model">Slice</button>` : ''}
         <button class="queue-act-btn queue-act-send" data-action="send"   data-id="${job.id}" title="${canSend ? 'Send now' : 'Preflight blocked'}" ${canSend ? '' : 'disabled'}>▶</button>
         <button class="queue-act-btn queue-act-check" data-action="check"  data-id="${job.id}" title="Run filament check">FIL</button>
@@ -12474,15 +12477,21 @@ function _queuePrinterSection(printerId, printerLabel, jobs, kind, printer = nul
   const accept   = kind === 'bambu' ? '.3mf,.gcode.3mf,.step,.stp' : '.gcode,.gcode.gz,.ufp,.step,.stp';
   const acceptedText = kind === 'bambu' ? '.gcode.3mf / .step' : '.gcode / .step';
   const pending  = jobs.filter(j => j.status === 'pending');
+  const held     = jobs.filter(j => j.status === 'held');
+  const waiting  = pending.concat(held);
   const active   = jobs.filter(j => j.status === 'printing' || j.status === 'uploading');
   const completed = jobs.filter(j => ['done','failed','cancelled'].includes(j.status));
   const tone = _queuePrinterSectionTone(jobs, printer);
   const stateLabel = printer ? _printerDisplayStateLabel(printer) : '';
   const stateClass = printer ? _printerDisplayStateClass(printer) : 'muted';
 
-  const totalSecs = pending.reduce((s, j) => s + (j.estimated_seconds || 0), 0);
-  const summary = pending.length
-    ? `${pending.length} pending${totalSecs ? ` · ~${_fmtSeconds(totalSecs)}` : ''}${active.length ? '' : ' · auto-sends when free'}`
+  const totalSecs = waiting.reduce((s, j) => s + (j.estimated_seconds || 0), 0);
+  const heldNote = held.length ? `${held.length} waiting` : '';
+  const pendingNote = pending.length
+    ? `${pending.length} pending${active.length ? '' : ' · auto-sends when free'}`
+    : '';
+  const summary = (pendingNote || heldNote)
+    ? [pendingNote, heldNote, totalSecs ? `~${_fmtSeconds(totalSecs)}` : ''].filter(Boolean).join(' · ')
     : active.length ? 'Printing…' : '';
 
   const jobsHtml = jobs.length

@@ -71,7 +71,7 @@ Talk to Amy in normal English — this list is just reminders of what she can do
 
 ## Workshop / Flightdeck
 
-- “**Open desktop 3mf bedscraper_pla and queue it on BigBoy**” — finds that file and puts it on that printer’s queue. If two files match, she asks which one. She does not start the print.
+- “**Queue the pla box on BigBoy**” or “**open desktop 3mf bedscraper_pla and queue it on BigBoy**” — finds that file and puts it on that printer’s queue. If two files match, she asks which one. She does not start the print. The job waits until you press send.
 - “**Open the downloads folder**” — or “open folder Projects”, or a full path. Any folder you name. She opens it so you can paste a file. She does not send it to a printer.
 - “**Open the queue**” — switches the Flightdeck window to that page. Same for Spools, Fleet Wall, Flight Tower, Projects, a printer (“open BigBoy”), and the other sidebar pages. She does not start a print from that.
 - “**Pause the print on Big Girl**” — same for BigBoy, the X1C, Greyhound, or any printer you name. Resume and stop work the same way. She does not start a print from that.

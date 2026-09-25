@@ -45,6 +45,11 @@ class FlightdeckPageTests(unittest.TestCase):
         self.assertEqual(parsed["folders"], ["desktop", "3mf"])
         self.assertEqual(parsed["file"], "bedscraper_pla")
         self.assertEqual(parsed["printer_id"], "h2d")
+        short = actions.parse_queue_local_file("queue the pla box on BigBoy")
+        self.assertEqual(short["file"], "pla box")
+        self.assertEqual(short["folders"], [])
+        self.assertEqual(short["printer_id"], "h2d")
+        self.assertIsNone(actions.parse_queue_local_file("open the queue"))
         hits = actions.match_named_files(
             [
                 "bedscraper_PLA_44m25s.gcode.3mf",

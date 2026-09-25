@@ -11713,9 +11713,13 @@ async def queue_upload(
         split_plates=kind == "bambu",
     )
     # The queue button in the app may start a waiting printer. A voice "queue it"
-    # passes dispatch=false so the file waits until Chris says to print.
+    # passes dispatch=false. Pending jobs are still picked up by the idle poll,
+    # so those rows are marked held until Chris sends them.
     if str(dispatch).strip().lower() not in {"0", "false", "no", "off"}:
         asyncio.create_task(_maybe_auto_advance_queue(printer_id, trigger="queue_upload"))
+    else:
+        for job_id in job_ids:
+            db.queue_update_status(int(job_id), "held")
     return _queue_enqueue_response(job_ids)
 
 
@@ -11862,7 +11866,7 @@ async def send_queue_job(job_id: int):
     job = db.queue_get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    if job["status"] != "pending":
+    if job["status"] not in {"pending", "held"}:
         raise HTTPException(status_code=409, detail=f"Job status is '{job['status']}', must be pending")
     statuses = await _printer_status_map()
     preflight = _queue_preflight(job, statuses.get(job["printer_id"]))

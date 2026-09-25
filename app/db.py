@@ -5467,7 +5467,7 @@ def queue_add(
 
 
 def queue_list(printer_id: Optional[str] = None) -> list[dict]:
-    _STATUS_ORDER = "CASE status WHEN 'printing' THEN 0 WHEN 'uploading' THEN 1 WHEN 'pending' THEN 2 ELSE 3 END"
+    _STATUS_ORDER = "CASE status WHEN 'printing' THEN 0 WHEN 'uploading' THEN 1 WHEN 'held' THEN 2 WHEN 'pending' THEN 2 ELSE 3 END"
     with _conn() as conn:
         if printer_id:
             rows = conn.execute(
@@ -5574,7 +5574,7 @@ def queue_set_calibrate_before(job_id: int, enabled: bool) -> bool:
         n = conn.execute(
             """UPDATE print_queue
                SET calibrate_before_start = ?
-               WHERE id = ? AND status = 'pending'""",
+               WHERE id = ? AND status IN ('pending', 'held')""",
             (1 if enabled else 0, job_id),
         ).rowcount
     return n > 0
@@ -5585,7 +5585,7 @@ def queue_set_allow_short_filament(job_id: int, enabled: bool) -> bool:
         n = conn.execute(
             """UPDATE print_queue
                SET allow_short_filament = ?
-               WHERE id = ? AND status = 'pending'""",
+               WHERE id = ? AND status IN ('pending', 'held')""",
             (1 if enabled else 0, job_id),
         ).rowcount
     return n > 0
@@ -5737,7 +5737,7 @@ def queue_delete(job_id: int) -> tuple[bool, Optional[str]]:
     """
     with _conn() as conn:
         row = conn.execute(
-            "SELECT file_path FROM print_queue WHERE id = ? AND status IN ('pending', 'failed', 'cancelled')",
+            "SELECT file_path FROM print_queue WHERE id = ? AND status IN ('pending', 'held', 'failed', 'cancelled')",
             (job_id,),
         ).fetchone()
         if not row:

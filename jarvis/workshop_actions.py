@@ -141,36 +141,54 @@ def parse_open_folder(question: str) -> str | None:
 
 
 def parse_queue_local_file(question: str) -> dict[str, Any] | None:
-    """'open desktop 3mf bedscraper_pla and queue it on BigBoy.' Does not start a print."""
+    """Queue a named file on a printer. Does not start a print.
+
+    'queue pla box on BigBoy' or
+    'open desktop 3mf bedscraper_pla and queue it on BigBoy'.
+    """
     q = _clean(question)
-    if not q or not re.search(r"\b(queue|que)\b", q):
+    if not q or not re.search(r"\b(queue|que|cue)\b", q):
         return None
     if re.search(r"\b(send|start)\s+(?:the\s+)?print\b", q):
         return None
-    match = re.search(
-        r"\b(?:open|grab|get|use)\s+(.+?)\s+and\s+(?:queue|que)\s+(?:it|that|this|the file)?\s*"
-        r"(?:in\s+flightdeck\s+)?(?:on|to|for)\s+(.+)$",
-        q,
-    )
-    if not match:
+    if re.fullmatch(r"(?:open|show|go to|switch to)\s+(?:the\s+)?(?:flightdeck\s+)?queue", q):
         return None
-    file_part = match.group(1).strip()
-    printer_part = match.group(2).strip()
     printer_id = ""
     printer_label = ""
+    printer_alias = ""
     for alias, pid, label in FLIGHTDECK_PRINTERS:
-        if re.search(rf"\b{re.escape(alias)}\b", printer_part):
+        if re.search(rf"\b{re.escape(alias)}\b", q):
             printer_id = pid
             printer_label = label
+            printer_alias = alias
             break
     if not printer_id:
         return None
-    tokens = [part for part in file_part.split() if part not in {"the", "my", "a"}]
-    if len(tokens) < 2:
+    rest = re.sub(rf"\b{re.escape(printer_alias)}\b", " ", q)
+    rest = re.sub(r"\s+", " ", rest).strip()
+    opened = re.search(
+        r"\b(?:open|grab|get|use)\s+(.+?)\s+and\s+(?:queue|que|cue)\b",
+        rest,
+    )
+    if opened:
+        phrase = opened.group(1)
+    else:
+        queued = re.search(r"\b(?:queue|que|cue|put|add)\s+(.+)$", rest)
+        if not queued:
+            return None
+        phrase = re.sub(r"\b(?:in|on|to|for)\b.*$", "", queued.group(1)).strip()
+    skip = {"the", "my", "a", "it", "that", "this", "file", "please", "printer", "flightdeck"}
+    tokens = [part for part in phrase.split() if part not in skip]
+    if not tokens or tokens == ["print"]:
         return None
+    places = {"desktop", "documents", "docs", "downloads", "download", "pictures", "videos", "music", "onedrive"}
+    if tokens[0] in places and len(tokens) >= 2:
+        folders, filename = tokens[:-1], tokens[-1]
+    else:
+        folders, filename = [], " ".join(tokens)
     return {
-        "folders": tokens[:-1],
-        "file": tokens[-1],
+        "folders": folders,
+        "file": filename,
         "printer_id": printer_id,
         "printer_label": printer_label,
     }
