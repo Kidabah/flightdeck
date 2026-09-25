@@ -1,3 +1,14 @@
+## 2026-09-25 Session update (spool into AMS HT)
+
+Latest commit: `904227d` — “Put spool 12 in BigBoy’s AMS HT” loads that slot.
+
+- She looks the spool up by its number and moves it into the AMS. Leave the slot off and she uses the HT bay. “AMS HT slot 2” is the second HT slot. She does not start a print.
+- Same words work for Big Girl and the X1C. A normal AMS uses “AMS slot 1”.
+- Files: `jarvis/server.py`, `jarvis/workshop_actions.py`.
+- Amy restarted. Pi jarvis restart is in the deploy.
+
+---
+
 ## 2026-09-25 Session update (print vocabulary)
 
 Latest commit: `131aacf` — Amy understands more than the word queue.
