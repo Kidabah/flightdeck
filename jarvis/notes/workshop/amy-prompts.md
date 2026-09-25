@@ -67,7 +67,7 @@ Talk to Amy in normal English — this list is just reminders of what she can do
 
 ## Workshop / Flightdeck
 
-- Say **deploy pi** — exact phrase. She pulls Flightdeck on the Pi and restarts it.
+- “**Amy can you deploy pi**” (or just “deploy pi”). She pulls Flightdeck on the Pi and restarts it.
 - Ask about printers, AMS, MakerDeck, PrintShelf, notes in her galaxy
 - Drop files on her dock for a look
 - “Remember that …” to save a note

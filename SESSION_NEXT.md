@@ -1,3 +1,14 @@
+## 2026-09-25 Session update (deploy pi hears the full sentence)
+
+Latest commit: pending - Virtual Amy now treats “Amy can you deploy pi” as the deploy command.
+
+- The first version only matched the bare words “deploy pi”, so “Amy can you deploy pi” fell through to normal chat.
+- She now accepts that sentence, “can you deploy the pi”, and “please deploy pi”. Unrelated deploy talk still does nothing.
+- Files: `jarvis/server.py`, `jarvis/notes/workshop/amy-prompts.md`.
+- Restart Jarvis on the Pi and the Amy window brain on the PC. A Flightdeck restart alone does not load this.
+
+---
+
 ## 2026-09-25 Session update (virtual Amy phrase: deploy pi)
 
 Latest commit: 020963e - Teach virtual Amy the exact phrase deploy pi.

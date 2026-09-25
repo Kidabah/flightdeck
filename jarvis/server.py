@@ -1785,7 +1785,7 @@ def transcribe_openai(audio: bytes, *, filename: str = "speech.webm", mime: str 
         or (
             "Australian English. Chris talking to Amy. Common phrases: wake up Amy, "
             "bedtime, goodnight, open Thunderbird, go small, 3D print mode, Flightdeck, "
-            "deploy pi, Desktop, Downloads, yes delete, empty spam."
+            "Amy can you deploy pi, Desktop, Downloads, yes delete, empty spam."
         )
     ).strip()
     boundary = f"----AmySTT{int(time.time() * 1000)}"
@@ -2393,12 +2393,22 @@ DEPLOY_PI_SCRIPT = "/home/flightdeck/bin/flightdeck-deploy"
 DEPLOY_PI_SSH = "flightdeck@100.106.112.104"
 
 
-def _phrase(question: str) -> str:
+_DEPLOY_PI_RE = re.compile(
+    r"(?:(?:hey|ok|hi)\s+)?"
+    r"(?:amy\s+)?"
+    r"(?:(?:can|could|would|will)\s+you\s+)?"
+    r"(?:please\s+)?"
+    r"deploy(?:\s+the)?\s+pi"
+    r"(?:\s+please)?",
+    re.I,
+)
+
+
+def _is_deploy_pi(question: str) -> bool:
+    """Polite 'deploy pi' asks only. Other deploy talk stays with chat."""
     q = re.sub(r"[^\w\s]", " ", (question or "").lower())
     q = re.sub(r"\s+", " ", q).strip()
-    q = re.sub(r"^(?:(?:hey|ok|please)\s+)+", "", q)
-    q = re.sub(r"^amy\s+", "", q)
-    return q.strip()
+    return bool(_DEPLOY_PI_RE.fullmatch(q))
 
 
 def _run_deploy_pi() -> tuple[bool, str]:
@@ -2449,8 +2459,8 @@ def _run_deploy_pi() -> tuple[bool, str]:
 
 
 def try_deploy_pi(question: str) -> dict[str, Any] | None:
-    """Exact phrase only. Virtual Amy must not invent a deploy."""
-    if _phrase(question) != "deploy pi":
+    """Deploy only when Chris clearly asks to deploy the Pi."""
+    if not _is_deploy_pi(question):
         return None
     ok, answer = _run_deploy_pi()
     return {
