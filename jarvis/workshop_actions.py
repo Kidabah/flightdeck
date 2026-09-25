@@ -140,12 +140,29 @@ def parse_open_folder(question: str) -> str | None:
     return None
 
 
+# Find a file and start it. Reprint, print, send, run, start, fire, kick off.
+_START_FILE = re.compile(
+    r"\b(?:re\s*-?\s*prints?|prints?\s+again|prints?|sends?|runs?|starts?|fires?(?:\s+up)?|kicks?\s+off)\b"
+)
+# Find a file and wait. Queue, que, cue, add, put, line up.
+_WAIT_FILE = re.compile(r"\b(?:queues?|que|cue|adds?|puts?|line\s+up)\b")
+_FILE_VERB = re.compile(
+    r"\b(?:re\s*-?\s*prints?|prints?\s+again|prints?|sends?|runs?|starts?|"
+    r"fires?(?:\s+up)?|kicks?\s+off|line\s+up|queues?|que|cue|adds?|puts?)\s+(.+)$"
+)
+_FILE_SKIP = {
+    "the", "my", "a", "an", "it", "that", "this", "file", "files", "please",
+    "printer", "flightdeck", "again", "job", "jobs", "just", "up", "onto",
+    "and", "print", "queue",
+}
+
+
 def parse_queue_local_file(question: str) -> dict[str, Any] | None:
-    """Queue or reprint a named file on a printer.
+    """Queue or print a named file on a printer.
 
     'queue pla box on BigBoy' waits.
-    'reprint pla box on BigBoy' starts it.
-    'open desktop 3mf bedscraper_pla and queue it on BigBoy' waits.
+    'reprint pla box on BigBoy', 'send pla box to BigBoy', and
+    'print pla box again on BigBoy' start it.
     """
     q = _clean(question)
     if not q:
@@ -156,8 +173,8 @@ def parse_queue_local_file(question: str) -> dict[str, Any] | None:
         return None
     if re.fullmatch(r"(?:open|show|go to|switch to)\s+(?:the\s+)?(?:flightdeck\s+)?queue", q):
         return None
-    start = bool(re.search(r"\bre\s*-?\s*prints?\b|\bprints?\b", q))
-    if not start and not re.search(r"\b(queue|que|cue)\b", q):
+    start = _START_FILE.search(q) is not None
+    if not start and _WAIT_FILE.search(q) is None:
         return None
     printer_id = ""
     printer_label = ""
@@ -173,22 +190,18 @@ def parse_queue_local_file(question: str) -> dict[str, Any] | None:
     rest = re.sub(rf"\b{re.escape(printer_alias)}\b", " ", q)
     rest = re.sub(r"\s+", " ", rest).strip()
     opened = re.search(
-        r"\b(?:open|grab|get|use)\s+(.+?)\s+and\s+(?:queue|que|cue)\b",
+        r"\b(?:open|grab|get|use)\s+(.+?)\s+and\s+(?:re\s*-?\s*prints?|prints?|sends?|runs?|queue|que|cue)\b",
         rest,
     )
     if opened:
         phrase = opened.group(1)
     else:
-        queued = re.search(
-            r"\b(?:re\s*-?\s*prints?|prints?|queue|que|cue|put|add)\s+(.+)$",
-            rest,
-        )
+        queued = _FILE_VERB.search(rest)
         if not queued:
             return None
-        phrase = re.sub(r"\b(?:in|on|to|for)\b.*$", "", queued.group(1)).strip()
-    skip = {"the", "my", "a", "it", "that", "this", "file", "please", "printer", "flightdeck"}
-    tokens = [part for part in phrase.split() if part not in skip]
-    if not tokens or tokens == ["print"]:
+        phrase = re.sub(r"\b(?:in|on|to|for|onto)\b.*$", "", queued.group(1)).strip()
+    tokens = [part for part in phrase.split() if part not in _FILE_SKIP]
+    if not tokens:
         return None
     places = {"desktop", "documents", "docs", "downloads", "download", "pictures", "videos", "music", "onedrive"}
     if tokens[0] in places and len(tokens) >= 2:

@@ -57,9 +57,28 @@ class FlightdeckPageTests(unittest.TestCase):
         again = actions.parse_queue_local_file("re print the pla box on big boy")
         self.assertEqual(again["file"], "pla box")
         self.assertTrue(again["start"])
+        for phrase in (
+            "print pla box again on bigboy",
+            "send the pla box to bigboy",
+            "run pla box on bigboy",
+            "start pla box on bigboy",
+            "fire up pla box on bigboy",
+            "kick off pla box on bigboy",
+        ):
+            hit = actions.parse_queue_local_file(phrase)
+            self.assertEqual(hit["file"], "pla box", phrase)
+            self.assertTrue(hit["start"], phrase)
+        girl = actions.parse_queue_local_file("send pla box to big girl")
+        self.assertEqual(girl["printer_id"], "o1c2")
+        self.assertTrue(girl["start"])
+        waiting = actions.parse_queue_local_file("line up pla box on bigboy")
+        self.assertEqual(waiting["file"], "pla box")
+        self.assertFalse(waiting["start"])
         self.assertIsNone(actions.parse_queue_local_file("open the queue"))
         self.assertIsNone(actions.parse_queue_local_file("pause the print on bigboy"))
         self.assertIsNone(actions.parse_queue_local_file("stop the print on bigboy"))
+        self.assertIsNone(actions.parse_queue_local_file("start the print on bigboy"))
+        self.assertIsNone(actions.parse_queue_local_file("send the print to bigboy"))
         hits = actions.match_named_files(
             [
                 "bedscraper_PLA_44m25s.gcode.3mf",

@@ -71,7 +71,7 @@ Talk to Amy in normal English — this list is just reminders of what she can do
 
 ## Workshop / Flightdeck
 
-- “**Reprint pla box on BigBoy**” — finds that file and starts it on that printer. “Print pla box on BigBoy” does the same. “Queue the pla box on BigBoy” only puts it on the queue and waits. If two files match, she asks which one.
+- “**Reprint pla box on BigBoy**” — also “print pla box again”, “send pla box to BigBoy”, “run pla box on BigBoy”, “start pla box on BigBoy”, “fire pla box on BigBoy”, or “kick off pla box on BigBoy”. She finds the file and starts it. “Queue”, “que”, “add”, “put”, or “line up” the same file only waits. Two matches, she asks which one. Pause, stop, and “start the print” with no file name stay as printer controls.
 - “**Open the downloads folder**” — or “open folder Projects”, or a full path. Any folder you name. She opens it so you can paste a file. She does not send it to a printer.
 - “**Open the queue**” — switches the Flightdeck window to that page. Same for Spools, Fleet Wall, Flight Tower, Projects, a printer (“open BigBoy”), and the other sidebar pages. She does not start a print from that.
 - “**Pause the print on Big Girl**” — same for BigBoy, the X1C, Greyhound, or any printer you name. Resume and stop work the same way. She does not start a print from that.

@@ -2872,7 +2872,7 @@ def try_queue_local_file(question: str) -> dict[str, Any] | None:
     _reveal_file(chosen)
     _open_flightdeck_page("#/queue")
     if start:
-        spoken = f"Reprinting {chosen.name} on {label}."
+        spoken = f"Printing {chosen.name} on {label}."
     else:
         spoken = f"Queued {chosen.name} on {label}. It's on the queue, not printing."
     return {
