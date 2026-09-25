@@ -98,6 +98,48 @@ def parse_flightdeck_page(question: str) -> dict[str, str] | None:
     return None
 
 
+def parse_open_folder(question: str) -> str | None:
+    """Any folder they name. Not a Flightdeck page, and not a print start."""
+    raw = question or ""
+    path_match = re.search(
+        r"(?i)\b(?:open|show)\s+(?:me\s+)?(?:the\s+)?(?:folder\s+)?([a-z]:\\[^\n]+|\\\\[^\n]+)",
+        raw,
+    )
+    if path_match:
+        folder = path_match.group(1).strip().strip("\"'").rstrip(" .,")
+        folder = re.split(r"(?i)\s+\band\b\s+", folder, maxsplit=1)[0].strip()
+        return folder or None
+    q = _clean(question)
+    if not q or not re.search(r"\b(open|show)\b", q):
+        return None
+    if re.search(r"\b(pause|resume|stop|cancel|abort)\b", q):
+        return None
+    head = re.split(r"\s+\band\b\s+", q, maxsplit=1)[0].strip()
+    named = re.search(r"\b(?:open|show)\s+(?:me\s+)?(?:the\s+)?folder\s+(.+)$", head)
+    if named:
+        folder = named.group(1).strip(" \"'")
+        if folder and folder not in {"a", "an", "some", "any", "it", "that", "this"}:
+            return folder
+    trailing = re.search(r"\b(?:open|show)\s+(?:me\s+)?(?:the\s+)?(.+?)\s+(?:folder|directory)$", head)
+    if trailing:
+        folder = trailing.group(1).strip(" \"'")
+        folder = re.sub(r"^(?:my|the)\s+", "", folder)
+        if folder and folder not in {"a", "an", "some", "any"}:
+            return folder
+    if re.search(r"\b(queue|flightdeck|printer)\b", head):
+        return None
+    place = re.search(
+        r"\b(?:open|show)\s+(?:me\s+)?(?:my\s+|the\s+)?(desktop|documents|docs|downloads|download|pictures|videos|music|onedrive)$",
+        head,
+    )
+    if place:
+        return place.group(1)
+    drive = re.search(r"\b(?:open|show)\s+(?:me\s+)?(?:the\s+)?([a-z])\s+drive$", head)
+    if drive:
+        return f"{drive.group(1).upper()}:\\"
+    return None
+
+
 def parse_queue_load(question: str) -> str | None:
     """'open the queue in Flightdeck and load file <name>'."""
     q = _clean(question)

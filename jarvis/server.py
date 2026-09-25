@@ -2696,6 +2696,103 @@ def _open_flightdeck_page(target: str) -> bool:
     return False
 
 
+def _find_spoken_folder(name: str) -> Path | None:
+    """Find a folder Chris named. A full path, a usual place, or a folder under those places."""
+    raw = (name or "").strip().strip("\"'")
+    if not raw:
+        return None
+    direct = Path(raw)
+    if direct.is_dir():
+        return direct
+    home = Path.home()
+    aliases = {
+        "desktop": home / "Desktop",
+        "documents": home / "Documents",
+        "docs": home / "Documents",
+        "downloads": home / "Downloads",
+        "download": home / "Downloads",
+        "pictures": home / "Pictures",
+        "videos": home / "Videos",
+        "music": home / "Music",
+        "onedrive": home / "OneDrive",
+    }
+    key = re.sub(r"\s+", " ", raw.lower())
+    aliased = aliases.get(key)
+    if aliased is not None and aliased.is_dir():
+        return aliased
+    roots = [
+        home / "Desktop",
+        home / "Documents",
+        home / "Downloads",
+        home / "Pictures",
+        home / "OneDrive",
+        home,
+    ]
+    hits: list[Path] = []
+    seen: set[str] = set()
+
+    def add(path: Path) -> None:
+        if not path.is_dir():
+            return
+        text = str(path.resolve())
+        if text in seen:
+            return
+        seen.add(text)
+        hits.append(path)
+
+    for root in roots:
+        if not root.is_dir():
+            continue
+        add(root / raw)
+        try:
+            children = list(root.iterdir())
+        except OSError:
+            continue
+        for child in children:
+            if not child.is_dir():
+                continue
+            if child.name.lower() == key:
+                add(child)
+            add(child / raw)
+    return hits[0] if hits else None
+
+
+def try_open_folder(question: str) -> dict[str, Any] | None:
+    """Open whatever folder Chris names. Does not queue or start a print."""
+    try:
+        from workshop_actions import parse_open_folder
+    except ImportError:
+        from jarvis.workshop_actions import parse_open_folder
+    name = parse_open_folder(question)
+    if not name:
+        return None
+    folder = _find_spoken_folder(name)
+    if folder is None:
+        return {
+            "answer": f"I couldn't find a folder called {name}.",
+            "nodes": [],
+            "move_camera": False,
+            "tool": "open_folder",
+            "ok": False,
+        }
+    answer = open_file_explorer(str(folder))
+    ok = answer.startswith("Opened ")
+    if ok:
+        answer = (
+            f"Opened {folder}. Paste the file in there. "
+            "I won't send it to a printer."
+        )
+        # The viewer drops always-on-top when it sees this phrase.
+        answer += " I dropped always-on-top so you can see it — say come back if you want me floating again."
+    return {
+        "answer": answer,
+        "nodes": [],
+        "move_camera": False,
+        "tool": "open_folder",
+        "ok": ok,
+    }
+
+
 def try_flightdeck_page(question: str) -> dict[str, Any] | None:
     """Open Queue, Spools, a printer, and the other sidebar pages inside Flightdeck."""
     try:
@@ -2754,6 +2851,10 @@ def try_tools(question: str) -> dict[str, Any] | None:
     if added is not None:
         added.setdefault("talk_mode", RUNTIME.get("talk_mode") or "casual")
         return added
+    folder = try_open_folder(question)
+    if folder is not None:
+        folder.setdefault("talk_mode", RUNTIME.get("talk_mode") or "casual")
+        return folder
     page = try_flightdeck_page(question)
     if page is not None:
         page.setdefault("talk_mode", RUNTIME.get("talk_mode") or "casual")

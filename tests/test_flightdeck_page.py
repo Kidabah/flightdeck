@@ -28,3 +28,11 @@ class FlightdeckPageTests(unittest.TestCase):
         actions = _actions()
         self.assertIsNone(actions.parse_flightdeck_page("open Flightdeck"))
         self.assertIsNone(actions.parse_flightdeck_page("pause the print on BigBoy"))
+
+    def test_any_folder_they_name(self) -> None:
+        actions = _actions()
+        self.assertEqual(actions.parse_open_folder("open the downloads folder"), "downloads")
+        self.assertEqual(actions.parse_open_folder("open folder Projects"), "projects")
+        self.assertEqual(actions.parse_open_folder(r"open D:\prints\cow"), r"D:\prints\cow")
+        self.assertIsNone(actions.parse_open_folder("open the queue"))
+        self.assertIsNone(actions.parse_open_folder("open BigBoy"))
