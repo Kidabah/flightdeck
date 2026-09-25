@@ -7,6 +7,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="theme-color" content="#020617" />
   <title>Amy</title>
+  <link rel="icon" type="image/png" href="/amy-icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -362,6 +363,10 @@
     }
     .chip.live { border-color: var(--accent); box-shadow: var(--glow); background: rgba(8, 145, 178, 0.28); }
     .chip.model { color: #e0f2fe; }
+    button.chip {
+      font: inherit; cursor: pointer;
+    }
+    button.chip:hover { border-color: var(--accent); }
 
     .modes, .organs {
       display: grid; gap: 6px; width: 100%;
@@ -683,6 +688,7 @@
       <div class="chips">
         <span class="chip" id="speak-chip">● IDLE</span>
         <span class="chip model" id="model-chip">MODEL</span>
+        <button type="button" class="chip" id="awake-chip" title="How long she stays up when it's quiet. Click to change.">AWAKE 90m</button>
       </div>
     </div>
     <div class="modes" role="tablist" aria-label="Galaxy view">
@@ -736,8 +742,9 @@
 
 <script>
 const FINISH_MS = 1400;
-const IDLE_NUDGE_MS = 3 * 60 * 1000;   // whistle / cheeky line
-const IDLE_SLEEP_MS = 6 * 60 * 1000;   // go dark
+const AWAKE_KEY = 'amy-awake-min';
+const AWAKE_DEFAULT = 90;
+const AWAKE_PRESETS = [30, 60, 90, 120, 0];
 const MUTE = new URLSearchParams(location.search).has('mute');
 // Whisper path for the real Amy desktop shell (WebView2 can't use Google SpeechRecognition).
 const DESKTOP_APP = new URLSearchParams(location.search).has('desktop')
@@ -960,6 +967,7 @@ function isWhistlePhrase(t) {
 function isBedtimePhrase(t) {
   const s = normalizeAmyCmd(t);
   if (!s) return false;
+  if (/\b(don'?t|do not|never|stop)\b.*\b(sleep|bed|nap|night)\b/.test(s)) return false;
   return /^(amy[, ]+)?(please[, ]+)?(bedtime|bed time|good\s*night|nighty?\s*night|go to sleep|time for bed|go to bed|sleep well|lights out)( amy)?(,?\s*please)?$/i.test(s)
     || /^(can you|could you) (please )?(go to sleep|go to bed|say good\s*night)\b/i.test(s)
     || /\b(good\s*night|bedtime|night night)\b.*\bamy\b/i.test(s)
@@ -1324,11 +1332,102 @@ async function doBedtime() {
   enterSleep();
 }
 
+let awakeMin = AWAKE_DEFAULT;
+
+function loadAwakeMin() {
+  try {
+    const raw = localStorage.getItem(AWAKE_KEY);
+    if (raw == null || raw === '') return AWAKE_DEFAULT;
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0) return AWAKE_DEFAULT;
+    if (n === 0) return 0;
+    return Math.min(24 * 60, Math.max(5, Math.round(n)));
+  } catch (_) {
+    return AWAKE_DEFAULT;
+  }
+}
+
+function awakeChipLabel(min) {
+  if (!min) return 'STAY UP';
+  if (min % 60 === 0 && min >= 60) return `AWAKE ${min / 60}h`;
+  return `AWAKE ${min}m`;
+}
+
+function awakeSpoken(min) {
+  if (!min) return 'until you say goodnight';
+  if (min % 60 === 0 && min >= 60) {
+    const h = min / 60;
+    return h === 1 ? 'an hour' : `${h} hours`;
+  }
+  return `${min} minutes`;
+}
+
+function idleNudgeMs() {
+  if (!awakeMin) return 0;
+  return Math.max(10 * 60 * 1000, Math.round(awakeMin * 60 * 1000 * 0.66));
+}
+
+function paintAwakeChip() {
+  const chip = document.getElementById('awake-chip');
+  if (!chip) return;
+  chip.textContent = awakeChipLabel(awakeMin);
+  chip.title = awakeMin
+    ? `Quiet for ${awakeSpoken(awakeMin)}, then she naps. Click to change.`
+    : 'She stays up until you say goodnight. Click to change.';
+}
+
+function setAwakeMin(min) {
+  awakeMin = min ? Math.min(24 * 60, Math.max(5, Math.round(min))) : 0;
+  try { localStorage.setItem(AWAKE_KEY, String(awakeMin)); } catch (_) {}
+  paintAwakeChip();
+  bumpIdle();
+}
+
+function cycleAwake() {
+  const idx = AWAKE_PRESETS.indexOf(awakeMin);
+  const next = AWAKE_PRESETS[(idx + 1) % AWAKE_PRESETS.length];
+  setAwakeMin(next);
+  answerEl.textContent = awakeMin
+    ? `I'll stay up for ${awakeSpoken(awakeMin)} of quiet, then nap.`
+    : `I'll stay up until you say goodnight.`;
+}
+
+function parseAwakeCommand(t) {
+  const s = normalizeAmyCmd(t);
+  if (!s || s.length > 160) return null;
+  if (!/\b(awake|stay up|nap|napping|sleep)\b/.test(s)) return null;
+  if (isBedtimePhrase(t)) return null;
+  if (/\b(you can nap|nap like normal|back to normal)\b/.test(s)) return AWAKE_DEFAULT;
+  const hour = s.match(/\b(\d+)\s*(?:hours?|hrs?)\b/);
+  const mins = s.match(/\b(\d+)\s*(?:minutes?|mins?)\b/);
+  let minutes = null;
+  if (hour) minutes = Number(hour[1]) * 60;
+  else if (/\bhalf an hour\b/.test(s)) minutes = 30;
+  else if (/\b(?:an|one)\s+hours?\b/.test(s)) minutes = 60;
+  else if (mins) minutes = Number(mins[1]);
+  if (minutes != null) return Math.min(24 * 60, Math.max(5, minutes));
+  if (/\b(stay up|stay awake|don'?t (go to )?sleep|do not (go to )?sleep|no napp?ing|stop napp?ing)\b/.test(s)) return 0;
+  return null;
+}
+
+async function applyAwakeCommand(min) {
+  setAwakeMin(min);
+  const line = awakeMin
+    ? `I'll stay up for ${awakeSpoken(awakeMin)} of quiet, then nap.`
+    : `I'll stay up until you say goodnight.`;
+  answerEl.textContent = line;
+  try { if (!MUTE) await speak(line); } catch (_) {}
+  setStatus(wantListen ? 'listening' : 'idle', wantListen ? (useWhisperMic ? 'Listening · Whisper' : 'Listening') : 'Ready');
+}
+
 function bumpIdle() {
   nudgedIdle = false;
   if (idleTimer) clearTimeout(idleTimer);
+  idleTimer = null;
   if (asleep) return;
-  idleTimer = setTimeout(onIdleNudge, IDLE_NUDGE_MS);
+  const nudge = idleNudgeMs();
+  if (!nudge) return;
+  idleTimer = setTimeout(onIdleNudge, nudge);
 }
 
 async function onIdleNudge() {
@@ -1336,13 +1435,15 @@ async function onIdleNudge() {
     bumpIdle();
     return;
   }
+  if (!awakeMin) return;
   if (!nudgedIdle) {
     nudgedIdle = true;
     try {
       await playSfx('yawn');
       if (!MUTE) await speak(NUDGE_LINES[Math.floor(Math.random() * NUDGE_LINES.length)]);
     } catch (_) {}
-    idleTimer = setTimeout(enterSleep, IDLE_SLEEP_MS - IDLE_NUDGE_MS);
+    const rest = Math.max(60 * 1000, awakeMin * 60 * 1000 - idleNudgeMs());
+    idleTimer = setTimeout(enterSleep, rest);
     return;
   }
   enterSleep();
@@ -2004,6 +2105,13 @@ async function ask(question) {
     answerEl.textContent = '♪';
     setStatus(wantListen ? 'listening' : 'idle', wantListen ? 'Listening' : 'Ready');
     return;
+  }
+  if (!pendingFiles.length) {
+    const awakeFor = parseAwakeCommand(q);
+    if (awakeFor !== null) {
+      await applyAwakeCommand(awakeFor);
+      return;
+    }
   }
   if (isBedtimePhrase(q) && !pendingFiles.length) {
     await doBedtime();
@@ -3127,7 +3235,10 @@ if (DESKTOP_APP || useWhisperMic) {
   recognition = null;
 }
 bootGreeting();
+awakeMin = loadAwakeMin();
+paintAwakeChip();
 bumpIdle();
+document.getElementById('awake-chip')?.addEventListener('click', cycleAwake);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) hushSnoreForHidden();
   else maybeResumeSnore();

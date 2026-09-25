@@ -492,7 +492,19 @@ def _install_auto_media_permissions(window) -> None:
         threading.Thread(target=lambda: (time.sleep(1.0), attach()), daemon=True).start()
 
 
+def _own_taskbar_icon() -> None:
+    """Stop Windows grouping Amy under the Python icon."""
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Kidabah.Amy.Desktop")
+    except Exception:
+        pass
+
+
 def main() -> int:
+    _own_taskbar_icon()
     if not _acquire_single_instance():
         return 2
     # Windows consoles are often cp1252 — a fancy dash in a print() used to crash
@@ -669,7 +681,10 @@ def main() -> int:
     print("[amy-desktop] mic/camera prompts auto-allowed for localhost")
     print("[amy-desktop] clipboard: Ctrl+C / Ctrl+V / right-click (no menu bar)")
     storage = str(app_data_dir() / "webview")
+    icon = _DESKTOP / "amy.ico"
     start_kwargs: dict = {"gui": "edgechromium", "private_mode": False, "storage_path": storage}
+    if icon.is_file():
+        start_kwargs["icon"] = str(icon)
     try:
         webview.start(**start_kwargs)
     except TypeError:
