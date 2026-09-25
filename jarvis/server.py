@@ -2393,22 +2393,41 @@ DEPLOY_PI_SCRIPT = "/home/flightdeck/bin/flightdeck-deploy"
 DEPLOY_PI_SSH = "flightdeck@100.106.112.104"
 
 
-_DEPLOY_PI_RE = re.compile(
-    r"(?:(?:hey|ok|hi)\s+)?"
-    r"(?:amy\s+)?"
-    r"(?:(?:can|could|would|will)\s+you\s+)?"
-    r"(?:please\s+)?"
-    r"deploy(?:\s+the)?\s+pi"
-    r"(?:\s+please)?",
-    re.I,
+_DEPLOY_PI_PREFIX = re.compile(
+    r"^(?:hey|hi|ok|yo|amy|please|just|try|can you|could you|would you|will you)\s+"
 )
+_DEPLOY_PI_TAIL = re.compile(r"\s+(?:please|thanks|thank you|now|again|for me)$")
 
 
 def _is_deploy_pi(question: str) -> bool:
-    """Polite 'deploy pi' asks only. Other deploy talk stays with chat."""
+    """A clear ask to deploy the Pi. Extra chatter stays with chat."""
     q = re.sub(r"[^\w\s]", " ", (question or "").lower())
     q = re.sub(r"\s+", " ", q).strip()
-    return bool(_DEPLOY_PI_RE.fullmatch(q))
+    for _ in range(6):
+        nxt = _DEPLOY_PI_PREFIX.sub("", q)
+        if nxt == q:
+            break
+        q = nxt
+    for _ in range(3):
+        nxt = _DEPLOY_PI_TAIL.sub("", q)
+        if nxt == q:
+            break
+        q = nxt.strip()
+    return bool(re.fullmatch(r"deploy(?:\s+to)?(?:\s+the)?\s+pi", q))
+
+
+def _note_deploy_heard(question: str) -> None:
+    """Remember the exact words when Chris mentions deploy, so a miss is visible."""
+    if "deploy" not in (question or "").lower():
+        return
+    base = os.environ.get("APPDATA") or os.environ.get("HOME") or "/tmp"
+    path = Path(base) / "Amy" / "heard.log"
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(question.replace("\n", " ")[:400] + "\n")
+    except OSError:
+        pass
 
 
 def _run_deploy_pi() -> tuple[bool, str]:
@@ -2913,11 +2932,17 @@ class Handler(BaseHTTPRequestHandler):
                 if not question:
                     self._json(400, {"detail": "question required"})
                     return
+                _note_deploy_heard(question)
                 files: list[dict[str, Any]] = []
                 if isinstance(raw_atts, list) and raw_atts:
                     for item in raw_atts[:4]:
                         if isinstance(item, dict):
                             files.append(decode_upload_payload(item))
+                deployed = try_deploy_pi(question)
+                if deployed is not None:
+                    deployed.setdefault("talk_mode", RUNTIME.get("talk_mode") or "casual")
+                    self._json(200, deployed)
+                    return
                 tool = try_tools(question) if not files else None
                 if tool is not None:
                     self._json(200, tool)

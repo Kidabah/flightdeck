@@ -1,3 +1,15 @@
+## 2026-09-25 Session update (deploy pi accepts normal asks)
+
+Latest commit: pending - “deploy pi again”, “deploy to the pi”, and “try deploy pi” now run the deploy.
+
+- A sentence had to be almost exact, so a normal ask fell through to chat.
+- She still ignores unrelated deploy talk (“deploy the printer”, “deploy my project”).
+- If a deploy sentence misses, the words she heard are appended to `%APPDATA%\Amy\heard.log`.
+- Files: `jarvis/server.py`, `jarvis/notes/workshop/amy-prompts.md`.
+- Restart Jarvis on the Pi and the Amy window brain on the PC.
+
+---
+
 ## 2026-09-25 Session update (deploy pi hears the full sentence)
 
 Latest commit: pending - Virtual Amy now treats “Amy can you deploy pi” as the deploy command.
