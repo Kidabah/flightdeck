@@ -1,6 +1,6 @@
 ## 2026-09-25 Session update (pause a named printer)
 
-Latest commit: pending — Pause reaches Flightdeck again.
+Latest commit: `189615c` — Pause reaches Flightdeck again.
 
 - “Pause the print on BigBoy” was refused because Amy was calling `http://100.106.112.104:8000`, and nothing is listening there. Flightdeck answers on `https://flightdeck.tail7de73e.ts.net`.
 - Named pause, resume, and stop work in casual mode too. Music pause stays with Spotify. She still does not start a print from that.
