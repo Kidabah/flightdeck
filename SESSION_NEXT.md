@@ -1,6 +1,6 @@
 ## 2026-09-25 Session update (Cindy Vinyl music and small player)
 
-Latest commit: pending - Small player can shrink the Vinyl window, and the library is pointed at the live music shares again.
+Latest commit: `954d17d` — Small player can shrink the Vinyl window, and the library is pointed at the live music shares again.
 
 - Every album was marked missing because the library view pointed at empty mount folders. It now follows `/share/Cindy`, `/share/Checked`, and `/share/Jamal`. 41224 albums are visible again.
 - Small player resizes the desktop window to the compact player. ROOM opens the large room again.
