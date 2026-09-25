@@ -1,6 +1,6 @@
 ## 2026-09-25 Session update (Amy stays up, and her icon)
 
-Latest commit: pending — Amy naps later, and the taskbar button is her face.
+Latest commit: `8dee8d5` — Amy naps later, and the taskbar button is her face.
 
 - Quiet time before a nap is 90 minutes now (it was 6). She yawns around the hour mark. Click the AWAKE chip under her name to switch 30m, 1h, 90m, 2h, or STAY UP. STAY UP lasts until you say goodnight.
 - You can also say “stay awake”, “stay awake for an hour”, or “nap after 20 minutes”.
