@@ -1,3 +1,14 @@
+## 2026-09-25 Session update (reprint a named file)
+
+Latest commit: `5733cdc` — “Reprint pla box on BigBoy” starts that file.
+
+- “Reprint pla box on BigBoy” finds the file and sends it. “Print pla box on BigBoy” does the same. “Queue the pla box on BigBoy” still waits and does not start.
+- Pause, resume, and stop are unchanged.
+- Files: `jarvis/workshop_actions.py`, `jarvis/server.py`.
+- Amy needs a restart. Pi jarvis restart is in the deploy. No Flightdeck page change.
+
+---
+
 ## 2026-09-25 Session update (queue by a short phrase)
 
 Latest commit: `1901570` — “Queue the pla box on BigBoy” finds the file and waits.
