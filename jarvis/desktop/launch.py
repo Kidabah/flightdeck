@@ -66,7 +66,7 @@ def _amy_window_alive() -> bool:
             buf = ctypes.create_unicode_buffer(length + 1)
             user32.GetWindowTextW(hwnd, buf, length + 1)
             title = buf.value or ""
-            if "Amy - Flightdeck" in title or title.strip() == "Amy":
+            if title.strip() in ("Amy", "Amy - Flightdeck") or title.startswith("Amy"):
                 found.value = 1
                 return False
             return True
@@ -651,7 +651,7 @@ def main() -> int:
 
     api = AmyApi()
     window = webview.create_window(
-        "Amy - Flightdeck",
+        "Amy",
         AMY_URL,
         width=1400,
         height=900,

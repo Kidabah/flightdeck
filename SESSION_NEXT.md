@@ -1,3 +1,17 @@
+## 2026-09-25 Session update (Amy is not Flightdeck, mic won't act on noise)
+
+Latest commit: pending - Amy's window is just Amy, and muddy mic audio cannot delete, deploy, or launch apps.
+
+- Window title and corner label are **Amy**. Flightdeck is only the dashboard app.
+- She is told her starfield is not the Flightdeck window.
+- Delete, move, copy, launch, close, and empty-spam only run when his actual words ask for that action.
+- A delete or spam empty still needs a clear yes (`yes delete`, `approve`, `empty spam`). She cannot invent that approval.
+- Short mic scraps (a couple of tiny words) are dropped before chat.
+- Files: `jarvis/viewer/index.html`, `jarvis/desktop/launch.py`, `jarvis/server.py`.
+- Close and reopen the Amy window once so the title bar changes. Restart Jarvis so the safety rules load.
+
+---
+
 ## 2026-09-25 Session update (Flightdeck desktop window)
 
 Latest commit: pending - Flightdeck now opens as its own window, and Amy can launch it.

@@ -6,7 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="theme-color" content="#020617" />
-  <title>Amy — Flightdeck</title>
+  <title>Amy</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -646,7 +646,7 @@
   <div id="graph"></div>
   <div id="vignette"></div>
 
-  <div id="brand"><strong>FLIGHTDECK · AMY</strong><span id="brand-sub">booting…</span></div>
+  <div id="brand"><strong>AMY</strong><span id="brand-sub">booting…</span></div>
   <div id="share-dot">SCREEN SHARE LIVE</div>
   <div id="topbar"><input id="search" type="search" placeholder="Search notes / printers…" autocomplete="off" /></div>
 
@@ -1074,6 +1074,10 @@ function looksLikeWhisperGarbage(t) {
   const cjk = (s.match(/[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/g) || []).join('').length;
   if (cjk >= 2 && cjk >= s.replace(/\s/g, '').length * 0.35) return true;
   if (/시청해주셔서|다음에 또 만나요|천만에요|ありがとう|谢谢/.test(s)) return true;
+  const words = s.toLowerCase().split(/\s+/).filter(Boolean);
+  const keep = new Set(['stop', 'quiet', 'talk', 'wait', 'amy', 'no', 'hey']);
+  if (words.length === 1 && s.length < 4 && !keep.has(words[0])) return true;
+  if (words.length > 0 && words.length <= 3 && words.every((w) => w.length <= 2) && !words.some((w) => keep.has(w))) return true;
   return false;
 }
 

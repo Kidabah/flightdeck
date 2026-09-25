@@ -80,9 +80,14 @@ Do not wrap spoken emphasis in markdown asterisks (**bold**) — just write norm
 If you share web links, name the site in words (Printables, Thingiverse). Leave the
 URL on screen — never read https addresses, query strings, or percent-encoding aloud.
 
+You are Amy. The Flightdeck dashboard is a different window. Your window is only Amy.
+Do not call yourself Flightdeck or describe your starfield as the Flightdeck app.
 Do NOT volunteer 3D-printing, Flightdeck, printers, filament, AMS, or workshop banter
 unless he clearly asked about that stuff. No printer metaphors, no "bench" / "galaxy"
 flavour in casual chat. Just be a helpful human friend.
+Keyboard noise and muddy mic scraps are not commands. If the words are unclear, say
+you didn't catch that. Never deploy, delete, move files, or empty spam unless his
+message clearly asks for that exact thing. Never say he already approved it.
 If he asks a clear workshop / printer / Flightdeck question while you are in casual mode,
 do NOT answer it — tell him to hit PRINT or say "3D print mode" first.
 
@@ -101,7 +106,12 @@ desktop app plays the real whistle SFX when he asks — you don't need to.
 """.strip()
 
 PERSONA_PRINT = """
-You are Amy — Chris Kidabah's coding mate and workshop co-pilot for Flightdeck.
+You are Amy — Chris Kidabah's coding mate. The Flightdeck dashboard is a separate app,
+not you. Do not call yourself Flightdeck or describe your own window as Flightdeck.
+Keyboard noise and muddy mic scraps are not commands. If the words are unclear, say
+you didn't catch that. Never deploy, delete, move files, or empty spam unless his
+message clearly asks for that exact thing. Never say he already approved it.
+You are his workshop co-pilot for the Flightdeck app when he is in print mode.
 Warm, upbeat, lightly bubbly, genuinely into 3D printing and shipping fixes.
 Funny humour welcome when it fits; never cringe, never corporate, never a butler.
 
@@ -1374,11 +1384,43 @@ def active_tools() -> list[dict[str, Any]]:
     return tools
 
 
+_TOOL_NEEDS_WORDS = {
+    "delete_path": r"\b(delete|remove)\b",
+    "empty_email_spam": r"\b(spam|junk)\b",
+    "move_path": r"\b(move|cut)\b",
+    "copy_path": r"\bcopy\b",
+    "launch_app": r"\b(open|launch|start|play)\b",
+    "register_app": r"\b(add|allow)\b",
+    "create_folder": r"\bfolder\b",
+    "close_window": r"\bclose\b",
+}
+
+
+def _user_words_allow(name: str) -> bool:
+    """Hands actions only run when Chris's actual words asked for them."""
+    rule = _TOOL_NEEDS_WORDS.get(name)
+    if not rule:
+        return True
+    heard = str(RUNTIME.get("last_question") or "")
+    return bool(re.search(rule, heard, re.I))
+
+
+def _user_approved_danger() -> bool:
+    heard = str(RUNTIME.get("last_question") or "")
+    return bool(re.search(r"\b(yes delete|approve|go ahead|delete it|empty spam|yes empty)\b", heard, re.I))
+
+
 def run_tool(name: str, arguments: str | dict[str, Any]) -> str:
     try:
         args = arguments if isinstance(arguments, dict) else json.loads(arguments or "{}")
     except json.JSONDecodeError:
         args = {}
+    if not _user_words_allow(name):
+        return "Not doing that. I didn't hear a clear request."
+    if name in ("delete_path", "empty_email_spam") and not _user_approved_danger():
+        args["confirm"] = False
+        args["approved"] = False
+        args["yes"] = False
     if name == "web_search":
         return web_search(str(args.get("query") or ""))
     if name == "fetch_url":
@@ -2932,6 +2974,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not question:
                     self._json(400, {"detail": "question required"})
                     return
+                RUNTIME["last_question"] = question
                 _note_deploy_heard(question)
                 files: list[dict[str, Any]] = []
                 if isinstance(raw_atts, list) and raw_atts:
