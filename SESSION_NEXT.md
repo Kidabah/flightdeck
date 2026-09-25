@@ -1,6 +1,6 @@
 ## 2026-09-25 Session update (Cindy Vinyl window, add an app by name)
 
-Latest commit: pending - Cindy Vinyl opens in her own window, and Amy can find an app and add it to the allow list.
+Latest commit: `6af065e` — Cindy Vinyl opens in her own window, and Amy can find an app and add it to the allow list.
 
 - Desktop, Start Menu, and the Chrome Apps shortcut open `jukebox/desktop/launch.py` (player on Mora at `http://flightdeck-nas:4541`).
 - “Add Sample to your allow list” finds the Start Menu shortcut or registered program and saves the path. She launches it only if you also say to launch or open it.
