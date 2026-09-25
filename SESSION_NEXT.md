@@ -1,6 +1,6 @@
 ## 2026-09-25 Session update (queue a named file)
 
-Latest commit: pending — “Queue it on BigBoy” puts that file on his queue.
+Latest commit: `822c920` — “Queue it on BigBoy” puts that file on his queue.
 
 - “Open desktop 3mf bedscraper_pla and queue it on BigBoy” finds the file and adds it to BigBoy’s queue. Two matches, she asks which one. She does not start the print.
 - Files: `jarvis/server.py`, `jarvis/workshop_actions.py`, `app/main.py`.
