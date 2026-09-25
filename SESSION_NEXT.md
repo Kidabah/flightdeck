@@ -1,6 +1,6 @@
 ## 2026-09-25 Session update (open any folder)
 
-Latest commit: pending — Amy opens whatever folder you name.
+Latest commit: `fab104a` — Amy opens whatever folder you name.
 
 - “Open the downloads folder”, “open folder Projects”, or a full path. She opens that folder so you can paste a file. She does not send it to a printer.
 - File: `jarvis/server.py`, `jarvis/workshop_actions.py`.
