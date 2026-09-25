@@ -13,36 +13,153 @@ MUTEX_NAME = "Local\\CindyVinylDesktop"
 MIN_SIZE = (640, 160)
 
 # The page only resizes itself in a Chrome app window, and WebView2 ignores
-# window.resizeTo. This makes Small player / ROOM drive the real window.
+# window.resizeTo. Small player adds class "ribbon" and leaves this window
+# full size, which is the big black page. Watch that class and size the
+# real window. Native resizeTo/moveTo are swallowed so they cannot fight it.
 _BRIDGE = r"""
 (function () {
   if (window.__cindyDesktop) return;
   window.__cindyDesktop = true;
-  window.isStandaloneApp = function () { return true; };
-  var pos = { x: 40, y: 40, w: 1440, h: 960 };
-  function apply() {
-    var api = window.pywebview && window.pywebview.api;
-    if (!api || !api.set_bounds) return;
-    api.set_bounds(Math.round(pos.w), Math.round(pos.h), Math.round(pos.x), Math.round(pos.y));
+  var nativeMatch = window.matchMedia.bind(window);
+  window.matchMedia = function (query) {
+    var q = String(query);
+    if (q.indexOf("display-mode") !== -1) {
+      return {
+        matches: true,
+        media: q,
+        addListener: function () {},
+        removeListener: function () {},
+        addEventListener: function () {},
+        removeEventListener: function () {},
+        dispatchEvent: function () { return false; }
+      };
+    }
+    return nativeMatch(query);
+  };
+  window.resizeTo = function () {};
+  window.moveTo = function () {};
+  var room = null;
+  var compact = false;
+  function bounds(w, h, x, y) {
+    var bridge = window.pywebview && window.pywebview.api;
+    if (!bridge || !bridge.set_bounds) return;
+    bridge.set_bounds(Math.round(w), Math.round(h), Math.round(x), Math.round(y));
   }
-  window.moveTo = function (x, y) { pos.x = x; pos.y = y; apply(); };
-  window.resizeTo = function (w, h) { pos.w = w; pos.h = h; apply(); };
+  function shrink() {
+    if (!room) {
+      room = {
+        x: window.screenX || 40,
+        y: window.screenY || 40,
+        w: window.outerWidth || 1440,
+        h: window.outerHeight || 960
+      };
+    }
+    var screen = window.screen || {};
+    var availLeft = screen.availLeft || 0;
+    var availTop = screen.availTop || 0;
+    var availW = screen.availWidth || 1280;
+    var availH = screen.availHeight || 800;
+    var screenH = screen.height || availH;
+    var gap = Math.max(0, screenH - (availTop + availH));
+    var reserve = gap > 8 ? 8 : 56;
+    var w = Math.min(680, Math.max(640, availW - 24));
+    var h = Math.min(210, Math.max(160, availH - 24));
+    var x = availLeft + Math.max(0, Math.floor((availW - w) / 2));
+    var y = Math.max(availTop, availTop + availH - h - reserve);
+    bounds(w, h, x, y);
+  }
+  function grow() {
+    var saved = room || { x: 40, y: 40, w: 1440, h: 960 };
+    room = null;
+    bounds(Math.max(saved.w, 980), Math.max(saved.h, 640), saved.x, saved.y);
+  }
+  function sync() {
+    var next = !!(document.body && document.body.classList.contains("ribbon"));
+    if (next === compact) return;
+    compact = next;
+    if (next) shrink();
+    else grow();
+  }
+  var timer = 0;
+  function schedule() {
+    clearTimeout(timer);
+    timer = setTimeout(sync, 40);
+  }
+  if (document.body) {
+    new MutationObserver(schedule).observe(document.body, {
+      attributes: true,
+      attributeFilter: ["class"]
+    });
+    compact = document.body.classList.contains("ribbon");
+    if (compact) shrink();
+  }
 })();
 """
+
+_user32 = ctypes.WinDLL("user32", use_last_error=True)
+_user32.SetWindowPos.argtypes = [
+    ctypes.c_void_p,
+    ctypes.c_void_p,
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_uint,
+]
+_user32.SetWindowPos.restype = ctypes.c_bool
+
+
+def _apply_bounds(native, width: int, height: int, x: int, y: int) -> None:
+    """Size the WinForms window on the UI thread. pywebview's resize uses a
+    32-bit handle and is easy to call off-thread, so the small player never moved."""
+    try:
+        from System.Windows.Forms import FormWindowState
+
+        if native.WindowState != FormWindowState.Normal:
+            native.WindowState = FormWindowState.Normal
+    except Exception:
+        pass
+    scale = float(getattr(native, "_scale", 1) or 1)
+    hwnd = ctypes.c_void_p(int(native.Handle.ToInt64()))
+    _user32.SetWindowPos(
+        hwnd,
+        None,
+        int(x * scale),
+        int(y * scale),
+        max(1, int(width * scale)),
+        max(1, int(height * scale)),
+        0x0004 | 0x0040,  # SWP_NOZORDER | SWP_SHOWWINDOW
+    )
 
 
 class VinylApi:
     def __init__(self) -> None:
-        self.window = None
+        # Underscore so pywebview does not walk the window while exposing
+        # set_bounds. A public attribute recurses into the WebView and the
+        # JS bridge never gets installed.
+        self._window = None
 
     def set_bounds(self, width: int, height: int, x: int, y: int) -> bool:
-        window = self.window
+        window = self._window
         if window is None:
+            return False
+        native = getattr(window, "native", None)
+        if native is None:
             return False
         w = max(MIN_SIZE[0], min(int(width), 2400))
         h = max(MIN_SIZE[1], min(int(height), 1600))
-        window.resize(w, h)
-        window.move(int(x), int(y))
+        x = int(x)
+        y = int(y)
+
+        def _apply() -> None:
+            _apply_bounds(native, w, h, x, y)
+
+        if bool(getattr(native, "InvokeRequired", False)):
+            from System import Func, Type
+
+            native.Invoke(Func[Type](_apply))
+        else:
+            _apply()
         return True
 
 
@@ -133,7 +250,7 @@ def main() -> int:
         confirm_close=False,
         js_api=api,
     )
-    api.window = window
+    api._window = window
     window.events.loaded += lambda: window.evaluate_js(_BRIDGE)
     storage = _storage()
     try:
