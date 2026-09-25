@@ -1,3 +1,13 @@
+## 2026-09-25 Session update (queue a named file)
+
+Latest commit: pending — “Queue it on BigBoy” puts that file on his queue.
+
+- “Open desktop 3mf bedscraper_pla and queue it on BigBoy” finds the file and adds it to BigBoy’s queue. Two matches, she asks which one. She does not start the print.
+- Files: `jarvis/server.py`, `jarvis/workshop_actions.py`, `app/main.py`.
+- Restart Amy. Backend restart on the Pi is included in deploy.
+
+---
+
 ## 2026-09-25 Session update (open any folder)
 
 Latest commit: `fab104a` — Amy opens whatever folder you name.

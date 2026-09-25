@@ -2696,6 +2696,149 @@ def _open_flightdeck_page(target: str) -> bool:
     return False
 
 
+def _resolve_folder_chain(parts: list[str]) -> Path | None:
+    home = Path.home()
+    aliases = {
+        "desktop": home / "Desktop",
+        "documents": home / "Documents",
+        "docs": home / "Documents",
+        "downloads": home / "Downloads",
+        "download": home / "Downloads",
+        "pictures": home / "Pictures",
+        "videos": home / "Videos",
+        "music": home / "Music",
+        "onedrive": home / "OneDrive",
+    }
+    current: Path | None = None
+    for index, part in enumerate(parts):
+        key = part.lower()
+        if index == 0 and key in aliases:
+            current = aliases[key]
+            if not current.is_dir():
+                return None
+            continue
+        if current is None or not current.is_dir():
+            return None
+        match: Path | None = None
+        try:
+            children = list(current.iterdir())
+        except OSError:
+            return None
+        for child in children:
+            if child.is_dir() and child.name.lower() == key:
+                match = child
+                break
+        if match is None:
+            return None
+        current = match
+    return current if current is not None and current.is_dir() else None
+
+
+def _queue_local_on_printer(path: Path, printer_id: str) -> tuple[bool, str]:
+    """Upload a file onto a printer queue. dispatch=false so it does not start."""
+    boundary = "----AmyQueueBoundary"
+    filename = path.name.replace('"', "")
+    data = path.read_bytes()
+    head = (
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="printer_id"\r\n\r\n'
+        f"{printer_id}\r\n"
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="dispatch"\r\n\r\n'
+        f"false\r\n"
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'
+        f"Content-Type: application/octet-stream\r\n\r\n"
+    ).encode("utf-8")
+    body = head + data + f"\r\n--{boundary}--\r\n".encode("utf-8")
+    req = urllib.request.Request(
+        flightdeck_url("/api/queue/upload"),
+        data=body,
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=180) as resp:
+            payload = json.loads(resp.read().decode("utf-8") or "{}")
+            count = payload.get("count") if isinstance(payload, dict) else None
+            return True, str(count or 1)
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[:300]
+        return False, detail or str(exc)
+    except Exception as exc:
+        return False, str(exc)
+
+
+def _reveal_file(path: Path) -> None:
+    if os.name != "nt":
+        return
+    subprocess.Popen(["explorer.exe", f"/select,{path}"], close_fds=True)
+
+
+def try_queue_local_file(question: str) -> dict[str, Any] | None:
+    """Queue one named file from a folder Chris names. Does not start the print."""
+    try:
+        from workshop_actions import match_named_files, parse_queue_local_file
+    except ImportError:
+        from jarvis.workshop_actions import match_named_files, parse_queue_local_file
+    parsed = parse_queue_local_file(question)
+    if not parsed:
+        return None
+    folder = _resolve_folder_chain(list(parsed["folders"]))
+    label = str(parsed["printer_label"])
+    spoken = str(parsed["file"])
+    if folder is None:
+        place = " ".join(parsed["folders"])
+        return {
+            "answer": f"I couldn't find the folder {place}.",
+            "nodes": [],
+            "move_camera": False,
+            "tool": "queue_file",
+            "ok": False,
+        }
+    names = [item.name for item in folder.iterdir() if item.is_file()]
+    hits = match_named_files(names, spoken)
+    if not hits:
+        return {
+            "answer": f"I couldn't find {spoken} in {folder}.",
+            "nodes": [],
+            "move_camera": False,
+            "tool": "queue_file",
+            "ok": False,
+        }
+    if len(hits) > 1:
+        listed = ", ".join(hits[:4])
+        return {
+            "answer": f"I found {len(hits)} files for {spoken}: {listed}. Say which one.",
+            "nodes": [],
+            "move_camera": False,
+            "tool": "queue_file",
+            "ok": False,
+        }
+    chosen = folder / hits[0]
+    ok, detail = _queue_local_on_printer(chosen, str(parsed["printer_id"]))
+    if not ok:
+        return {
+            "answer": f"Couldn't queue {chosen.name} on {label}: {detail}",
+            "nodes": [],
+            "move_camera": False,
+            "tool": "queue_file",
+            "ok": False,
+        }
+    _reveal_file(chosen)
+    _open_flightdeck_page("#/queue")
+    return {
+        "answer": (
+            f"Queued {chosen.name} on {label}. It's on the queue, not printing. "
+            "I dropped always-on-top so you can see the file — say come back if you want me floating again."
+        ),
+        "nodes": [],
+        "move_camera": False,
+        "tool": "queue_file",
+        "ok": True,
+    }
+
+
 def _find_spoken_folder(name: str) -> Path | None:
     """Find a folder Chris named. A full path, a usual place, or a folder under those places."""
     raw = (name or "").strip().strip("\"'")
@@ -2851,6 +2994,10 @@ def try_tools(question: str) -> dict[str, Any] | None:
     if added is not None:
         added.setdefault("talk_mode", RUNTIME.get("talk_mode") or "casual")
         return added
+    queued = try_queue_local_file(question)
+    if queued is not None:
+        queued.setdefault("talk_mode", RUNTIME.get("talk_mode") or "casual")
+        return queued
     folder = try_open_folder(question)
     if folder is not None:
         folder.setdefault("talk_mode", RUNTIME.get("talk_mode") or "casual")

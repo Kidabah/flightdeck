@@ -140,6 +140,60 @@ def parse_open_folder(question: str) -> str | None:
     return None
 
 
+def parse_queue_local_file(question: str) -> dict[str, Any] | None:
+    """'open desktop 3mf bedscraper_pla and queue it on BigBoy.' Does not start a print."""
+    q = _clean(question)
+    if not q or not re.search(r"\b(queue|que)\b", q):
+        return None
+    if re.search(r"\b(send|start)\s+(?:the\s+)?print\b", q):
+        return None
+    match = re.search(
+        r"\b(?:open|grab|get|use)\s+(.+?)\s+and\s+(?:queue|que)\s+(?:it|that|this|the file)?\s*"
+        r"(?:in\s+flightdeck\s+)?(?:on|to|for)\s+(.+)$",
+        q,
+    )
+    if not match:
+        return None
+    file_part = match.group(1).strip()
+    printer_part = match.group(2).strip()
+    printer_id = ""
+    printer_label = ""
+    for alias, pid, label in FLIGHTDECK_PRINTERS:
+        if re.search(rf"\b{re.escape(alias)}\b", printer_part):
+            printer_id = pid
+            printer_label = label
+            break
+    if not printer_id:
+        return None
+    tokens = [part for part in file_part.split() if part not in {"the", "my", "a"}]
+    if len(tokens) < 2:
+        return None
+    return {
+        "folders": tokens[:-1],
+        "file": tokens[-1],
+        "printer_id": printer_id,
+        "printer_label": printer_label,
+    }
+
+
+def match_named_files(names: list[str], query: str) -> list[str]:
+    """Filenames whose stem contains the spoken name. Case and punctuation ignored."""
+    needle = re.sub(r"[^a-z0-9]+", "", (query or "").lower())
+    if not needle:
+        return []
+    hits: list[str] = []
+    for name in names:
+        stem = name.lower()
+        for ext in (".gcode.3mf", ".gcode.gz", ".3mf", ".gcode", ".stl"):
+            if stem.endswith(ext):
+                stem = stem[: -len(ext)]
+                break
+        folded = re.sub(r"[^a-z0-9]+", "", stem)
+        if needle in folded:
+            hits.append(name)
+    return hits
+
+
 def parse_queue_load(question: str) -> str | None:
     """'open the queue in Flightdeck and load file <name>'."""
     q = _clean(question)

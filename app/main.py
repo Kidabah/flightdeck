@@ -11682,6 +11682,7 @@ async def queue_upload(
     printer_id: str = Form(...),
     file: UploadFile = File(...),
     calibrate_before_start: bool = Form(False),
+    dispatch: str = Form("true"),
 ):
     kind = _printer_kind(printer_id)
     if kind is None:
@@ -11711,7 +11712,10 @@ async def queue_upload(
         calibrate_before_start=bool(calibrate_before_start and kind == "bambu"),
         split_plates=kind == "bambu",
     )
-    asyncio.create_task(_maybe_auto_advance_queue(printer_id, trigger="queue_upload"))
+    # The queue button in the app may start a waiting printer. A voice "queue it"
+    # passes dispatch=false so the file waits until Chris says to print.
+    if str(dispatch).strip().lower() not in {"0", "false", "no", "off"}:
+        asyncio.create_task(_maybe_auto_advance_queue(printer_id, trigger="queue_upload"))
     return _queue_enqueue_response(job_ids)
 
 

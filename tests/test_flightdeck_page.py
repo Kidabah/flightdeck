@@ -36,3 +36,26 @@ class FlightdeckPageTests(unittest.TestCase):
         self.assertEqual(actions.parse_open_folder(r"open D:\prints\cow"), r"D:\prints\cow")
         self.assertIsNone(actions.parse_open_folder("open the queue"))
         self.assertIsNone(actions.parse_open_folder("open BigBoy"))
+
+    def test_queue_a_named_file_on_a_printer(self) -> None:
+        actions = _actions()
+        parsed = actions.parse_queue_local_file(
+            "Amy open desktop 3mf bedscraper_pla and que it in flightdeck on big boy printer"
+        )
+        self.assertEqual(parsed["folders"], ["desktop", "3mf"])
+        self.assertEqual(parsed["file"], "bedscraper_pla")
+        self.assertEqual(parsed["printer_id"], "h2d")
+        hits = actions.match_named_files(
+            [
+                "bedscraper_PLA_44m25s.gcode.3mf",
+                "bedscraper_PLA_multi_8h1m.gcode.3mf",
+                "other.3mf",
+            ],
+            "bedscraper_pla",
+        )
+        self.assertEqual(len(hits), 2)
+        one = actions.match_named_files(
+            ["bedscraper_PLA_44m25s.gcode.3mf", "bedscraper_PLA_multi_8h1m.gcode.3mf"],
+            "bedscraper_pla_44",
+        )
+        self.assertEqual(one, ["bedscraper_PLA_44m25s.gcode.3mf"])
