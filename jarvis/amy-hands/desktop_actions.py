@@ -73,6 +73,23 @@ DEFAULT_APPS: dict[str, dict[str, Any]] = {
     "explorer": {"label": "File Explorer", "exe": ["explorer.exe"], "process": ["explorer.exe"]},
     "photos": {"label": "Photos", "uri": "ms-photos:", "process": ["Photos.exe", "Microsoft.Photos.exe"]},
     "settings": {"label": "Settings", "uri": "ms-settings:"},
+    "meshfinder": {
+        "label": "MeshFinder",
+        "exe": [
+            str(
+                Path(os.environ.get("APPDATA", ""))
+                / "Microsoft"
+                / "Windows"
+                / "Start Menu"
+                / "Programs"
+                / "MeshFinder.lnk"
+            ),
+            str(Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Python" / "Python312" / "pythonw.exe"),
+        ],
+        "args": [
+            str(Path(__file__).resolve().parents[2] / "printshelf" / "desktop" / "launch.py"),
+        ],
+    },
     "terminal": {
         "label": "Windows Terminal",
         "process": ["WindowsTerminal.exe", "wt.exe"],
@@ -189,10 +206,18 @@ def resolve_app(name: str, cfg: dict[str, Any] | None = None) -> dict[str, Any]:
     cat = app_catalog(cfg)
     if key in cat:
         return {"ok": True, "key": key, "spec": cat[key]}
-    # Fuzzy: startswith / contains
+    folded = key.replace(" ", "")
+    # Fuzzy: startswith / contains, and ignore spaces ("mesh finder").
     for k, spec in cat.items():
         label = str(spec.get("label") or k).lower()
-        if key == label or key in k or key in label or k.startswith(key):
+        if (
+            key == label
+            or key in k
+            or key in label
+            or k.startswith(key)
+            or folded == k.replace(" ", "")
+            or folded == label.replace(" ", "")
+        ):
             return {"ok": True, "key": k, "spec": spec}
     known = ", ".join(sorted({str(v.get("label") or k) for k, v in cat.items()}))
     return {"ok": False, "detail": f"app “{name}” not in allowlist. Known: {known}"}
@@ -203,6 +228,9 @@ def _start_uri(uri: str) -> None:
 
 
 def _start_exe(exe: str, args: list[str] | None = None) -> None:
+    if exe.lower().endswith(".lnk"):
+        os.startfile(exe)  # noqa: S606 — shortcut carries the MeshFinder window launch
+        return
     cmd = [exe, *(args or [])]
     subprocess.Popen(cmd, shell=False, close_fds=True)
 
@@ -223,13 +251,17 @@ def launch_app(name: str, *, cfg: dict[str, Any] | None = None, play: bool = Fal
             exes = spec.get("exe") or []
             if isinstance(exes, str):
                 exes = [exes]
+            raw_args = spec.get("args") or []
+            if isinstance(raw_args, str):
+                raw_args = [raw_args]
+            launch_args = [str(a) for a in raw_args]
             launched = False
             for exe in exes:
                 exe_s = str(exe)
                 if "\\" in exe_s or "/" in exe_s:
                     if not Path(exe_s).exists():
                         continue
-                _start_exe(exe_s)
+                _start_exe(exe_s, launch_args if not exe_s.lower().endswith(".lnk") else None)
                 started_via = exe_s
                 launched = True
                 break

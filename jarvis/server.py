@@ -278,7 +278,7 @@ HANDS_TOOLS = [
             "name": "launch_app",
             "description": (
                 "Launch an allowlisted app on Chris's PC (spotify, chrome, edge, notepad, calculator, "
-                "explorer, photos, settings, terminal, vscode, cursor). "
+                "explorer, photos, settings, terminal, vscode, cursor, meshfinder). "
                 "Set play=true after launching Spotify (or another media app) to send play/pause."
             ),
             "parameters": {

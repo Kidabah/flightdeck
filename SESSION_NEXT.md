@@ -1,3 +1,16 @@
+## 2026-09-25 Session update (MeshFinder desktop app)
+
+Latest commit: pending - MeshFinder now opens as its own window, and Amy can launch it.
+
+- New window app: `printshelf/desktop/launch.py` and `start-meshfinder.ps1`.
+- Start Menu shortcut: `%APPDATA%\Microsoft\Windows\Start Menu\Programs\MeshFinder.lnk`.
+- Amy Hands allowlist includes MeshFinder. Say **open MeshFinder**. A second open focuses the existing window.
+- The page is still the Pi library at `https://flightdeck.tail7de73e.ts.net:8100`.
+- Files: `printshelf/desktop/launch.py`, `printshelf/desktop/start-meshfinder.ps1`, `jarvis/amy-hands/desktop_actions.py`, `jarvis/server.py`, `jarvis/notes/workshop/amy-prompts.md`.
+- Restart Amy Hands on the PC, and Jarvis (Pi + the Amy window) so she knows the app name. Flightdeck restart is not required for the window itself.
+
+---
+
 ## 2026-09-25 Session update (deploy pi accepts normal asks)
 
 Latest commit: pending - “deploy pi again”, “deploy to the pi”, and “try deploy pi” now run the deploy.
