@@ -1,3 +1,14 @@
+## 2026-09-25 Session update (check a spool in the AMS)
+
+Latest commit: `6873e01` — “Check if spool 14 is in AMS 1 slot 2 on BigBoy” reads Flightdeck.
+
+- She answers from the spool list. “Where is spool 14” and “what’s in AMS 1 slot 2” work too. She does not move the spool.
+- AMS 1 slot 2 is the second slot of the first AMS. AMS HT stays the HT bay.
+- Files: `jarvis/server.py`, `jarvis/workshop_actions.py`.
+- Amy restarted. Pi jarvis restart is in the deploy.
+
+---
+
 ## 2026-09-25 Session update (spool into AMS HT)
 
 Latest commit: `904227d` — “Put spool 12 in BigBoy’s AMS HT” loads that slot.
