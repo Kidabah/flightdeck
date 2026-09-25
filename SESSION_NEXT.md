@@ -1,3 +1,13 @@
+## 2026-09-25 Session update (Cindy Vinyl small player)
+
+Latest commit: `755a607` — Small player shrinks the desktop window to the transport bar.
+
+- Small player was hiding the room and leaving a large black window. The resize hook never reached the window.
+- The ribbon mode now sizes the real window to 680×210 above the taskbar. ROOM restores the room.
+- File: `jukebox/desktop/launch.py`. Reopen Cindy Vinyl. No Pi restart needed for the window.
+
+---
+
 ## 2026-09-25 Session update (Cindy Vinyl play freeze)
 
 Latest commit: `8b75eec` — Play no longer freezes the desktop window.
