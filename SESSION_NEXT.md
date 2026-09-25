@@ -1,3 +1,14 @@
+## 2026-09-25 Session update (print vocabulary)
+
+Latest commit: `131aacf` — Amy understands more than the word queue.
+
+- Reprint, print, print again, send, run, start, fire, and kick off a named file all start it on the printer you name. Queue, que, add, put, and line up only wait.
+- “Start the print” or “send the print” with no file name still does not pick a file. Pause and stop are unchanged.
+- Files: `jarvis/workshop_actions.py`, `jarvis/server.py`.
+- Amy restarted. Pi jarvis restart is in the deploy.
+
+---
+
 ## 2026-09-25 Session update (reprint a named file)
 
 Latest commit: `5733cdc` — “Reprint pla box on BigBoy” starts that file.
