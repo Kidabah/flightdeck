@@ -258,7 +258,7 @@ class FlightdeckTray:
                 self.restart_server()
                 self.status = "Updated"
             self._refresh_icon()
-            webbrowser.open(URL)
+            self.open_dashboard()
         except Exception as exc:
             with log_path.open("a", encoding="utf-8") as log:
                 log.write(f"\n[{datetime.now().isoformat(timespec='seconds')}] Update failed\n{exc}\n")
@@ -266,6 +266,11 @@ class FlightdeckTray:
             self._refresh_icon()
 
     def open_dashboard(self, _icon=None, _item=None) -> None:
+        launch = APP_DIR / "desktop" / "launch.py"
+        py = Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Python" / "Python312" / "pythonw.exe"
+        if py.is_file() and launch.is_file():
+            subprocess.Popen([str(py), str(launch)], cwd=str(launch.parent))
+            return
         webbrowser.open(URL)
 
     def open_logs(self, _icon=None, _item=None) -> None:

@@ -1,3 +1,13 @@
+## 2026-09-25 Session update (shortcuts point at the new windows)
+
+Latest commit: pending - Desktop, Start Menu, Chrome Apps, and login Flightdeck shortcuts open the new windows.
+
+- Updated shortcut targets to `desktop/launch.py` and `printshelf/desktop/launch.py`.
+- Icons kept.
+- Tray startup shortcut still starts the tray helper. Tray Open now launches the new Flightdeck window (`scripts/windows/flightdeck-tray.py`). Restart the tray (or next login) to pick that up.
+
+---
+
 ## 2026-09-25 Session update (Amy is not Flightdeck, mic won't act on noise)
 
 Latest commit: pending - Amy's window is just Amy, and muddy mic audio cannot delete, deploy, or launch apps.
