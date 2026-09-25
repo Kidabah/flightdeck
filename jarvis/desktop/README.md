@@ -26,7 +26,7 @@ Fallback: `.\start-amy-desktop.ps1 --chrome` for Chrome app mode.
 
 - `hands_base_url`: `http://127.0.0.1:4701`
 - `bind_host`: `127.0.0.1`
-- `flightdeck_base_url`: Pi Tailscale (`http://100.106.112.104:8000` by default)
+- `flightdeck_base_url`: Pi Tailscale (`https://flightdeck.tail7de73e.ts.net` by default)
 
 Paste your **OpenAI** and **ElevenLabs** keys into that AppData config (never commit them).
 

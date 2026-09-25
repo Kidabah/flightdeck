@@ -72,7 +72,7 @@ def server_script() -> Path:
     return jarvis_root() / "server.py"
 
 
-def ensure_desktop_config(flightdeck_default: str = "http://100.106.112.104:8000") -> Path:
+def ensure_desktop_config(flightdeck_default: str = "https://flightdeck.tail7de73e.ts.net") -> Path:
     """Copy config.example.json into AppData on first run; force local Hands + bind."""
     import json
 
@@ -98,6 +98,7 @@ def ensure_desktop_config(flightdeck_default: str = "http://100.106.112.104:8000
     if str(obj.get("flightdeck_base_url") or "").rstrip("/") in (
         "http://127.0.0.1:8000",
         "http://localhost:8000",
+        "http://100.106.112.104:8000",
     ):
         obj["flightdeck_base_url"] = flightdeck_default
     obj["bind_host"] = "127.0.0.1"

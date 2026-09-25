@@ -1,3 +1,14 @@
+## 2026-09-25 Session update (pause a named printer)
+
+Latest commit: pending — Pause reaches Flightdeck again.
+
+- “Pause the print on BigBoy” was refused because Amy was calling `http://100.106.112.104:8000`, and nothing is listening there. Flightdeck answers on `https://flightdeck.tail7de73e.ts.net`.
+- Named pause, resume, and stop work in casual mode too. Music pause stays with Spotify. She still does not start a print from that.
+- Files: `jarvis/server.py`, `jarvis/workshop_actions.py`, `jarvis/desktop/paths.py`.
+- Local Amy was restarted. Say it again. BigBoy is printing, so pause will actually pause that job.
+
+---
+
 ## 2026-09-25 Session update (Cindy Vinyl small player)
 
 Latest commit: `755a607` — Small player shrinks the desktop window to the transport bar.

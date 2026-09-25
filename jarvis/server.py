@@ -2158,12 +2158,22 @@ def tool_control(question: str) -> dict[str, Any] | None:
             "tool": action,
             "ok": False,
         }
+    spoken = {"pause": "Paused", "resume": "Resumed", "stop": "Stopped"}.get(action, action.capitalize())
     return {
-        "answer": f"{action.capitalize()} sent to {display}.",
+        "answer": f"{spoken} the print on {display}.",
         "nodes": [],
         "tool": action,
         "ok": True,
     }
+
+
+def _explicit_printer_control(question: str) -> bool:
+    """Named-printer pause/resume/stop works even in casual mode."""
+    try:
+        from workshop_actions import explicit_printer_control
+    except ImportError:
+        from jarvis.workshop_actions import explicit_printer_control
+    return explicit_printer_control(question, bool(resolve_printer(question)[0])) is not None
 
 
 def try_media_tools(question: str) -> dict[str, Any] | None:
@@ -2659,6 +2669,11 @@ def try_tools(question: str) -> dict[str, Any] | None:
         return mode_switch
     for fn in (try_clock_weather, try_media_tools):
         result = fn(question)
+        if result is not None:
+            result.setdefault("talk_mode", RUNTIME.get("talk_mode") or "casual")
+            return result
+    if _explicit_printer_control(question):
+        result = tool_control(question)
         if result is not None:
             result.setdefault("talk_mode", RUNTIME.get("talk_mode") or "casual")
             return result
