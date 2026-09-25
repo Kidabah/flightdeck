@@ -1,6 +1,6 @@
 # Mora (Synology) host for Cindy Vinyl + Navidrome.
-# Data on volume2 SSD; music via /volume2/cindy-vinyl/mounts/{Cindy,Checked,Jamal}
-# (CIFS from Cindy NAS — see scripts/mount-cindy-on-mora.sh).
+# Data on volume2 SSD. library-view symlinks point at /share/{Cindy,Checked,Jamal},
+# so those shares are mounted into Navidrome at the same paths.
 #
 # Usage on Mora:
 #   cd /volume2/cindy-vinyl/compose
@@ -32,10 +32,11 @@ services:
       ND_SCANNER_PURGEMISSING: "full"
       ND_COVERARTPRIORITY: "embedded, cover.*, folder.*, front.*, *.jpg, *.jpeg, *.png, *.webp"
     volumes:
-      # Cindy CIFS mounts (absolute targets for library-view symlinks)
-      - /volume2/cindy-vinyl/mounts/Cindy:/volume2/cindy-vinyl/mounts/Cindy:ro
-      - /volume2/cindy-vinyl/mounts/Checked:/volume2/cindy-vinyl/mounts/Checked:ro
-      - /volume2/cindy-vinyl/mounts/Jamal:/volume2/cindy-vinyl/mounts/Jamal:ro
+      # library-view symlinks use these absolute targets. Without them inside
+      # the container every stream is a broken link.
+      - /share/Cindy:/share/Cindy:ro
+      - /share/Checked:/share/Checked:ro
+      - /share/Jamal:/share/Jamal:ro
       # SSD symlink view (MUSIC/CHECKED/JAMAL layout matching migrated DB paths)
       - /volume2/cindy-vinyl/library-view:/music:ro
       - /volume2/cindy-vinyl/navidrome-data:/data

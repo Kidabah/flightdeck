@@ -600,11 +600,24 @@ async def stream(song_id:str,request:Request):
     if range_h:=request.headers.get("range"): headers["Range"]=range_h
     client=httpx.AsyncClient(timeout=None); req=client.build_request("GET",f"{NAVIDROME}/rest/stream.view?{urlencode(params)}",headers=headers); r=await client.send(req,stream=True)
     if r.status_code>=400: await r.aclose(); await client.aclose(); raise HTTPException(r.status_code,"stream failed")
+    # A missing file comes back as a short JSON/text body. Hand that to the
+    # player as an HTTP error. Streaming it as audio makes WebView2 wait forever.
+    ctype=(r.headers.get("content-type") or "").split(";")[0].strip().lower()
+    if ctype in ("application/json","text/plain","text/html") or ctype.startswith("text/"):
+        await r.aread(); await r.aclose(); await client.aclose()
+        raise HTTPException(404,"track file is not on the shelf")
+    # httpx already decoded Content-Encoding, so the upstream Content-Length is
+    # the compressed size. Forwarding it makes uvicorn abort
+    # ("Response content longer than Content-Length") and the desktop window
+    # stops responding while the audio element waits for bytes that never come.
+    passthrough=("content-type","content-range","accept-ranges")
+    out_headers={h:r.headers[h] for h in passthrough if h in r.headers}
+    if "content-encoding" not in r.headers and "content-length" in r.headers:
+        out_headers["content-length"]=r.headers["content-length"]
     async def body():
         try:
             async for chunk in r.aiter_bytes(): yield chunk
         finally: await r.aclose(); await client.aclose()
-    out_headers={h:r.headers[h] for h in ("content-type","content-length","content-range","accept-ranges") if h in r.headers}
     return StreamingResponse(body(),status_code=r.status_code,headers=out_headers,media_type=r.headers.get("content-type"))
 
 
