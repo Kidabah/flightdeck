@@ -52,16 +52,21 @@ function Find-BrowserPath {
     return $null
 }
 
-$BrowserPath = $null
-if ($Browser -eq "auto") {
-    $BrowserPath = Find-BrowserPath "edge"
-    if (-not $BrowserPath) { $BrowserPath = Find-BrowserPath "chrome" }
-} else {
-    $BrowserPath = Find-BrowserPath $Browser
-}
+$RepoLaunch = Join-Path $ScriptDir "..\desktop\launch.py"
+$PythonW = Join-Path $env:LOCALAPPDATA "Programs\Python\Python312\pythonw.exe"
+$UseWindow = (Test-Path $RepoLaunch) -and (Test-Path $PythonW)
 
-if (-not $BrowserPath) {
-    throw "Could not find Edge or Chrome. Install one, or pass -Browser edge|chrome."
+if (-not $UseWindow) {
+    $BrowserPath = $null
+    if ($Browser -eq "auto") {
+        $BrowserPath = Find-BrowserPath "edge"
+        if (-not $BrowserPath) { $BrowserPath = Find-BrowserPath "chrome" }
+    } else {
+        $BrowserPath = Find-BrowserPath $Browser
+    }
+    if (-not $BrowserPath) {
+        throw "Could not find Edge or Chrome. Install one, or pass -Browser edge|chrome."
+    }
 }
 
 function New-CindyShortcut {
@@ -79,7 +84,8 @@ function New-CindyShortcut {
     $sc = $shell.CreateShortcut($ShortcutPath)
     $sc.TargetPath = $Target
     $sc.Arguments = $Arguments
-    $sc.WorkingDirectory = Split-Path -Parent $Target
+    $sc.WorkingDirectory = if ($UseWindow) { Split-Path -Parent $RepoLaunch } else { Split-Path -Parent $Target }
+    $sc.WindowStyle = 1
     if ($Icon -and (Test-Path $Icon)) {
         $sc.IconLocation = $Icon
     }
@@ -88,27 +94,30 @@ function New-CindyShortcut {
     Write-Host "Created: $ShortcutPath"
 }
 
-$argsApp = "--app=$Url"
+$argsApp = if ($UseWindow) { "`"$RepoLaunch`"" } else { "--app=$Url" }
+$shortcutTarget = if ($UseWindow) { $PythonW } else { $BrowserPath }
 $doDesktop = -not $StartMenuOnly
 $doStart = -not $DesktopOnly
 
 if ($doDesktop) {
     $desktop = [Environment]::GetFolderPath("Desktop")
     New-CindyShortcut -ShortcutPath (Join-Path $desktop "Cindy Vinyl.lnk") `
-        -Target $BrowserPath -Arguments $argsApp -Icon $IconPath
+        -Target $shortcutTarget -Arguments $argsApp -Icon $IconPath
 }
 
 if ($doStart) {
     $startDir = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs"
     New-CindyShortcut -ShortcutPath (Join-Path $startDir "Cindy Vinyl.lnk") `
-        -Target $BrowserPath -Arguments $argsApp -Icon $IconPath
+        -Target $shortcutTarget -Arguments $argsApp -Icon $IconPath
 }
 
 Write-Host ""
 Write-Host "Cindy Vinyl is ready."
-Write-Host "  Opens:  $Url"
-Write-Host "  Browser: $BrowserPath"
-Write-Host ""
-Write-Host "Same Wi-Fi / LAN as the Pi is required for the LAN address."
-Write-Host "Away from home, use Tailscale and:"
-Write-Host "  powershell -ExecutionPolicy Bypass -File `"$PSCommandPath`" -Url `"https://flightdeck.tail7de73e.ts.net:4540`""
+if ($UseWindow) {
+    Write-Host "  Window: $RepoLaunch"
+    Write-Host "  Plays:  http://flightdeck-nas:4541"
+} else {
+    Write-Host "  Opens:  $Url"
+    Write-Host "  Browser: $BrowserPath"
+    Write-Host "Same Wi-Fi / LAN as Mora is required for the LAN address."
+}

@@ -17,6 +17,38 @@ kernel32 = ctypes.windll.kernel32
 WM_CLOSE = 0x0010
 SW_MINIMIZE = 6
 SW_RESTORE = 9
+SW_SHOW = 5
+HWND_TOPMOST = -1
+HWND_NOTOPMOST = -2
+SWP_NOMOVE = 0x0002
+SWP_NOSIZE = 0x0001
+SWP_SHOWWINDOW = 0x0040
+
+
+def _force_foreground(hwnd: int) -> None:
+    """Restore a window and pull it in front. SetForegroundWindow alone often fails."""
+    user32.keybd_event(0x12, 0, 0, 0)
+    user32.keybd_event(0x12, 0, 0x0002, 0)
+    user32.ShowWindow(hwnd, SW_RESTORE)
+    flags = SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW
+    user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, flags)
+    user32.SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, flags)
+    fg = user32.GetForegroundWindow()
+    fg_thread = user32.GetWindowThreadProcessId(fg, None)
+    target_thread = user32.GetWindowThreadProcessId(hwnd, None)
+    current = kernel32.GetCurrentThreadId()
+    if fg_thread and fg_thread != current:
+        user32.AttachThreadInput(current, fg_thread, True)
+    if target_thread and target_thread != current:
+        user32.AttachThreadInput(current, target_thread, True)
+    user32.BringWindowToTop(hwnd)
+    user32.SetForegroundWindow(hwnd)
+    if fg_thread and fg_thread != current:
+        user32.AttachThreadInput(current, fg_thread, False)
+    if target_thread and target_thread != current:
+        user32.AttachThreadInput(current, target_thread, False)
+
+
 SW_SHOWMINNOACTIVE = 7
 KEYEVENTF_EXTENDEDKEY = 0x0001
 KEYEVENTF_KEYUP = 0x0002
@@ -89,6 +121,7 @@ DEFAULT_APPS: dict[str, dict[str, Any]] = {
         "args": [
             str(Path(__file__).resolve().parents[2] / "printshelf" / "desktop" / "launch.py"),
         ],
+        "process": ["pythonw.exe"],
     },
     "flightdeck": {
         "label": "Flightdeck",
@@ -106,6 +139,25 @@ DEFAULT_APPS: dict[str, dict[str, Any]] = {
         "args": [
             str(Path(__file__).resolve().parents[2] / "desktop" / "launch.py"),
         ],
+        "process": ["pythonw.exe"],
+    },
+    "cindyvinyl": {
+        "label": "Cindy Vinyl",
+        "exe": [
+            str(
+                Path(os.environ.get("APPDATA", ""))
+                / "Microsoft"
+                / "Windows"
+                / "Start Menu"
+                / "Programs"
+                / "Cindy Vinyl.lnk"
+            ),
+            str(Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Python" / "Python312" / "pythonw.exe"),
+        ],
+        "args": [
+            str(Path(__file__).resolve().parents[2] / "jukebox" / "desktop" / "launch.py"),
+        ],
+        "process": ["pythonw.exe"],
     },
     "terminal": {
         "label": "Windows Terminal",
@@ -252,12 +304,22 @@ def _start_exe(exe: str, args: list[str] | None = None) -> None:
     subprocess.Popen(cmd, shell=False, close_fds=True)
 
 
-def launch_app(name: str, *, cfg: dict[str, Any] | None = None, play: bool = False) -> dict[str, Any]:
+def launch_app(name: str, *, cfg: dict[str, Any] | None = None, play: bool = False, front: bool = False) -> dict[str, Any]:
     hit = resolve_app(name, cfg)
     if not hit.get("ok"):
         return hit
     spec = hit["spec"]
     label = str(spec.get("label") or hit["key"])
+    if front:
+        already = _focus_app_window(label, spec, allow_other=not spec.get("process"))
+        if already.get("ok"):
+            return {
+                "ok": True,
+                "app": label,
+                "via": "already open",
+                "focused": True,
+                "title": already.get("title"),
+            }
     started_via = ""
     try:
         uri = str(spec.get("uri") or "").strip()
@@ -291,7 +353,74 @@ def launch_app(name: str, *, cfg: dict[str, Any] | None = None, play: bool = Fal
         time.sleep(1.6)
         media = media_control("play_pause")
         out["media"] = media
+    if front:
+        focused = _bring_app_forward(label, spec)
+        out["focused"] = bool(focused.get("ok"))
+        if focused.get("title"):
+            out["title"] = focused.get("title")
     return out
+
+
+def _process_names(spec: dict[str, Any] | None) -> set[str]:
+    raw = (spec or {}).get("process") or []
+    if isinstance(raw, str):
+        raw = [raw]
+    return {str(name).strip().lower() for name in raw if str(name).strip()}
+
+
+def _window_process_name(hwnd: int) -> str:
+    pid = wintypes.DWORD()
+    user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+    if not pid.value:
+        return ""
+    handle = kernel32.OpenProcess(0x1000, False, pid.value)
+    if not handle:
+        return ""
+    try:
+        size = wintypes.DWORD(1024)
+        buf = ctypes.create_unicode_buffer(1024)
+        if not kernel32.QueryFullProcessImageNameW(handle, 0, buf, ctypes.byref(size)):
+            return ""
+        return Path(buf.value).name.lower()
+    finally:
+        kernel32.CloseHandle(handle)
+
+
+def _focus_app_window(label: str, spec: dict[str, Any] | None, *, allow_other: bool) -> dict[str, Any]:
+    """Bring the app's own window forward. A title that merely contains the name is not enough."""
+    processes = _process_names(spec)
+    found = _find_windows(label, protected=False, loose=bool(processes))
+    if not found.get("ok"):
+        return found
+    chosen: tuple[int, str] | None = None
+    if processes:
+        for hwnd, title in found["matches"]:
+            if _window_process_name(hwnd) in processes:
+                chosen = (hwnd, title)
+                break
+    if chosen is None and allow_other:
+        chosen = found["matches"][0]
+    if chosen is None:
+        return {"ok": False, "detail": f"no {label} window yet"}
+    hwnd, title = chosen
+    try:
+        _force_foreground(hwnd)
+    except Exception as exc:
+        return {"ok": False, "detail": str(exc)}
+    return {"ok": True, "title": title, "hwnd": hwnd, "action": "restore"}
+
+
+def _bring_app_forward(label: str, spec: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Wait briefly for the app window, then restore it to the front."""
+    last: dict[str, Any] = {"ok": False, "detail": "window not up yet"}
+    attempts = 12
+    for i in range(attempts):
+        found = _focus_app_window(label, spec, allow_other=i == attempts - 1 and not _process_names(spec))
+        if found.get("ok"):
+            return found
+        last = found
+        time.sleep(0.3)
+    return last
 
 
 def open_file(path: str) -> dict[str, Any]:
@@ -335,9 +464,7 @@ def _focus_explorer() -> None:
         return
     hwnd = found[0]
     try:
-        if user32.IsIconic(hwnd):
-            user32.ShowWindow(hwnd, SW_RESTORE)
-        user32.SetForegroundWindow(hwnd)
+        _force_foreground(hwnd)
     except Exception:
         pass
 
@@ -862,18 +989,48 @@ def app_audio(
     return out
 
 
-def _find_windows(query: str) -> dict[str, Any]:
+def _is_task_window(hwnd: int) -> bool:
+    """Visible, minimized, or a captioned app window sitting on the taskbar without the visible bit."""
+    if user32.IsWindowVisible(hwnd) or user32.IsIconic(hwnd):
+        return True
+    style = user32.GetWindowLongW(hwnd, -16) & 0xFFFFFFFF
+    exstyle = user32.GetWindowLongW(hwnd, -20) & 0xFFFFFFFF
+    if exstyle & 0x00000080 and not exstyle & 0x00040000:
+        return False
+    return bool(style & 0x00C00000)
+
+
+def _soft_title(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
+
+
+def _title_rank(query: str, title: str, *, loose: bool = False) -> int | None:
+    """0 is an exact title. A whole-word hit is next. Loose also allows Flightdeck3dprinters."""
+    q = _soft_title(query)
+    t = _soft_title(title)
+    if len(q) < 2 or not t:
+        return None
+    if t == q:
+        return 0
+    if re.search(rf"(?<![a-z0-9]){re.escape(q)}(?![a-z0-9])", t):
+        return 1000 + len(t)
+    if loose and re.search(rf"(?<![a-z0-9]){re.escape(q)}", t):
+        return 5000 + len(t)
+    return None
+
+
+def _find_windows(query: str, *, protected: bool = True, loose: bool = False) -> dict[str, Any]:
     q = str(query or "").strip().lower()
     if len(q) < 2:
         return {"ok": False, "detail": "window title query too short"}
     if _unsafe_chars(q):
         return {"ok": False, "detail": "unsafe query"}
 
-    matches: list[tuple[int, str]] = []
+    ranked: list[tuple[int, int, str]] = []
 
     @ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
     def enum_proc(hwnd, _lparam):  # noqa: N803
-        if not user32.IsWindowVisible(hwnd):
+        if not _is_task_window(hwnd):
             return True
         length = user32.GetWindowTextLengthW(hwnd)
         if length <= 0:
@@ -883,17 +1040,23 @@ def _find_windows(query: str) -> dict[str, Any]:
         title = buf.value or ""
         if not title:
             return True
-        if PROTECTED_TITLE.search(title):
+        if re.search(r"program manager|windows input experience|windows shell experience|search host", title, re.I):
             return True
-        if q in title.lower():
-            matches.append((int(hwnd), title))
+        if re.match(r"amy(\s*-\s*flightdeck|\s+hands)?$", title.strip(), re.I) and q != "amy":
+            return True
+        if protected and PROTECTED_TITLE.search(title):
+            return True
+        rank = _title_rank(q, title, loose=loose)
+        if rank is None:
+            return True
+        ranked.append((rank, int(hwnd), title))
         return True
 
     user32.EnumWindows(enum_proc, 0)
-    if not matches:
+    if not ranked:
         return {"ok": False, "detail": f"no visible window matched “{query}”"}
-    matches.sort(key=lambda t: len(t[1]))
-    return {"ok": True, "matches": matches}
+    ranked.sort(key=lambda item: (item[0], len(item[2])))
+    return {"ok": True, "matches": [(hwnd, title) for _, hwnd, title in ranked]}
 
 
 def close_window(query: str) -> dict[str, Any]:
@@ -956,13 +1119,12 @@ def minimize_all_windows() -> dict[str, Any]:
 
 
 def restore_window(query: str) -> dict[str, Any]:
-    found = _find_windows(query)
+    found = _find_windows(query, protected=False)
     if not found.get("ok"):
         return found
     hwnd, title = found["matches"][0]
     try:
-        user32.ShowWindow(hwnd, SW_RESTORE)
-        user32.SetForegroundWindow(hwnd)
+        _force_foreground(hwnd)
     except Exception as exc:
         return {"ok": False, "detail": str(exc)}
     return {"ok": True, "title": title, "hwnd": hwnd, "action": "restore"}
@@ -1091,6 +1253,137 @@ def discover_app_hint(name: str) -> dict[str, Any] | None:
     return {"key": key, "entry": entry}
 
 
+def _norm_app_name(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", str(name or "").lower())
+
+
+def _shortcut_roots() -> list[Path]:
+    roots: list[Path] = []
+    appdata = os.environ.get("APPDATA") or ""
+    programdata = os.environ.get("PROGRAMDATA") or r"C:\ProgramData"
+    profile = os.environ.get("USERPROFILE") or ""
+    for folder in (
+        Path(appdata) / "Microsoft" / "Windows" / "Start Menu",
+        Path(programdata) / "Microsoft" / "Windows" / "Start Menu",
+        Path.home() / "Desktop",
+        Path(profile) / "Desktop",
+    ):
+        if folder.is_dir():
+            roots.append(folder)
+    seen: set[str] = set()
+    out: list[Path] = []
+    for folder in roots:
+        key = str(folder).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(folder)
+    return out
+
+
+def _matching_shortcuts(name: str) -> list[Path]:
+    want = _norm_app_name(name)
+    if len(want) < 2:
+        return []
+    hits: list[tuple[int, Path]] = []
+    seen = 0
+    for root in _shortcut_roots():
+        for dirpath, _dirnames, filenames in os.walk(root):
+            for filename in filenames:
+                if not filename.lower().endswith(".lnk"):
+                    continue
+                seen += 1
+                if seen > 2500:
+                    break
+                stem = _norm_app_name(Path(filename).stem)
+                if not stem or "uninstall" in stem:
+                    continue
+                if stem == want:
+                    score = 0
+                elif len(stem) >= 3 and (want in stem or stem in want):
+                    score = 1
+                else:
+                    continue
+                hits.append((score, Path(dirpath) / filename))
+            else:
+                continue
+            break
+    hits.sort(key=lambda item: (item[0], len(item[1].name)))
+    return [path for _score, path in hits]
+
+
+def _read_shortcut(path: Path) -> tuple[str, str]:
+    env = os.environ.copy()
+    env["AMY_LNK"] = str(path)
+    try:
+        proc = subprocess.run(
+            [
+                "powershell",
+                "-NoProfile",
+                "-Command",
+                "$s=(New-Object -ComObject WScript.Shell).CreateShortcut($env:AMY_LNK); "
+                "Write-Output $s.TargetPath; Write-Output '---'; Write-Output $s.Arguments",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=8,
+            env=env,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return "", ""
+    text = (proc.stdout or "").replace("\r", "")
+    if "---" not in text:
+        return text.strip(), ""
+    target, args = text.split("---", 1)
+    return target.strip(), args.strip()
+
+
+def _registry_app_path(name: str) -> str | None:
+    import winreg
+
+    stem = re.sub(r"[^A-Za-z0-9._ -]+", "", str(name or "")).strip()
+    if not stem:
+        return None
+    candidates = []
+    for item in (stem, stem.replace(" ", "")):
+        exe_name = item if item.lower().endswith(".exe") else item + ".exe"
+        if exe_name not in candidates:
+            candidates.append(exe_name)
+    roots = (
+        (winreg.HKEY_CURRENT_USER, r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths"),
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths"),
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths"),
+    )
+    for root, sub in roots:
+        for exe_name in candidates:
+            try:
+                with winreg.OpenKey(root, sub + "\\" + exe_name) as key:
+                    val, _ = winreg.QueryValueEx(key, "")
+            except OSError:
+                continue
+            if val and Path(str(val)).exists():
+                return str(Path(str(val)))
+    return None
+
+
+def discover_installed_app(name: str) -> dict[str, Any] | None:
+    """Find a Start Menu shortcut or registered exe for an app name. No whole-disk search."""
+    reg = _registry_app_path(name)
+    if reg:
+        label = str(name or "").strip() or Path(reg).stem
+        return {"label": label, "exe": [reg], "process": [Path(reg).name], "path": reg}
+    for lnk in _matching_shortcuts(name)[:8]:
+        target, _args = _read_shortcut(lnk)
+        target_path = Path(target) if target else None
+        entry: dict[str, Any] = {"label": lnk.stem, "exe": [str(lnk)], "path": str(lnk)}
+        if target_path and target_path.suffix.lower() == ".exe":
+            entry["process"] = [target_path.name]
+            entry["path"] = str(target_path if target_path.exists() else lnk)
+        return entry
+    return None
+
+
 def register_app(
     name: str,
     *,
@@ -1124,11 +1417,6 @@ def register_app(
     procs = _sanitize_process_list(process) if process is not None else None
     if procs:
         entry["process"] = procs
-    elif not entry.get("process"):
-        # Default guess: Name.exe
-        guess = f"{entry['label'].replace(' ', '')}.exe"
-        if re.fullmatch(r"[A-Za-z0-9].*\.exe", guess, re.I):
-            entry["process"] = [guess]
 
     if exe is not None:
         paths = exe if isinstance(exe, list) else [exe]
@@ -1138,8 +1426,8 @@ def register_app(
             if not norm.get("ok"):
                 return {"ok": False, "detail": f"bad exe path: {norm.get('detail')}"}
             text = str(norm["path"])
-            if not text.lower().endswith(".exe"):
-                return {"ok": False, "detail": "exe must be a .exe file"}
+            if not text.lower().endswith((".exe", ".lnk")):
+                return {"ok": False, "detail": "path must be a .exe or a shortcut"}
             clean.append(text)
         if clean:
             entry["exe"] = clean
@@ -1151,14 +1439,33 @@ def register_app(
         if u:
             entry["uri"] = u
 
-    if not entry.get("process") and not entry.get("exe") and not entry.get("uri"):
+    if not entry.get("exe") and not entry.get("uri"):
+        found = discover_installed_app(str(label or name))
+        if found:
+            entry["exe"] = list(found.get("exe") or [])
+            if found.get("process") and not entry.get("process"):
+                entry["process"] = list(found["process"])
+            if not label:
+                entry["label"] = str(found.get("label") or entry.get("label") or key.title())
+            entry["path"] = found.get("path") or (entry["exe"][0] if entry.get("exe") else "")
+
+    if not entry.get("process") and entry.get("exe"):
+        first = str(entry["exe"][0])
+        if first.lower().endswith(".exe"):
+            entry["process"] = [Path(first).name]
+
+    if not entry.get("exe") and not entry.get("uri"):
         return {
             "ok": False,
             "detail": (
-                f"Need at least process, exe, or uri for “{name}”. "
-                "Known one-word adds: discord, steam, vlc, firefox, obs, whatsapp."
+                f"I couldn't find “{name}” on this PC. "
+                "Tell me the path and I’ll add it."
             ),
         }
+
+    found_path = str(entry.pop("path", "") or "")
+    if not found_path and entry.get("exe"):
+        found_path = str(entry["exe"][0])
 
     path = Path(config_path)
     try:
@@ -1176,4 +1483,11 @@ def register_app(
         path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     except Exception as exc:
         return {"ok": False, "detail": f"couldn't write config: {exc}"}
-    return {"ok": True, "key": key, "app": entry.get("label") or key, "entry": entry, "config": str(path)}
+    return {
+        "ok": True,
+        "key": key,
+        "app": entry.get("label") or key,
+        "entry": entry,
+        "path": found_path,
+        "config": str(path),
+    }

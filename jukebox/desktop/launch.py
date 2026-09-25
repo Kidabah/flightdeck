@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Flightdeck desktop window. The dashboard stays on the Pi."""
+"""Cindy Vinyl desktop window. The player stays on Mora."""
 from __future__ import annotations
 
 import ctypes
@@ -7,15 +7,20 @@ import os
 import sys
 from pathlib import Path
 
-URL = "https://flightdeck.tail7de73e.ts.net"
-MUTEX_NAME = "Local\\FlightdeckDesktop"
+URL = "http://flightdeck-nas:4541"
+MUTEX_NAME = "Local\\CindyVinylDesktop"
 
 
 def _storage() -> str:
     base = os.environ.get("APPDATA") or str(Path.home())
-    path = Path(base) / "Flightdeck" / "webview"
+    path = Path(base) / "CindyVinyl" / "webview"
     path.mkdir(parents=True, exist_ok=True)
     return str(path)
+
+
+def _is_vinyl_title(title: str) -> bool:
+    text = " ".join(title.replace("·", " ").split())
+    return text == "Cindy Vinyl" or text.startswith("Cindy Vinyl ")
 
 
 def _focus_existing() -> bool:
@@ -36,8 +41,7 @@ def _focus_existing() -> bool:
             return True
         buf = ctypes.create_unicode_buffer(length + 1)
         user32.GetWindowTextW(hwnd, buf, length + 1)
-        title = buf.value or ""
-        if title == "Flightdeck" or title.startswith("Flightdeck "):
+        if _is_vinyl_title(buf.value or ""):
             found.append(int(hwnd))
         return True
 
@@ -85,10 +89,10 @@ def main() -> int:
     import webview
 
     webview.create_window(
-        "Flightdeck",
+        "Cindy Vinyl",
         URL,
-        width=1500,
-        height=980,
+        width=1440,
+        height=960,
         min_size=(960, 640),
         confirm_close=False,
     )

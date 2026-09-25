@@ -1,3 +1,27 @@
+## 2026-09-25 Session update (Cindy Vinyl window, add an app by name)
+
+Latest commit: pending - Cindy Vinyl opens in her own window, and Amy can find an app and add it to the allow list.
+
+- Desktop, Start Menu, and the Chrome Apps shortcut open `jukebox/desktop/launch.py` (player on Mora at `http://flightdeck-nas:4541`).
+- “Add Sample to your allow list” finds the Start Menu shortcut or registered program and saves the path. She launches it only if you also say to launch or open it.
+- Files: `jukebox/desktop/launch.py`, `jukebox/desktop/start-cindy-vinyl.ps1`, `jukebox/scripts/Install-CindyVinyl.ps1`, `jukebox/scripts/Install-CindyVinyl.bat`, `jarvis/amy-hands/desktop_actions.py`, `jarvis/server.py`.
+- Restart Amy Hands and the Amy window brain.
+
+---
+
+## 2026-09-25 Session update (open any app comes to the front)
+
+Latest commit: pending - “Open” and “Launch” bring that app’s window forward. Same for every app, not only Flightdeck.
+
+- Shortcuts open as a normal window.
+- Amy focuses the real window (exact or whole-word title, and the app’s own process). A nearby name like Flightdeck3dprinters is left alone.
+- If it is already open, even on the taskbar, she brings that window forward.
+- “Amy open Flightdeck” and “openflightdeck” both count, and the same glued form works for other apps.
+- Files: `jarvis/amy-hands/desktop_actions.py`, `jarvis/amy-hands/amy_hands.py`, `jarvis/server.py`, `desktop/launch.py`, `printshelf/desktop/launch.py`, both start scripts.
+- Restart Amy Hands and the Amy window brain.
+
+---
+
 ## 2026-09-25 Session update (shortcuts point at the new windows)
 
 Latest commit: pending - Desktop, Start Menu, Chrome Apps, and login Flightdeck shortcuts open the new windows.

@@ -289,6 +289,7 @@ HANDS_TOOLS = [
             "description": (
                 "Launch an allowlisted app on Chris's PC (spotify, chrome, edge, notepad, calculator, "
                 "explorer, photos, settings, terminal, vscode, cursor, meshfinder, flightdeck). "
+                "When Chris says open or launch, open that app and bring its window to the front. Same for every app, including Cindy Vinyl. "
                 "Set play=true after launching Spotify (or another media app) to send play/pause."
             ),
             "parameters": {
@@ -360,9 +361,9 @@ HANDS_TOOLS = [
         "function": {
             "name": "register_app",
             "description": (
-                "Add an app to Amy Hands allowlist so Chris can launch/volume-control it later. "
-                "Use when Chris says 'add Discord to the allow list' (also knows steam, vlc, firefox, obs, whatsapp). "
-                "Optional process/exe/uri if it's an unusual app."
+                "Add an app to Amy Hands allowlist so Chris can launch it later. "
+                "When he says add Something to your allow list, find that app on the PC and save its path. "
+                "Launch it only if he also asks to open or launch it."
             ),
             "parameters": {
                 "type": "object",
@@ -1135,20 +1136,24 @@ def open_pc_file_with(path: str, app: str) -> str:
     return msg
 
 
-def launch_pc_app(name: str, play: bool = False) -> str:
+def launch_pc_app(name: str, play: bool = False, front: bool = False) -> str:
     if not hands_configured():
         return "Amy Hands not configured (hands_base_url)."
     code, payload = hands_request(
         "/app/launch",
         method="POST",
-        body={"name": name, "play": play},
-        timeout=20,
+        body={"name": name, "play": play, "front": front},
+        timeout=25,
     )
     if not isinstance(payload, dict):
         return f"Launch failed: {payload}"
     if code != 200 or not payload.get("ok"):
         return f"Launch failed: {payload.get('detail') or payload}"
     msg = f"Launched {payload.get('app') or name}"
+    if front and payload.get("focused"):
+        msg += " and brought it to the front"
+    elif front:
+        msg += ". The window was not in front yet"
     if play:
         media = payload.get("media") or {}
         if isinstance(media, dict) and media.get("ok"):
@@ -1221,7 +1226,12 @@ def register_hands_app(
         return f"Register failed: {payload}"
     if code != 200 or not payload.get("ok"):
         return f"Register failed: {payload.get('detail') or payload}"
-    return f"Added {payload.get('app') or name} to the Hands allowlist (key: {payload.get('key')})."
+    label = payload.get("app") or name
+    path = str(payload.get("path") or "").strip()
+    msg = f"Added {label} to the allow list."
+    if path:
+        msg += f" Path: {path}."
+    return msg
 
 
 def list_hands_apps() -> str:
@@ -2519,6 +2529,102 @@ def _run_deploy_pi() -> tuple[bool, str]:
     return True, "Deployed. Flightdeck pulled and restarted."
 
 
+_LAUNCH_PREFIX = re.compile(
+    r"^(?:hey|hi|ok|yo|amy|please|just|can you|could you|would you|will you)\s+"
+)
+_LAUNCH_TAIL = re.compile(r"\s+(?:please|now|again|for me|to the front)$")
+
+
+def _launch_target(question: str) -> str | None:
+    """'launch Flightdeck' and polite versions. Not a bare 'launch'."""
+    q = re.sub(r"[^\w\s]", " ", (question or "").lower())
+    q = re.sub(r"\s+", " ", q).strip()
+    for _ in range(6):
+        nxt = _LAUNCH_PREFIX.sub("", q)
+        if nxt == q:
+            break
+        q = nxt
+    for _ in range(3):
+        nxt = _LAUNCH_TAIL.sub("", q)
+        if nxt == q:
+            break
+        q = nxt.strip()
+    match = re.fullmatch(r"(?:launch|open)(?:\s+the)?\s+([a-z0-9][a-z0-9 ]{0,40})", q)
+    if not match:
+        match = re.fullmatch(r"(?:launch|open)([a-z0-9]{4,40})", q)
+    if not match:
+        return None
+    name = re.sub(r"\s+", " ", match.group(1)).strip()
+    if name in {"pi", "the pi"} or len(name.replace(" ", "")) < 4:
+        return None
+    return name
+
+
+def _add_app_request(question: str) -> tuple[str, bool] | None:
+    """'add Sample to your allow list' and, if asked, launch it afterwards."""
+    raw = (question or "").lower().replace("\u2019", "'")
+    if "allow list" not in raw and "allowlist" not in raw:
+        return None
+    q = re.sub(r"[^a-z0-9'\"]+", " ", raw)
+    q = re.sub(r"\s+", " ", q).strip()
+    match = re.search(
+        r"\badd\s+(?:the\s+)?(?:app\s+)?[\"']?([a-z0-9][a-z0-9 ]{0,40}?)[\"']?\s+to\s+(?:your|the|my|her)\s+allow",
+        q,
+    )
+    if not match:
+        return None
+    name = re.sub(r"\s+", " ", match.group(1)).strip()
+    if name in {"it", "this", "that", "an app", "the app", "app"} or len(name.replace(" ", "")) < 2:
+        return None
+    launch = bool(
+        re.search(r"\b(?:then|and)\s+(?:launch|open|start)\b|\b(?:launch|open|start)\s+(?:it|them)\b", raw)
+    )
+    if re.search(r"\b(?:do not|don't|dont)\s+(?:launch|open|start)\b", raw):
+        launch = False
+    return name, launch
+
+
+def try_add_app(question: str) -> dict[str, Any] | None:
+    hit = _add_app_request(question)
+    if not hit:
+        return None
+    name, launch = hit
+    answer = register_hands_app(name)
+    ok = answer.startswith("Added ")
+    if ok and launch:
+        opened = launch_pc_app(name, front=True)
+        if opened.startswith("Launched "):
+            answer += " Opened it and brought it to the front."
+        else:
+            answer += " " + opened
+            ok = False
+    return {
+        "answer": answer,
+        "nodes": [],
+        "move_camera": False,
+        "tool": "register_app",
+        "ok": ok,
+    }
+
+
+def try_launch_app(question: str) -> dict[str, Any] | None:
+    """Launch means open the app and bring its window to the front."""
+    name = _launch_target(question)
+    if not name:
+        return None
+    answer = launch_pc_app(name, front=True)
+    if "not in allowlist" in answer.lower():
+        return None
+    ok = answer.startswith("Launched ")
+    return {
+        "answer": answer,
+        "nodes": [],
+        "move_camera": False,
+        "tool": "launch_app",
+        "ok": ok,
+    }
+
+
 def try_deploy_pi(question: str) -> dict[str, Any] | None:
     """Deploy only when Chris clearly asks to deploy the Pi."""
     if not _is_deploy_pi(question):
@@ -2535,6 +2641,14 @@ def try_deploy_pi(question: str) -> dict[str, Any] | None:
 
 def try_tools(question: str) -> dict[str, Any] | None:
     # Exact phrases first — then mode, weather/media, workshop gate, FD tools.
+    added = try_add_app(question)
+    if added is not None:
+        added.setdefault("talk_mode", RUNTIME.get("talk_mode") or "casual")
+        return added
+    launched = try_launch_app(question)
+    if launched is not None:
+        launched.setdefault("talk_mode", RUNTIME.get("talk_mode") or "casual")
+        return launched
     deployed = try_deploy_pi(question)
     if deployed is not None:
         deployed.setdefault("talk_mode", RUNTIME.get("talk_mode") or "casual")

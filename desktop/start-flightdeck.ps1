@@ -22,7 +22,7 @@ $lnk = $shell.CreateShortcut($LnkPath)
 $lnk.TargetPath = $Python
 $lnk.Arguments = "`"$Launch`""
 $lnk.WorkingDirectory = $Here
-$lnk.WindowStyle = 7
+$lnk.WindowStyle = 1
 $lnk.Description = "Flightdeck"
 $lnk.Save()
 

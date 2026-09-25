@@ -41,6 +41,8 @@ Talk to Amy in normal English — this list is just reminders of what she can do
 ## PC navigator (Amy Hands — keep Hands running on the PC)
 
 ### Apps
+- “**Open**” or “**Launch**” plus an app name — opens that app and brings its window to the front. Same for every app on her list, including Flightdeck, MeshFinder, and Cindy Vinyl.
+- “**Add Sample to your allow list**” — she finds that app on the PC and saves the path. Say “then launch it” if you want it opened too. “Add Sample to your allow list” on its own just adds it.
 - “Open MeshFinder” — her own window (the library on the Pi)
 - “Open Flightdeck” — her own window (the dashboard on the Pi)
 - “Open Spotify and play”

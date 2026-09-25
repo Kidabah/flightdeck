@@ -367,6 +367,7 @@ class Handler(BaseHTTPRequestHandler):
                 str(body.get("name") or body.get("app") or ""),
                 cfg=CFG,
                 play=bool(body.get("play") or body.get("and_play")),
+                front=True if body.get("front") is None and body.get("focus") is None else bool(body.get("front") or body.get("focus")),
             )
             self._json(200 if result.get("ok") else 400, result)
             return

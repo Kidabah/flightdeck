@@ -32,7 +32,7 @@ On the PC (same Wi‑Fi/LAN), double‑click:
 
 `jukebox/scripts/Install-CindyVinyl.bat`
 
-That puts **Cindy Vinyl** on the Desktop and Start Menu (Edge/Chrome app window → Mora LAN URL).
+That puts **Cindy Vinyl** on the Desktop and Start Menu. On this PC it opens the Vinyl window (`jukebox/desktop/launch.py`). Other PCs without that launcher still get an Edge/Chrome app window.
 
 Or from PowerShell:
 

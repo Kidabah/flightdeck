@@ -21,12 +21,15 @@ def _storage() -> str:
 def _focus_existing() -> bool:
     if sys.platform != "win32":
         return False
+    kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
     user32 = ctypes.windll.user32  # type: ignore[attr-defined]
     found: list[int] = []
 
     @ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
     def enum_proc(hwnd, _lparam):  # noqa: N803
-        if not user32.IsWindowVisible(hwnd):
+        style = user32.GetWindowLongW(hwnd, -16) & 0xFFFFFFFF
+        visible = bool(user32.IsWindowVisible(hwnd) or user32.IsIconic(hwnd) or (style & 0x00C00000))
+        if not visible:
             return True
         length = user32.GetWindowTextLengthW(hwnd)
         if length <= 0:
@@ -42,8 +45,25 @@ def _focus_existing() -> bool:
     if not found:
         return False
     hwnd = found[0]
-    user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+    user32.keybd_event(0x12, 0, 0, 0)
+    user32.keybd_event(0x12, 0, 2, 0)
+    user32.ShowWindow(hwnd, 9)
+    user32.SetWindowPos(hwnd, -1, 0, 0, 0, 0, 0x0002 | 0x0001 | 0x0040)
+    user32.SetWindowPos(hwnd, -2, 0, 0, 0, 0, 0x0002 | 0x0001 | 0x0040)
+    fg = user32.GetForegroundWindow()
+    current = kernel32.GetCurrentThreadId()
+    fg_thread = user32.GetWindowThreadProcessId(fg, None)
+    target_thread = user32.GetWindowThreadProcessId(hwnd, None)
+    if fg_thread and fg_thread != current:
+        user32.AttachThreadInput(current, fg_thread, True)
+    if target_thread and target_thread != current:
+        user32.AttachThreadInput(current, target_thread, True)
+    user32.BringWindowToTop(hwnd)
     user32.SetForegroundWindow(hwnd)
+    if fg_thread and fg_thread != current:
+        user32.AttachThreadInput(current, fg_thread, False)
+    if target_thread and target_thread != current:
+        user32.AttachThreadInput(current, target_thread, False)
     return True
 
 
