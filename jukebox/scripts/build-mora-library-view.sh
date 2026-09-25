@@ -4,9 +4,10 @@
 set -e
 
 VIEW="${CINDY_LIBRARY_VIEW:-/volume2/cindy-vinyl/library-view}"
-CINDY="${CINDY_SHARE:-/volume2/cindy-vinyl/mounts/Cindy}"
-CHECKED="${CHECKED_SHARE:-/volume2/cindy-vinyl/mounts/Checked}"
-JAMAL="${JAMAL_SHARE:-/volume2/cindy-vinyl/mounts/Jamal}"
+# Live music is the Synology /share mounts. The volume2 mount folders can exist and be empty.
+CINDY="${CINDY_SHARE:-/share/Cindy}"
+CHECKED="${CHECKED_SHARE:-/share/Checked}"
+JAMAL="${JAMAL_SHARE:-/share/Jamal}"
 
 mkdir -p "$VIEW/CHECKED"
 ln -sfn "$CINDY" "$VIEW/MUSIC"

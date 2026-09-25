@@ -1,3 +1,14 @@
+## 2026-09-25 Session update (Cindy Vinyl music and small player)
+
+Latest commit: pending - Small player can shrink the Vinyl window, and the library is pointed at the live music shares again.
+
+- Every album was marked missing because the library view pointed at empty mount folders. It now follows `/share/Cindy`, `/share/Checked`, and `/share/Jamal`. 41224 albums are visible again.
+- Small player resizes the desktop window to the compact player. ROOM opens the large room again.
+- Files: `jukebox/desktop/launch.py`, `jukebox/scripts/build-mora-library-view.sh`.
+- Reopen Cindy Vinyl. No Pi restart needed for the window. Hard refresh if a crate still looks empty.
+
+---
+
 ## 2026-09-25 Session update (Cindy Vinyl window, add an app by name)
 
 Latest commit: `6af065e` — Cindy Vinyl opens in her own window, and Amy can find an app and add it to the allow list.
