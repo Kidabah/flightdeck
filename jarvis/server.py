@@ -8,6 +8,7 @@ import json
 import os
 import random
 import re
+import subprocess
 import threading
 import time
 import urllib.error
@@ -1784,7 +1785,7 @@ def transcribe_openai(audio: bytes, *, filename: str = "speech.webm", mime: str 
         or (
             "Australian English. Chris talking to Amy. Common phrases: wake up Amy, "
             "bedtime, goodnight, open Thunderbird, go small, 3D print mode, Flightdeck, "
-            "Desktop, Downloads, yes delete, empty spam."
+            "deploy pi, Desktop, Downloads, yes delete, empty spam."
         )
     ).strip()
     boundary = f"----AmySTT{int(time.time() * 1000)}"
@@ -2388,8 +2389,85 @@ def try_clock_weather(question: str) -> dict[str, Any] | None:
         }
 
 
+DEPLOY_PI_SCRIPT = "/home/flightdeck/bin/flightdeck-deploy"
+DEPLOY_PI_SSH = "flightdeck@100.106.112.104"
+
+
+def _phrase(question: str) -> str:
+    q = re.sub(r"[^\w\s]", " ", (question or "").lower())
+    q = re.sub(r"\s+", " ", q).strip()
+    q = re.sub(r"^(?:(?:hey|ok|please)\s+)+", "", q)
+    q = re.sub(r"^amy\s+", "", q)
+    return q.strip()
+
+
+def _run_deploy_pi() -> tuple[bool, str]:
+    """Fast-forward Flightdeck on the Pi and restart that service. Exact script only."""
+    script = DEPLOY_PI_SCRIPT
+    if os.path.isfile(script) and os.access(script, os.X_OK):
+        cmd = [script]
+    else:
+        key = Path.home() / ".ssh" / "flightdeck_cursor"
+        if not key.is_file():
+            return False, "I can't reach the Pi from this PC. The deploy key isn't there."
+        ssh = "ssh"
+        cmd = [
+            ssh,
+            "-i",
+            str(key),
+            "-o",
+            "IdentitiesOnly=yes",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=15",
+            DEPLOY_PI_SSH,
+            script,
+        ]
+    try:
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=180,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return False, "Deploy timed out. The Pi might still be pulling."
+    except OSError as exc:
+        return False, f"Deploy couldn't start. {exc}"
+    out = (proc.stdout or "").strip()
+    err = (proc.stderr or "").strip()
+    if proc.returncode != 0:
+        detail = err or out or f"exit {proc.returncode}"
+        detail = re.sub(r"\s+", " ", detail)[:240]
+        return False, f"Deploy failed. {detail}"
+    match = re.search(r"flightdeck deploy ok:\s*([0-9a-f]+)", out)
+    if match:
+        return True, f"Deployed. Flightdeck is on {match.group(1)} and restarted."
+    return True, "Deployed. Flightdeck pulled and restarted."
+
+
+def try_deploy_pi(question: str) -> dict[str, Any] | None:
+    """Exact phrase only. Virtual Amy must not invent a deploy."""
+    if _phrase(question) != "deploy pi":
+        return None
+    ok, answer = _run_deploy_pi()
+    return {
+        "answer": answer,
+        "nodes": [],
+        "move_camera": False,
+        "tool": "deploy_pi",
+        "ok": ok,
+    }
+
+
 def try_tools(question: str) -> dict[str, Any] | None:
-    # Mode switch always works — then weather/media — then workshop gate — then FD tools.
+    # Exact phrases first — then mode, weather/media, workshop gate, FD tools.
+    deployed = try_deploy_pi(question)
+    if deployed is not None:
+        deployed.setdefault("talk_mode", RUNTIME.get("talk_mode") or "casual")
+        return deployed
     mode_switch = try_talk_mode(question)
     if mode_switch is not None:
         mode_switch.setdefault("talk_mode", RUNTIME.get("talk_mode") or "casual")
