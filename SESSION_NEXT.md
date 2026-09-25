@@ -1,3 +1,17 @@
+## 2026-09-25 Session update (virtual Amy phrase: deploy pi)
+
+Latest commit: 020963e - Teach virtual Amy the exact phrase deploy pi.
+
+- Virtual Amy (the voice app, not Cursor) now treats **deploy pi** as an exact phrase.
+- She runs `/home/flightdeck/bin/flightdeck-deploy` (git pull --ff-only, then restart `flightdeck.service`).
+- On the Pi she runs that script directly. On the PC window she SSHes with `flightdeck_cursor` and runs the same script.
+- Nearby wording such as "pull and restart" does nothing.
+- Files: `jarvis/server.py`, `jarvis/notes/workshop/amy-prompts.md`.
+- No UI cache-bust. Restart **jarvis** (user service on the Pi, and the Amy window brain on the PC) so she loads the phrase. A Flightdeck restart alone does not.
+- Backend restart required: jarvis yes. flightdeck only when the phrase is used.
+
+---
+
 ## 2026-09-24 Session update (Pi memory safety hotfix for ZIP previews)
 
 Latest commit: 535e825 - Reduced ZIP thumbnail generation RAM pressure to avoid Pi instability during rescan/rebuild.
