@@ -1,6 +1,6 @@
 ## 2026-09-25 Session update (Flightdeck pages)
 
-Latest commit: pending — Amy opens a page inside Flightdeck.
+Latest commit: `5a571e6` — Amy opens a page inside Flightdeck.
 
 - “Open the queue” switches the Flightdeck window to the Queue. Same for Spools, Fleet Wall, Flight Tower, Projects, Settings, and a printer (“open BigBoy”). She does not start a print from that.
 - Files: `desktop/launch.py`, `jarvis/server.py`, `jarvis/workshop_actions.py`.
