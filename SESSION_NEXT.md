@@ -1,3 +1,15 @@
+## 2026-09-25 Session update (queue by a short phrase)
+
+Latest commit: `1901570` — “Queue the pla box on BigBoy” finds the file and waits.
+
+- “Queue the pla box on BigBoy” works the same as the longer “open desktop 3mf … and queue it” line. Two matches, she asks which one. The job is marked Waiting, so an idle printer does not start it. Press send on the Queue page when you want it to print.
+- A test upload of pla box did start, because the old queue still auto-sends. That print was cancelled and BigBoy is idle. Say it again after this deploy and it should wait.
+- “Stop the print on BigBoy” now sends cancel, which is the action the printer accepts.
+- Files: `jarvis/server.py`, `jarvis/workshop_actions.py`, `app/main.py`, `app/db.py`, `app/static/app.js`, `app/static/style.css`.
+- Cache: `app.js?v=739`, `style.css?v=511`. Hard refresh Flightdeck. Amy was restarted. Pi deploy includes the backend restart.
+
+---
+
 ## 2026-09-25 Session update (queue a named file)
 
 Latest commit: `822c920` — “Queue it on BigBoy” puts that file on his queue.
