@@ -1,3 +1,14 @@
+## 2026-09-25 Session update (Cindy Vinyl play freeze)
+
+Latest commit: `8b75eec` — Play no longer freezes the desktop window.
+
+- Hitting Play hung the window because the audio stream advertised a body and then closed before any bytes arrived. Navidrome could not see the music: the library links point at `/share/Cindy`, `/share/Checked`, and `/share/Jamal`, and those shares were not mounted inside the container.
+- Those shares are mounted now, and a missing track comes back as an error instead of a cut-off stream.
+- Files: `jukebox/app/main.py`, `jukebox/docker-compose.mora.yml`.
+- Vinyl on Mora was restarted with this. The desktop window was reopened. Hit Play again.
+
+---
+
 ## 2026-09-25 Session update (Cindy Vinyl music and small player)
 
 Latest commit: `954d17d` — Small player can shrink the Vinyl window, and the library is pointed at the live music shares again.
