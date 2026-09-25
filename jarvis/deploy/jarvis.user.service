@@ -10,6 +10,7 @@ ExecStart=/usr/bin/python3 /home/flightdeck/flightdeck/jarvis/server.py
 Restart=on-failure
 RestartSec=3
 Environment=PYTHONUNBUFFERED=1
+Environment=AMY_BIND=127.0.0.1
 
 [Install]
 WantedBy=default.target

@@ -7,6 +7,7 @@ Latest commit: 020963e - Teach virtual Amy the exact phrase deploy pi.
 - On the Pi she runs that script directly. On the PC window she SSHes with `flightdeck_cursor` and runs the same script.
 - Nearby wording such as "pull and restart" does nothing.
 - Files: `jarvis/server.py`, `jarvis/notes/workshop/amy-prompts.md`.
+- Pi Jarvis now binds `127.0.0.1` (`AMY_BIND`) so Tailscale can keep HTTPS on `:4700`. Binding all interfaces clashes with that and crash-loops Jarvis.
 - No UI cache-bust. Restart **jarvis** (user service on the Pi, and the Amy window brain on the PC) so she loads the phrase. A Flightdeck restart alone does not.
 - Backend restart required: jarvis yes. flightdeck only when the phrase is used.
 
