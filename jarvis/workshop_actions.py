@@ -167,6 +167,8 @@ def parse_queue_local_file(question: str) -> dict[str, Any] | None:
     q = _clean(question)
     if not q:
         return None
+    if re.search(r"\bspool\b", q) and re.search(r"\bams\b", q):
+        return None
     if re.search(r"\b(pause|resume|stop|cancel|abort)\b", q):
         return None
     if re.search(r"\b(send|start)\s+(?:the\s+)?print\b", q):
@@ -258,22 +260,56 @@ def parse_queue_load(question: str) -> str | None:
     return name
 
 
+def spool_slot_label(slot: int, ams_ht: bool) -> str:
+    """Spoken place for a Flightdeck AMS slot index."""
+    if ams_ht:
+        number = int(slot) - AMS_HT_BASE + 1
+        if number <= 1:
+            return "AMS HT"
+        return f"AMS HT slot {number}"
+    return f"AMS slot {int(slot) + 1}"
+
+
 def parse_spool_change(question: str) -> dict[str, Any] | None:
-    """'change filament spool 12 in BigBoy AMS HT'."""
+    """Move a numbered spool into an AMS slot. Does not start a print.
+
+    'put spool 12 in BigBoy AMS HT' or
+    'spool 12, AMS HT slot 2 on Big Girl'.
+    """
     q = _clean(question)
-    if "spool" not in q:
+    if "spool" not in q or "ams" not in q:
         return None
-    if not re.search(r"\b(change|set|move|put|swap|load)\b", q):
+    if re.search(r"\b(pause|resume|stop|cancel|abort)\b", q):
         return None
-    if "ams" not in q:
-        return None
+    has_verb = re.search(r"\b(change|set|move|put|swap|load|assign|stick)\b", q) is not None
+    asking = re.search(r"\b(how|what|which|where|why|when)\b", q) is not None
     match = re.search(r"\bspool\s+(\d+)\b", q)
     if not match:
         return None
     slot = ams_slot(q)
     if slot is None:
         return None
-    return {"spool_number": int(match.group(1)), "slot": slot, "ams_ht": "ams ht" in q}
+    printer_id = ""
+    printer_label = ""
+    for alias, pid, label in FLIGHTDECK_PRINTERS:
+        if re.search(rf"\b{re.escape(alias)}\b", q):
+            printer_id = pid
+            printer_label = label
+            break
+    named_slot = re.search(r"\bslot\s+\d+\b", q) is not None
+    if asking and not has_verb:
+        return None
+    if not has_verb and not printer_id and not named_slot:
+        return None
+    ht = "ams ht" in q
+    return {
+        "spool_number": int(match.group(1)),
+        "slot": slot,
+        "ams_ht": ht,
+        "printer_id": printer_id,
+        "printer_label": printer_label,
+        "place": spool_slot_label(slot, ht),
+    }
 
 
 def ams_slot(text: str) -> int | None:

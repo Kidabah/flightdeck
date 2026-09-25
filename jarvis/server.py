@@ -2819,6 +2819,90 @@ def _candidate_print_files(folders: list[str]) -> tuple[list[Path], str]:
     return _print_files_under(desktop), str(desktop)
 
 
+def try_spool_change(question: str) -> dict[str, Any] | None:
+    """Move a numbered spool into an AMS slot. Does not start a print."""
+    try:
+        from workshop_actions import parse_spool_change
+    except ImportError:
+        from jarvis.workshop_actions import parse_spool_change
+    parsed = parse_spool_change(question)
+    if not parsed:
+        return None
+    number = int(parsed["spool_number"])
+    printer_id = str(parsed.get("printer_id") or "")
+    printer_label = str(parsed.get("printer_label") or "")
+    place = str(parsed.get("place") or "AMS")
+    if not printer_id:
+        return {
+            "answer": f"Which printer should I put spool {number} on, Chris?",
+            "nodes": [],
+            "move_camera": False,
+            "tool": "spool",
+            "ok": False,
+        }
+    code, spool = http_json(flightdeck_url(f"/api/spools/by-number/{number}"), timeout=20)
+    if code == 404:
+        return {
+            "answer": f"I couldn't find spool {number}.",
+            "nodes": [],
+            "move_camera": False,
+            "tool": "spool",
+            "ok": False,
+        }
+    if code != 200 or not isinstance(spool, dict) or not spool.get("id"):
+        detail = spool.get("detail") if isinstance(spool, dict) else spool
+        return {
+            "answer": f"Couldn't look up spool {number}: {detail}",
+            "nodes": [],
+            "move_camera": False,
+            "tool": "spool",
+            "ok": False,
+        }
+    code, payload = http_json(
+        flightdeck_url(f"/api/spools/{int(spool['id'])}/move"),
+        method="POST",
+        body={
+            "printer_id": printer_id,
+            "slot": int(parsed["slot"]),
+            "replace_existing": True,
+            "sync_ams": True,
+        },
+        timeout=40,
+    )
+    if code not in (200, 201) or (isinstance(payload, dict) and payload.get("ok") is False):
+        detail = payload.get("detail") if isinstance(payload, dict) else payload
+        if isinstance(detail, dict):
+            detail = detail.get("message") or detail
+        return {
+            "answer": f"Couldn't put spool {number} on {printer_label} {place}: {detail}",
+            "nodes": [],
+            "move_camera": False,
+            "tool": "spool",
+            "ok": False,
+        }
+    bits = [str(spool.get("color_name") or "").strip(), str(spool.get("material") or "").strip()]
+    desc = " ".join(bit for bit in bits if bit)
+    who = f"Spool {number}, {desc}," if desc else f"Spool {number}"
+    replaced = ""
+    if isinstance(payload, dict) and payload.get("replaced_spool_id"):
+        replaced = " It replaced the spool that was already in that slot."
+    sync_note = ""
+    if isinstance(payload, dict) and payload.get("ams_sync") is False:
+        sync_note = " Flightdeck has it, but the printer didn't take the AMS update."
+    _open_flightdeck_page(f"#/printer/{printer_id}")
+    return {
+        "answer": (
+            f"{who} is in {printer_label}'s {place}.{replaced}{sync_note} "
+            "I didn't start a print. "
+            "I dropped always-on-top so you can see it — say come back if you want me floating again."
+        ),
+        "nodes": [],
+        "move_camera": False,
+        "tool": "spool",
+        "ok": True,
+    }
+
+
 def try_queue_local_file(question: str) -> dict[str, Any] | None:
     """Queue one named file from a folder Chris names. Does not start the print."""
     try:
@@ -3042,6 +3126,10 @@ def try_tools(question: str) -> dict[str, Any] | None:
     if added is not None:
         added.setdefault("talk_mode", RUNTIME.get("talk_mode") or "casual")
         return added
+    spool = try_spool_change(question)
+    if spool is not None:
+        spool.setdefault("talk_mode", RUNTIME.get("talk_mode") or "casual")
+        return spool
     queued = try_queue_local_file(question)
     if queued is not None:
         queued.setdefault("talk_mode", RUNTIME.get("talk_mode") or "casual")
