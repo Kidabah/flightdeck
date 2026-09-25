@@ -2735,8 +2735,8 @@ def _resolve_folder_chain(parts: list[str]) -> Path | None:
     return current if current is not None and current.is_dir() else None
 
 
-def _queue_local_on_printer(path: Path, printer_id: str) -> tuple[bool, str]:
-    """Upload a file onto a printer queue. dispatch=false so it does not start."""
+def _queue_local_on_printer(path: Path, printer_id: str, *, start: bool = False) -> tuple[bool, str]:
+    """Upload a file onto a printer queue. Reprint starts it. Queue waits."""
     boundary = "----AmyQueueBoundary"
     filename = path.name.replace('"', "")
     data = path.read_bytes()
@@ -2746,7 +2746,7 @@ def _queue_local_on_printer(path: Path, printer_id: str) -> tuple[bool, str]:
         f"{printer_id}\r\n"
         f"--{boundary}\r\n"
         f'Content-Disposition: form-data; name="dispatch"\r\n\r\n'
-        f"false\r\n"
+        f"{'true' if start else 'false'}\r\n"
         f"--{boundary}\r\n"
         f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'
         f"Content-Type: application/octet-stream\r\n\r\n"
@@ -2858,10 +2858,12 @@ def try_queue_local_file(question: str) -> dict[str, Any] | None:
             "ok": False,
         }
     chosen = hits[0]
-    ok, detail = _queue_local_on_printer(chosen, str(parsed["printer_id"]))
+    start = bool(parsed.get("start"))
+    ok, detail = _queue_local_on_printer(chosen, str(parsed["printer_id"]), start=start)
     if not ok:
+        verb = "reprint" if start else "queue"
         return {
-            "answer": f"Couldn't queue {chosen.name} on {label}: {detail}",
+            "answer": f"Couldn't {verb} {chosen.name} on {label}: {detail}",
             "nodes": [],
             "move_camera": False,
             "tool": "queue_file",
@@ -2869,10 +2871,14 @@ def try_queue_local_file(question: str) -> dict[str, Any] | None:
         }
     _reveal_file(chosen)
     _open_flightdeck_page("#/queue")
+    if start:
+        spoken = f"Reprinting {chosen.name} on {label}."
+    else:
+        spoken = f"Queued {chosen.name} on {label}. It's on the queue, not printing."
     return {
         "answer": (
-            f"Queued {chosen.name} on {label}. It's on the queue, not printing. "
-            "I dropped always-on-top so you can see the file — say come back if you want me floating again."
+            spoken
+            + " I dropped always-on-top so you can see the file — say come back if you want me floating again."
         ),
         "nodes": [],
         "move_camera": False,

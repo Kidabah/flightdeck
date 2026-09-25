@@ -1,4 +1,4 @@
-"""Exact workshop commands. They never start or send a print."""
+"""Exact workshop commands. Queue waits. Reprint is the one that starts."""
 from __future__ import annotations
 
 import re
@@ -141,17 +141,23 @@ def parse_open_folder(question: str) -> str | None:
 
 
 def parse_queue_local_file(question: str) -> dict[str, Any] | None:
-    """Queue a named file on a printer. Does not start a print.
+    """Queue or reprint a named file on a printer.
 
-    'queue pla box on BigBoy' or
-    'open desktop 3mf bedscraper_pla and queue it on BigBoy'.
+    'queue pla box on BigBoy' waits.
+    'reprint pla box on BigBoy' starts it.
+    'open desktop 3mf bedscraper_pla and queue it on BigBoy' waits.
     """
     q = _clean(question)
-    if not q or not re.search(r"\b(queue|que|cue)\b", q):
+    if not q:
+        return None
+    if re.search(r"\b(pause|resume|stop|cancel|abort)\b", q):
         return None
     if re.search(r"\b(send|start)\s+(?:the\s+)?print\b", q):
         return None
     if re.fullmatch(r"(?:open|show|go to|switch to)\s+(?:the\s+)?(?:flightdeck\s+)?queue", q):
+        return None
+    start = bool(re.search(r"\bre\s*-?\s*prints?\b|\bprints?\b", q))
+    if not start and not re.search(r"\b(queue|que|cue)\b", q):
         return None
     printer_id = ""
     printer_label = ""
@@ -173,7 +179,10 @@ def parse_queue_local_file(question: str) -> dict[str, Any] | None:
     if opened:
         phrase = opened.group(1)
     else:
-        queued = re.search(r"\b(?:queue|que|cue|put|add)\s+(.+)$", rest)
+        queued = re.search(
+            r"\b(?:re\s*-?\s*prints?|prints?|queue|que|cue|put|add)\s+(.+)$",
+            rest,
+        )
         if not queued:
             return None
         phrase = re.sub(r"\b(?:in|on|to|for)\b.*$", "", queued.group(1)).strip()
@@ -191,6 +200,7 @@ def parse_queue_local_file(question: str) -> dict[str, Any] | None:
         "file": filename,
         "printer_id": printer_id,
         "printer_label": printer_label,
+        "start": start,
     }
 
 
