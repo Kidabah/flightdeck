@@ -71,6 +71,7 @@ Talk to Amy in normal English — this list is just reminders of what she can do
 
 ## Workshop / Flightdeck
 
+- “**Check if spool 14 is in AMS 1 slot 2 on BigBoy**” — also “where is spool 14” and “what’s in AMS 1 slot 2 on BigBoy”. She reads Flightdeck. She does not move the spool.
 - “**Put spool 12 in BigBoy’s AMS HT**” — also “spool 12, AMS HT slot 2 on Big Girl”, “move spool 12 to the X1C AMS slot 1”. She looks the spool up and loads that slot. She does not start a print. If you leave the slot number off an AMS HT, she uses the HT bay.
 - “**Reprint pla box on BigBoy**” — also “print pla box again”, “send pla box to BigBoy”, “run pla box on BigBoy”, “start pla box on BigBoy”, “fire pla box on BigBoy”, or “kick off pla box on BigBoy”. She finds the file and starts it. “Queue”, “que”, “add”, “put”, or “line up” the same file only waits. Two matches, she asks which one. Pause, stop, and “start the print” with no file name stay as printer controls.
 - “**Open the downloads folder**” — or “open folder Projects”, or a full path. Any folder you name. She opens it so you can paste a file. She does not send it to a printer.

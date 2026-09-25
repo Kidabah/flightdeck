@@ -260,14 +260,97 @@ def parse_queue_load(question: str) -> str | None:
     return name
 
 
-def spool_slot_label(slot: int, ams_ht: bool) -> str:
-    """Spoken place for a Flightdeck AMS slot index."""
-    if ams_ht:
-        number = int(slot) - AMS_HT_BASE + 1
+def printer_label_for(printer_id: str) -> str:
+    for _alias, pid, label in FLIGHTDECK_PRINTERS:
+        if pid == printer_id:
+            return label
+    return printer_id or "that printer"
+
+
+def describe_ams_slot(slot: int) -> str:
+    """Turn a Flightdeck slot index into AMS 1 slot 2 or AMS HT slot 2."""
+    flat = int(slot)
+    if flat >= AMS_HT_BASE:
+        number = flat - AMS_HT_BASE + 1
         if number <= 1:
             return "AMS HT"
         return f"AMS HT slot {number}"
-    return f"AMS slot {int(slot) + 1}"
+    unit = flat // 4
+    index = flat % 4
+    return f"AMS {unit + 1} slot {index + 1}"
+
+
+def _spoken_ams(text: str) -> tuple[bool, int | None, int | None]:
+    """AMS HT, a spoken AMS number, and a spoken slot number. Numbers are 1-based."""
+    q = text.lower().replace("\u2019", "'")
+    q = re.sub(r"\s+", " ", q)
+    ht = re.search(r"\bams\s*-?\s*ht\b", q) is not None
+    unit = None
+    if not ht:
+        unit_match = re.search(r"\bams\s*-?\s*(\d+)\b", q)
+        if unit_match:
+            unit = int(unit_match.group(1))
+    slot_match = re.search(r"\b(?:slot|s)\s*-?\s*(\d+)\b", q)
+    slot = int(slot_match.group(1)) if slot_match else None
+    return ht, unit, slot
+
+
+def ams_flat_slot(ht: bool, unit: int | None, slot: int | None) -> int | None:
+    """Flightdeck index. AMS 1 slot 2 is 1. AMS HT slot 2 is 129."""
+    if ht:
+        if slot is None:
+            return AMS_HT_BASE
+        if slot < 1:
+            return None
+        return AMS_HT_BASE + slot - 1
+    if slot is None:
+        return None
+    if slot < 1:
+        return None
+    unit_index = 0 if unit is None else unit - 1
+    if unit_index < 0:
+        return None
+    return unit_index * 4 + (slot - 1)
+
+
+def parse_spool_check(question: str) -> dict[str, Any] | None:
+    """Look up a spool or an AMS slot. Does not move anything or start a print.
+
+    'check if spool 14 is in ams1 s2 on big boy'
+    'where is spool 14'
+    'what's in ams 1 slot 2 on bigboy'
+    """
+    q = _clean(question)
+    if not q or ("spool" not in q and "ams" not in q):
+        return None
+    if not re.search(r"\b(check|see|look|confirm|where|what|which|is)\b", q):
+        return None
+    if re.search(r"\b(change|set|move|put|swap|load|assign|stick)\b", q):
+        return None
+    if re.search(r"\b(pause|resume|stop|cancel|abort)\b", q):
+        return None
+    number_match = re.search(r"\bspool\s+(\d+)\b", q)
+    number = int(number_match.group(1)) if number_match else None
+    ht, unit, spoken_slot = _spoken_ams(q)
+    flat = None
+    if ht or unit is not None or spoken_slot is not None:
+        flat = ams_flat_slot(ht, unit, spoken_slot)
+    if number is None and flat is None:
+        return None
+    printer_id = ""
+    printer_label = ""
+    for alias, pid, label in FLIGHTDECK_PRINTERS:
+        if re.search(rf"\b{re.escape(alias)}\b", q):
+            printer_id = pid
+            printer_label = label
+            break
+    return {
+        "spool_number": number,
+        "slot": flat,
+        "printer_id": printer_id,
+        "printer_label": printer_label,
+        "place": describe_ams_slot(flat) if flat is not None else "",
+    }
 
 
 def parse_spool_change(question: str) -> dict[str, Any] | None:
@@ -281,8 +364,11 @@ def parse_spool_change(question: str) -> dict[str, Any] | None:
         return None
     if re.search(r"\b(pause|resume|stop|cancel|abort)\b", q):
         return None
+    if re.search(r"\b(check|see|look|confirm|where|what|which)\b", q):
+        return None
     has_verb = re.search(r"\b(change|set|move|put|swap|load|assign|stick)\b", q) is not None
-    asking = re.search(r"\b(how|what|which|where|why|when)\b", q) is not None
+    if re.search(r"\bis\b", q) and not has_verb:
+        return None
     match = re.search(r"\bspool\s+(\d+)\b", q)
     if not match:
         return None
@@ -296,40 +382,27 @@ def parse_spool_change(question: str) -> dict[str, Any] | None:
             printer_id = pid
             printer_label = label
             break
-    named_slot = re.search(r"\bslot\s+\d+\b", q) is not None
-    if asking and not has_verb:
-        return None
+    named_slot = _spoken_ams(q)[2] is not None
     if not has_verb and not printer_id and not named_slot:
         return None
-    ht = "ams ht" in q
     return {
         "spool_number": int(match.group(1)),
         "slot": slot,
-        "ams_ht": ht,
+        "ams_ht": _spoken_ams(q)[0],
         "printer_id": printer_id,
         "printer_label": printer_label,
-        "place": spool_slot_label(slot, ht),
+        "place": describe_ams_slot(slot),
     }
 
 
 def ams_slot(text: str) -> int | None:
-    """Spoken AMS slot. AMS HT with no slot number is the HT bay."""
-    q = _clean(text) if "spool" in text.lower() or not text.islower() else text
-    # _clean already lowercases. Callers may pass a cleaned string.
+    """Spoken AMS slot. AMS 1 slot 2 is index 1. AMS HT with no number is the HT bay."""
     q = text.lower().replace("\u2019", "'")
     q = re.sub(r"\s+", " ", q)
-    ht = re.search(r"\bams\s*ht\b", q)
-    slot_match = re.search(r"\bslot\s+(\d+)\b", q)
-    if ht:
-        if slot_match:
-            return AMS_HT_BASE + int(slot_match.group(1)) - 1
-        return AMS_HT_BASE
-    if slot_match:
-        number = int(slot_match.group(1))
-        if number < 1:
-            return None
-        return number - 1
-    return None
+    ht, unit, slot = _spoken_ams(q)
+    if not ht and unit is None and slot is None:
+        return None
+    return ams_flat_slot(ht, unit, slot)
 
 
 def explicit_printer_control(question: str, has_printer: bool) -> str | None:

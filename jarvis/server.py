@@ -2819,6 +2819,185 @@ def _candidate_print_files(folders: list[str]) -> tuple[list[Path], str]:
     return _print_files_under(desktop), str(desktop)
 
 
+def _spool_phrase(spool: dict[str, Any], number: int | None = None) -> str:
+    shown = number if number is not None else spool.get("display_id") or spool.get("id")
+    bits = [str(spool.get("color_name") or "").strip(), str(spool.get("material") or "").strip()]
+    desc = " ".join(bit for bit in bits if bit)
+    if desc:
+        return f"Spool {shown}, {desc},"
+    return f"Spool {shown}"
+
+
+def _where_spool(spool: dict[str, Any]) -> str:
+    try:
+        from workshop_actions import describe_ams_slot, printer_label_for
+    except ImportError:
+        from jarvis.workshop_actions import describe_ams_slot, printer_label_for
+    printer_id = str(spool.get("location_printer_id") or "")
+    slot = spool.get("location_slot")
+    if not printer_id or slot is None:
+        return "not loaded in an AMS"
+    return f"in {printer_label_for(printer_id)}'s {describe_ams_slot(int(slot))}"
+
+
+def _printer_slot_note(printer_id: str, slot: int, spool: dict[str, Any]) -> str:
+    code, status = http_json(flightdeck_url(f"/api/printers/{printer_id}"), timeout=15)
+    if code != 200 or not isinstance(status, dict):
+        return ""
+    reported = ""
+    for unit in status.get("ams") or []:
+        if not isinstance(unit, dict):
+            continue
+        try:
+            unit_id = int(unit.get("unit") or 0)
+        except (TypeError, ValueError):
+            continue
+        for row in unit.get("slots") or []:
+            if not isinstance(row, dict):
+                continue
+            try:
+                index = int(row.get("idx") or 0)
+            except (TypeError, ValueError):
+                continue
+            flat = unit_id + index if unit_id >= 128 else unit_id * 4 + index
+            if flat != int(slot):
+                continue
+            if row.get("empty"):
+                return " The printer is showing that slot empty."
+            reported = str(row.get("profile_name") or row.get("tray_type") or "").strip()
+            break
+    material = str(spool.get("material") or "").strip().lower()
+    if reported and material and material not in reported.lower():
+        return f" The printer shows {reported} in that slot."
+    return ""
+
+
+def try_spool_check(question: str) -> dict[str, Any] | None:
+    """Answer where a spool is, or what is in an AMS slot. Does not move it."""
+    try:
+        from workshop_actions import parse_spool_check
+    except ImportError:
+        from jarvis.workshop_actions import parse_spool_check
+    parsed = parse_spool_check(question)
+    if not parsed:
+        return None
+    number = parsed.get("spool_number")
+    slot = parsed.get("slot")
+    printer_id = str(parsed.get("printer_id") or "")
+    printer_label = str(parsed.get("printer_label") or "")
+    place = str(parsed.get("place") or "")
+    spool: dict[str, Any] | None = None
+    if number is not None:
+        code, payload = http_json(flightdeck_url(f"/api/spools/by-number/{int(number)}"), timeout=20)
+        if code == 404:
+            return {
+                "answer": f"I couldn't find spool {number}.",
+                "nodes": [],
+                "move_camera": False,
+                "tool": "spool_check",
+                "ok": False,
+            }
+        if code != 200 or not isinstance(payload, dict) or not payload.get("id"):
+            detail = payload.get("detail") if isinstance(payload, dict) else payload
+            return {
+                "answer": f"Couldn't look up spool {number}: {detail}",
+                "nodes": [],
+                "move_camera": False,
+                "tool": "spool_check",
+                "ok": False,
+            }
+        spool = payload
+        if not printer_id:
+            printer_id = str(spool.get("location_printer_id") or "")
+            if printer_id and not printer_label:
+                try:
+                    from workshop_actions import printer_label_for
+                except ImportError:
+                    from jarvis.workshop_actions import printer_label_for
+                printer_label = printer_label_for(printer_id)
+    loaded: list[dict[str, Any]] = []
+    if printer_id:
+        code, payload = http_json(flightdeck_url(f"/api/spools/by-printer/{printer_id}"), timeout=20)
+        if code == 200 and isinstance(payload, list):
+            loaded = [item for item in payload if isinstance(item, dict)]
+
+    def at_slot(flat: int) -> dict[str, Any] | None:
+        for item in loaded:
+            if item.get("location_slot") is None:
+                continue
+            if int(item["location_slot"]) == int(flat):
+                return item
+        return None
+
+    if number is not None and slot is not None:
+        if not printer_id:
+            return {
+                "answer": f"Which printer should I check for spool {number}, Chris?",
+                "nodes": [],
+                "move_camera": False,
+                "tool": "spool_check",
+                "ok": False,
+            }
+        who = _spool_phrase(spool or {}, int(number))
+        here = (
+            spool is not None
+            and str(spool.get("location_printer_id") or "") == printer_id
+            and spool.get("location_slot") is not None
+            and int(spool["location_slot"]) == int(slot)
+        )
+        if here:
+            note = _printer_slot_note(printer_id, int(slot), spool or {})
+            return {
+                "answer": f"Yes. {who} is in {printer_label}'s {place}.{note}",
+                "nodes": [],
+                "move_camera": False,
+                "tool": "spool_check",
+                "ok": True,
+            }
+        occupant = at_slot(int(slot))
+        if occupant and str(occupant.get("display_id") or "") != str(number):
+            other = f" {place} has {_spool_phrase(occupant)}."
+        else:
+            other = f" {place} is empty in Flightdeck."
+        return {
+            "answer": f"No. {who} is {_where_spool(spool or {})}.{other}",
+            "nodes": [],
+            "move_camera": False,
+            "tool": "spool_check",
+            "ok": True,
+        }
+    if number is not None and spool is not None:
+        return {
+            "answer": f"{_spool_phrase(spool, int(number))} is {_where_spool(spool)}.",
+            "nodes": [],
+            "move_camera": False,
+            "tool": "spool_check",
+            "ok": True,
+        }
+    if slot is not None:
+        if not printer_id:
+            return {
+                "answer": "Which printer should I check, Chris?",
+                "nodes": [],
+                "move_camera": False,
+                "tool": "spool_check",
+                "ok": False,
+            }
+        occupant = at_slot(int(slot))
+        if not occupant:
+            answer = f"{printer_label}'s {place} is empty in Flightdeck."
+        else:
+            answer = f"{printer_label}'s {place} has {_spool_phrase(occupant)}."
+        return {
+            "answer": answer,
+            "nodes": [],
+            "move_camera": False,
+            "tool": "spool_check",
+            "ok": True,
+        }
+    return None
+
+
 def try_spool_change(question: str) -> dict[str, Any] | None:
     """Move a numbered spool into an AMS slot. Does not start a print."""
     try:
@@ -3126,6 +3305,10 @@ def try_tools(question: str) -> dict[str, Any] | None:
     if added is not None:
         added.setdefault("talk_mode", RUNTIME.get("talk_mode") or "casual")
         return added
+    checked = try_spool_check(question)
+    if checked is not None:
+        checked.setdefault("talk_mode", RUNTIME.get("talk_mode") or "casual")
+        return checked
     spool = try_spool_change(question)
     if spool is not None:
         spool.setdefault("talk_mode", RUNTIME.get("talk_mode") or "casual")
