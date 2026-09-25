@@ -90,6 +90,23 @@ DEFAULT_APPS: dict[str, dict[str, Any]] = {
             str(Path(__file__).resolve().parents[2] / "printshelf" / "desktop" / "launch.py"),
         ],
     },
+    "flightdeck": {
+        "label": "Flightdeck",
+        "exe": [
+            str(
+                Path(os.environ.get("APPDATA", ""))
+                / "Microsoft"
+                / "Windows"
+                / "Start Menu"
+                / "Programs"
+                / "Flightdeck.lnk"
+            ),
+            str(Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Python" / "Python312" / "pythonw.exe"),
+        ],
+        "args": [
+            str(Path(__file__).resolve().parents[2] / "desktop" / "launch.py"),
+        ],
+    },
     "terminal": {
         "label": "Windows Terminal",
         "process": ["WindowsTerminal.exe", "wt.exe"],

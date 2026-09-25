@@ -42,6 +42,7 @@ Talk to Amy in normal English — this list is just reminders of what she can do
 
 ### Apps
 - “Open MeshFinder” — her own window (the library on the Pi)
+- “Open Flightdeck” — her own window (the dashboard on the Pi)
 - “Open Spotify and play”
 - “Pause” / “next track” / “previous track”
 - “Turn it down” / “louder” / “mute” (ducks **Spotify** first, not Amy’s voice)

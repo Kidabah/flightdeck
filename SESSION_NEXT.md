@@ -1,3 +1,16 @@
+## 2026-09-25 Session update (Flightdeck desktop window)
+
+Latest commit: pending - Flightdeck now opens as its own window, and Amy can launch it.
+
+- New window app: `desktop/launch.py` and `desktop/start-flightdeck.ps1`.
+- Start Menu shortcut: `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Flightdeck.lnk`.
+- Amy Hands allowlist includes Flightdeck. Say **open Flightdeck**. A second open focuses the existing window.
+- The page is still the Pi dashboard at `https://flightdeck.tail7de73e.ts.net`.
+- Files: `desktop/launch.py`, `desktop/start-flightdeck.ps1`, `jarvis/amy-hands/desktop_actions.py`, `jarvis/server.py`, `jarvis/notes/workshop/amy-prompts.md`.
+- Restart Amy Hands on the PC, and Jarvis (Pi + the Amy window) so she knows the app name.
+
+---
+
 ## 2026-09-25 Session update (MeshFinder desktop app)
 
 Latest commit: pending - MeshFinder now opens as its own window, and Amy can launch it.
