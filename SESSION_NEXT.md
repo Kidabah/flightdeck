@@ -1,3 +1,13 @@
+## 2026-09-26 Session update (desktop icon)
+
+Latest commit: `0b059b4` — clicking the MeshFinder desktop icon brings the window forward.
+
+- The window was opening behind other apps, and a second click did not pull it up. A click now raises it.
+- Files: `printshelf/desk/launch.py`. No cache bump.
+- Local window reopened. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (document cards)
 
 Latest commit: `74a4be2` — a PDF, text, markdown, or CSV file gets a card picture.
