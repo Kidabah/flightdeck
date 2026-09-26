@@ -1,3 +1,13 @@
+## 2026-09-26 Session update (3, 4, 5 cards)
+
+Latest commit: `c857f4f` — the grid is 3, 4, or 5 across, and the card grows and shrinks with that so the model stays whole.
+
+- The old 2 and 6 buttons locked the card height. A card is now a bit taller than it is wide, and that shape holds at every size.
+- Files: `printshelf/desk/static/index.html`, `style.css`. Cache: `style.css?v=13`.
+- Local window reopened. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (card spacing and FDM tag)
 
 Latest commit: `182e7ea` — printable cards show an FDM tag, and the grid has more room between cards.
