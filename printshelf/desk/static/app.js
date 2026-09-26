@@ -577,7 +577,7 @@ async function runMenuAction(act) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ path: item.path, entry: item.entry || "" }),
     });
-    $("crumb").textContent = `${item.name} · opened in STL Painter`;
+    $("crumb").textContent = `${item.name} · opened in the Flightdeck app`;
     return;
   }
   if (act === "slicer") {

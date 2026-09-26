@@ -16,6 +16,10 @@ MUTEX_NAME = "Local\\FlightdeckDesktop"
 NAV_HOST = "127.0.0.1"
 NAV_PORT = 4712
 _HASH = re.compile(r"^#/(?:[a-z0-9_-]+(?:/[a-z0-9._-]+)*)?$", re.I)
+_PAINTER_HASH = re.compile(
+    r"^#/painter\?src=/api/painter/inbox/[0-9a-f]{32}&name=[A-Za-z0-9._%~+-]+$",
+    re.I,
+)
 _window = None
 
 
@@ -41,7 +45,7 @@ def _peek_pending() -> str:
         raw = _pending_path().read_text(encoding="utf-8").strip()
     except OSError:
         return ""
-    return raw if _HASH.fullmatch(raw) else ""
+    return raw if _hash_ok(raw) else ""
 
 
 def _take_pending() -> str:
@@ -53,9 +57,13 @@ def _take_pending() -> str:
     return raw
 
 
+def _hash_ok(raw: str) -> bool:
+    return bool(_HASH.fullmatch(raw) or _PAINTER_HASH.fullmatch(raw))
+
+
 def _apply_hash(raw: str) -> tuple[bool, str]:
     target = (raw or "").strip()
-    if not _HASH.fullmatch(target):
+    if not _hash_ok(target):
         return False, "bad page"
     win = _window
     if win is None:
@@ -74,7 +82,7 @@ class _NavHandler(BaseHTTPRequestHandler):
             length = int(self.headers.get("Content-Length") or "0")
         except ValueError:
             length = 0
-        if length < 0 or length > 400:
+        if length < 0 or length > 4096:
             self.send_error(400)
             return
         raw = self.rfile.read(length) if length else b"{}"
