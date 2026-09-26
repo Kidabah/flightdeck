@@ -1,3 +1,12 @@
+## 2026-09-26 Session update (plain duplicates)
+
+Latest commit: `108c5bb` — Duplicates sits under Collections. Analyze finds the same file saved twice. Keep one, delete the spare loose copies. Copies inside a zip are listed and left alone. No filters, review tabs, or geometry matching.
+
+- Files: `printshelf/desk/server.py`, `printshelf/desk/static/app.js`, `style.css`, `index.html`. Cache: `app.js?v=26`, `style.css?v=20`.
+- Local window reopened. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (Flightdeck icon opens Flightdeck)
 
 Latest commit: `2cc2fdb` — clicking Flightdeck was raising MeshFinder, because both icons start through pythonw and Windows treated them as one app. Each window now has its own taskbar identity, and the shortcuts were stamped to match.
