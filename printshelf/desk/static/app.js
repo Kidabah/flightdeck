@@ -1281,7 +1281,6 @@ function showTreeMenu(x, y, item) {
   const actions = [
     ["explorer", "Show in Explorer"],
     ["rename", "Rename..."],
-    ["exclude", "Exclude from library"],
     ["collection", "Add to collection"],
   ];
   menu.innerHTML = "";
@@ -1324,17 +1323,6 @@ async function runTreeAction(act) {
         await loadTree({ openPath: saved.path, openName: saved.name });
       },
     });
-    return;
-  }
-  if (act === "exclude") {
-    const ok = window.confirm(`Hide ${item.name} from MeshFinder? The files stay where they are.`);
-    if (!ok) return;
-    await api("/api/exclude", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path: item.path }),
-    });
-    await loadTree();
     return;
   }
   if (act === "collection") {
