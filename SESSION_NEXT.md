@@ -1,3 +1,13 @@
+## 2026-09-26 Session update (local viewer was covered)
+
+Latest commit: `d404ae7` — the local viewer was hidden behind an empty panel.
+
+- The placeholder and picture panes stayed on top of the model, so the middle looked blank. They now get out of the way. The 3D library loads from this PC.
+- Files: `printshelf/desk/static/`. Reopen the local window.
+- Runs on the PC. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (MeshFinder local window, stage 1)
 
 Latest commit: `c85a656` — a local MeshFinder window on this PC.
