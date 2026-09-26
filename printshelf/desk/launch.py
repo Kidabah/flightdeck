@@ -37,6 +37,14 @@ def _wait_ready() -> None:
     raise RuntimeError(f"MeshFinder did not start on {url}")
 
 
+def _allow_foreground() -> None:
+    if sys.platform != "win32":
+        return
+    # The icon click grants this right to the main thread. Hand it on so the
+    # window, which is created on another thread, is allowed to come forward.
+    ctypes.windll.user32.AllowSetForegroundWindow(0xFFFFFFFF)  # type: ignore[attr-defined]
+
+
 def _focus_existing() -> bool:
     if sys.platform != "win32":
         return False
@@ -60,8 +68,14 @@ def _focus_existing() -> bool:
     if not found:
         return False
     hwnd = found[0]
+    # A click on the icon is allowed to take the foreground. The window itself
+    # is created on another thread, so Windows will leave it behind unless we
+    # poke the foreground lock first.
+    user32.keybd_event(0x12, 0, 0, 0)
+    user32.keybd_event(0x12, 0, 2, 0)
     user32.ShowWindow(hwnd, 9)
-    user32.SetForegroundWindow(hwnd)
+    user32.SetWindowPos(hwnd, -1, 0, 0, 0, 0, 0x0002 | 0x0001 | 0x0040)
+    user32.SetWindowPos(hwnd, -2, 0, 0, 0, 0, 0x0002 | 0x0001 | 0x0040)
     fg = user32.GetForegroundWindow()
     current = kernel32.GetCurrentThreadId()
     fg_thread = user32.GetWindowThreadProcessId(fg, None)
@@ -79,6 +93,13 @@ def _focus_existing() -> bool:
     return True
 
 
+def _raise_when_ready() -> None:
+    for _ in range(40):
+        time.sleep(0.25)
+        if _focus_existing():
+            return
+
+
 def _already_running() -> bool:
     if sys.platform != "win32":
         return False
@@ -86,6 +107,7 @@ def _already_running() -> bool:
     kernel32.CreateMutexW(None, False, MUTEX_NAME)
     if int(kernel32.GetLastError()) != 183:
         return False
+    _allow_foreground()
     _focus_existing()
     return True
 
@@ -93,8 +115,10 @@ def _already_running() -> bool:
 def main() -> int:
     if _already_running():
         return 0
+    _allow_foreground()
     thread = threading.Thread(target=serve, name="meshfinder-desk", daemon=True)
     thread.start()
+    threading.Thread(target=_raise_when_ready, name="meshfinder-raise", daemon=True).start()
     _wait_ready()
     import webview
 
