@@ -150,6 +150,7 @@ function renderCard(item) {
   card.className = "model-card";
   card.tabIndex = 0;
   card.setAttribute("role", "button");
+  card.dataset.key = favKey(item);
   const thumb = document.createElement("div");
   thumb.className = "model-thumb";
   const img = document.createElement("img");
@@ -167,7 +168,7 @@ function renderCard(item) {
     toggleFav(item, heart).catch((err) => showEmpty(err.message || String(err)));
   });
   thumb.appendChild(heart);
-  if (item.kind === "image") {
+  if (item.kind === "image" || item.kind === "svg") {
     img.src = fileUrl(item);
     thumb.appendChild(img);
     kind.remove();
@@ -205,6 +206,10 @@ function renderCard(item) {
   card.appendChild(thumb);
   card.appendChild(body);
   card.addEventListener("click", () => selectFile(item, card));
+  card.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    showCardMenu(event.clientX, event.clientY, item, card);
+  });
   return card;
 }
 
@@ -219,6 +224,7 @@ async function loadGallery(path, name, { append = false } = {}) {
   const q = new URLSearchParams({
     path,
     recursive: $("showAll").checked ? "1" : "0",
+    printable: $("printable").checked ? "1" : "0",
     offset: String(galleryOffset),
     limit: "120",
   });
@@ -270,7 +276,7 @@ async function selectFile(item, card) {
     }
     return;
   }
-  if (item.kind === "image") {
+  if (item.kind === "image" || item.kind === "svg") {
     hideStage();
     $("backBtn").hidden = false;
     $("picture").hidden = false;
@@ -305,6 +311,8 @@ function folderRow(item, depth) {
   const row = document.createElement("button");
   row.type = "button";
   row.className = "tree-row";
+  row.dataset.path = item.path;
+  row.dataset.depth = String(depth);
   row.style.paddingLeft = `${8 + depth * 14}px`;
   const mark = item.kind === "zip" || item.kind === "zipdir" ? "zip" : "dir";
   row.innerHTML = `<span class="mark">${mark}</span><span class="name"></span>`;
@@ -378,7 +386,149 @@ function favouritesRow() {
   return wrap;
 }
 
+function parentFolder(item) {
+  const parts = String(item.path || "").split(/[/\\]/);
+  parts.pop();
+  return parts.join("\\");
+}
+
+function baseName(path) {
+  const parts = String(path || "").split(/[/\\]/);
+  return parts[parts.length - 1] || path;
+}
+
+async function fillTreeChildren(row) {
+  const children = row.nextElementSibling;
+  if (!children) return;
+  children.hidden = false;
+  if (children.childElementCount) return;
+  const q = new URLSearchParams({ path: row.dataset.path });
+  const data = await api(`/api/list?${q}`);
+  const depth = Number(row.dataset.depth || 0) + 1;
+  for (const folder of (data.folders || []).slice(0, 400)) {
+    children.appendChild(folderRow(folder, depth));
+  }
+}
+
+async function goToLocation(item) {
+  const folder = parentFolder(item);
+  const rows = [...document.querySelectorAll(".tree-row[data-path]")];
+  const root = rows
+    .map((row) => row.dataset.path)
+    .filter((path) => folder.toLowerCase() === path.toLowerCase() || folder.toLowerCase().startsWith(`${path.toLowerCase()}\\`))
+    .sort((a, b) => b.length - a.length)[0];
+  if (!root) {
+    showEmpty("That folder is not in the library tree.");
+    return;
+  }
+  let current = root;
+  let row = document.querySelector(`.tree-row[data-path="${CSS.escape(current)}"]`);
+  const rest = folder.slice(root.length).replace(/^[/\\]/, "");
+  for (const part of rest.split(/[/\\]/).filter(Boolean)) {
+    if (!row) break;
+    await fillTreeChildren(row);
+    current = `${current}\\${part}`;
+    row = document.querySelector(`.tree-row[data-path="${CSS.escape(current)}"]`);
+  }
+  document.querySelectorAll(".tree-row").forEach((el) => el.classList.remove("active"));
+  row?.classList.add("active");
+  row?.scrollIntoView({ block: "nearest" });
+  await loadGallery(folder, baseName(folder));
+  const card = document.querySelector(`.model-card[data-key="${CSS.escape(favKey(item))}"]`);
+  if (card) {
+    document.querySelectorAll(".model-card").forEach((el) => el.classList.remove("active"));
+    card.classList.add("active");
+    card.scrollIntoView({ block: "center" });
+  }
+}
+
+let menuItem = null;
+let menuCard = null;
+
+function hideCardMenu() {
+  $("cardMenu").hidden = true;
+  menuItem = null;
+  menuCard = null;
+}
+
+function showCardMenu(x, y, item, card) {
+  menuItem = item;
+  menuCard = card;
+  const menu = $("cardMenu");
+  const fav = favourites.has(favKey(item));
+  const actions = [
+    ["open", "Open"],
+    ["slicer", "Open in slicer"],
+    ["explorer", "Show in Explorer"],
+    ["locate", "Go to location"],
+    ["fav", fav ? "Remove from favourites" : "Add to favourites"],
+  ];
+  menu.innerHTML = "";
+  for (const [act, label] of actions) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.act = act;
+    button.textContent = label;
+    menu.appendChild(button);
+  }
+  menu.hidden = false;
+  const width = 210;
+  const height = 46 * actions.length;
+  menu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - width))}px`;
+  menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - height))}px`;
+}
+
+async function runMenuAction(act) {
+  const item = menuItem;
+  const card = menuCard;
+  hideCardMenu();
+  if (!item) return;
+  if (act === "open") {
+    await selectFile(item, card);
+    return;
+  }
+  if (act === "slicer") {
+    await api("/api/open", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: item.path, entry: item.entry || "" }),
+    });
+    return;
+  }
+  if (act === "explorer") {
+    await api("/api/reveal", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: item.path }),
+    });
+    return;
+  }
+  if (act === "locate") {
+    await goToLocation(item);
+    return;
+  }
+  if (act === "fav") {
+    const heart = card?.querySelector(".fav-btn");
+    if (heart) await toggleFav(item, heart);
+  }
+}
+
+$("cardMenu").addEventListener("click", (event) => {
+  const button = event.target.closest("button");
+  if (!button) return;
+  runMenuAction(button.dataset.act).catch((err) => showEmpty(err.message || String(err)));
+});
+document.addEventListener("click", () => hideCardMenu());
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") hideCardMenu();
+});
+
 $("showAll").addEventListener("change", () => {
+  if (!browse.path || browse.path === "favourites") return;
+  loadGallery(browse.path, browse.name).catch((err) => showEmpty(err.message || String(err)));
+});
+
+$("printable").addEventListener("change", () => {
   if (!browse.path || browse.path === "favourites") return;
   loadGallery(browse.path, browse.name).catch((err) => showEmpty(err.message || String(err)));
 });

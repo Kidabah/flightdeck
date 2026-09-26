@@ -11,6 +11,7 @@ import mimetypes
 import os
 import random
 import struct
+import subprocess
 import threading
 import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -139,6 +140,8 @@ def _kind_for(name: str) -> str:
         return suffix[1:]
     if suffix == ".3mf":
         return "3mf"
+    if suffix == ".svg":
+        return "svg"
     if suffix in IMAGE:
         return "image"
     if suffix in DOC:
@@ -192,12 +195,14 @@ def list_folder(folder: Path) -> dict:
     return {"folders": folders, "files": files}
 
 
-CARD_KINDS = {"stl", "obj", "image", "doc", "3mf", "gcode.3mf"}
+PRINTABLE_KINDS = {"stl", "obj", "3mf", "gcode.3mf", "gcode"}
+LIBRARY_KINDS = PRINTABLE_KINDS | {"image", "doc", "svg"}
 
 
-def _card_from_name(path: Path, name: str, size: int, entry: str = "") -> dict | None:
+def _card_from_name(path: Path, name: str, size: int, entry: str = "", printable: bool = True) -> dict | None:
     kind = _kind_for(Path(name).name)
-    if kind not in CARD_KINDS:
+    allowed = PRINTABLE_KINDS if printable else LIBRARY_KINDS
+    if kind not in allowed:
         return None
     return {
         "name": Path(name).name,
@@ -208,21 +213,21 @@ def _card_from_name(path: Path, name: str, size: int, entry: str = "") -> dict |
     }
 
 
-def _iter_zip_cards(zip_path: Path):
+def _iter_zip_cards(zip_path: Path, printable: bool = True):
     try:
         with zipfile.ZipFile(zip_path) as zf:
             for info in zf.infolist():
                 name = info.filename.replace("\\", "/")
                 if not name or name.endswith("/") or _skip_name(name):
                     continue
-                card = _card_from_name(zip_path, name, int(info.file_size or 0), name)
+                card = _card_from_name(zip_path, name, int(info.file_size or 0), name, printable)
                 if card:
                     yield card
     except (OSError, zipfile.BadZipFile):
         return
 
 
-def _iter_dir_cards(folder: Path, recursive: bool):
+def _iter_dir_cards(folder: Path, recursive: bool, printable: bool = True):
     if not recursive:
         try:
             children = sorted(folder.iterdir(), key=lambda item: item.name.lower())
@@ -232,13 +237,13 @@ def _iter_dir_cards(folder: Path, recursive: bool):
             if _skip_name(child.name) or not child.is_file():
                 continue
             if child.suffix.lower() == ".zip":
-                yield from _iter_zip_cards(child)
+                yield from _iter_zip_cards(child, printable)
                 continue
             try:
                 size = child.stat().st_size
             except OSError:
                 continue
-            card = _card_from_name(child, child.name, size)
+            card = _card_from_name(child, child.name, size, printable=printable)
             if card:
                 yield card
         return
@@ -249,22 +254,22 @@ def _iter_dir_cards(folder: Path, recursive: bool):
                 continue
             path = Path(dirpath) / name
             if path.suffix.lower() == ".zip":
-                yield from _iter_zip_cards(path)
+                yield from _iter_zip_cards(path, printable)
                 continue
             try:
                 size = path.stat().st_size
             except OSError:
                 continue
-            card = _card_from_name(path, name, size)
+            card = _card_from_name(path, name, size, printable=printable)
             if card:
                 yield card
 
 
-def gallery_page(folder: Path, *, recursive: bool, offset: int, limit: int) -> dict:
+def gallery_page(folder: Path, *, recursive: bool, offset: int, limit: int, printable: bool = True) -> dict:
     items = []
     skipped = 0
     truncated = False
-    source = _iter_zip_cards(folder) if folder.is_file() and folder.suffix.lower() == ".zip" else _iter_dir_cards(folder, recursive)
+    source = _iter_zip_cards(folder, printable) if folder.is_file() and folder.suffix.lower() == ".zip" else _iter_dir_cards(folder, recursive, printable)
     for card in source:
         if skipped < offset:
             skipped += 1
@@ -991,6 +996,9 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/api/open":
             self._open_external()
             return
+        if parsed.path == "/api/reveal":
+            self._reveal()
+            return
         if parsed.path == "/api/favourites":
             self._add_favourite()
             return
@@ -1072,6 +1080,7 @@ class Handler(BaseHTTPRequestHandler):
     def _gallery(self, query: dict) -> None:
         raw = (query.get("path") or [""])[0]
         recursive = (query.get("recursive") or ["0"])[0] in {"1", "true", "yes"}
+        printable = (query.get("printable") or ["1"])[0] not in {"0", "false", "no"}
         try:
             offset = max(0, int((query.get("offset") or ["0"])[0]))
             limit = int((query.get("limit") or ["120"])[0])
@@ -1089,7 +1098,7 @@ class Handler(BaseHTTPRequestHandler):
         if not self._allowed(target) or not (target.is_dir() or target.suffix.lower() == ".zip"):
             self._json(404, {"error": "Folder not found"})
             return
-        payload = gallery_page(target, recursive=recursive, offset=offset, limit=limit)
+        payload = gallery_page(target, recursive=recursive, offset=offset, limit=limit, printable=printable)
         payload["path"] = str(target)
         self._json(200, payload)
 
@@ -1224,6 +1233,20 @@ class Handler(BaseHTTPRequestHandler):
             self._json(500, {"error": str(exc)})
             return
         self._json(200, {"ok": True, "opened": str(target)})
+
+    def _reveal(self) -> None:
+        body = self._read_json()
+        raw = str(body.get("path") or "")
+        try:
+            target = Path(raw).resolve()
+        except Exception:
+            self._json(400, {"error": "Bad path"})
+            return
+        if not target.exists() or not self._allowed(target):
+            self._json(404, {"error": "File not found"})
+            return
+        subprocess.Popen(["explorer", f"/select,{target}"])
+        self._json(200, {"ok": True, "revealed": str(target)})
 
 
 def serve(port: int = PORT) -> ThreadingHTTPServer:

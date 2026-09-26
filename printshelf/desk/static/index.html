@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MeshFinder</title>
-  <link rel="stylesheet" href="/static/style.css?v=6">
+  <link rel="stylesheet" href="/static/style.css?v=7">
   <script type="importmap">
   {
     "imports": {
@@ -31,6 +31,10 @@
           <input type="checkbox" id="showAll">
           <span>All</span>
         </label>
+        <label class="switch" title="Only files you can print. Turn this off to also show pictures, SVGs, and documents.">
+          <input type="checkbox" id="printable" checked>
+          <span>Printable</span>
+        </label>
         <div class="view-switch" id="viewSwitch">
           <button type="button" data-cols="2" title="Large cards">2</button>
           <button type="button" data-cols="4" class="on" title="4 across">4</button>
@@ -48,7 +52,8 @@
       </div>
     </main>
   </div>
+  <div id="cardMenu" class="card-menu" hidden></div>
   <script type="module" src="/static/viewer.js?v=10"></script>
-  <script src="/static/app.js?v=8"></script>
+  <script src="/static/app.js?v=9"></script>
 </body>
 </html>
