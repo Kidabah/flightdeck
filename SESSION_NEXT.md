@@ -1,3 +1,12 @@
+## 2026-09-26 Session update (tick folders to exclude)
+
+Latest commit: `37c62d6` — Each folder has a checkbox. A button above the list reads “N folders to exclude” and hides every ticked folder in one go. The tree stays put. The config folders were already saved as excluded; a hard refresh drops them from this window.
+
+- Files: `printshelf/desk/static/app.js`, `style.css`, `index.html`. Cache: `style.css?v=22`, `app.js?v=31`.
+- Hard refresh. The window was left running so the duplicate scan can finish. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (exclude no longer jumps to Koko)
 
 Latest commit: `04c8db7` — Exclude from library only removes that folder row. The tree stays scrolled where it is, and the gallery stays on the folder you already had open.
