@@ -1,3 +1,13 @@
+## 2026-09-26 Session update (whole folder, not each zip)
+
+Latest commit: `95bcc4c` — clicking a folder loads every zip in it, the way Meshory loads Dragon Ball Z.
+
+- Zip files are no longer separate branches in the tree. The first page mixes models from each zip in that folder. Show more keeps going through the rest.
+- Files: `printshelf/desk/server.py`, `printshelf/desk/static/app.js`, `index.html`. Cache: `app.js?v=20`.
+- Local window reopened. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (desktop icon)
 
 Latest commit: `0b059b4` — clicking the MeshFinder desktop icon brings the window forward.
