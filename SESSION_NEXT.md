@@ -1,3 +1,12 @@
+## 2026-09-26 Session update (Analyze no longer blanks the page)
+
+Latest commit: `f3ad7fd` — clicking Analyze left the request unread, so the next check came back as HTTP 501 and wiped the page. That body is read now. Open Duplicates and press Analyze again.
+
+- Files: `printshelf/desk/server.py`, `printshelf/desk/static/app.js`, `index.html`. Cache: `app.js?v=27`.
+- Local window reopened. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (plain duplicates)
 
 Latest commit: `108c5bb` — Duplicates sits under Collections. Analyze finds the same file saved twice. Keep one, delete the spare loose copies. Copies inside a zip are listed and left alone. No filters, review tabs, or geometry matching.
