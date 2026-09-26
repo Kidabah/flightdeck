@@ -1,3 +1,13 @@
+## 2026-09-26 Session update (cut-off STL files)
+
+Latest commit: `4fe4872` — MeshFinder opens an STL whose header claims more triangles than the file holds.
+
+- `tronco_boo.stl` and `tronco_gotenks.stl` in the Dragon Ball zip are short copies. The viewer was reading past the end of the file. It now draws the triangles that are there and says the copy looks cut off. Cards get a picture too.
+- Files: `printshelf/desk/server.py`, `printshelf/desk/static/viewer.js`, `vendor/loaders/STLLoader.js`, `index.html`. Cache: `viewer.js?v=11`.
+- Local window reopened. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (saved library map)
 
 Latest commit: `eb270fb` — MeshFinder reopens on the tree you had open and the folder you were in.
