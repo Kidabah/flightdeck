@@ -152,6 +152,15 @@ button, input { font: inherit; color: inherit; }
 }
 .tree-row.active { box-shadow: inset 3px 0 0 var(--accent); }
 
+.tree-row .twist {
+  flex: 0 0 12px;
+  width: 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.tree-row .twist::before { content: "›"; }
+.tree-row.open .twist::before { content: "⌄"; }
+
 .tree-row .mark, .file-row .kind {
   color: var(--muted);
   font-size: 11px;

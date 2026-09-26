@@ -424,7 +424,7 @@ function folderRow(item, depth) {
   row.dataset.depth = String(depth);
   row.style.paddingLeft = `${8 + depth * 14}px`;
   const mark = item.kind === "zip" || item.kind === "zipdir" ? "zip" : "dir";
-  row.innerHTML = `<span class="mark">${mark}</span><span class="name"></span>`;
+  row.innerHTML = `<span class="twist" aria-hidden="true"></span><span class="mark">${mark}</span><span class="name"></span>`;
   row.querySelector(".name").textContent = item.name;
   const children = document.createElement("div");
   children.className = "tree-children";
@@ -436,8 +436,15 @@ function folderRow(item, depth) {
     showTreeMenu(event.clientX, event.clientY, item);
   });
   row.addEventListener("click", async () => {
+    const open = children.childElementCount > 0 && !children.hidden;
     document.querySelectorAll(".tree-row").forEach((el) => el.classList.remove("active"));
     row.classList.add("active");
+    if (open) {
+      children.hidden = true;
+      row.classList.remove("open");
+      saveSession();
+      return;
+    }
     $("search").value = "";
     searchQuery = "";
     searchToken += 1;
@@ -450,12 +457,16 @@ function folderRow(item, depth) {
       const folders = (data.folders || []).slice(0, 400);
       if (!folders.length) {
         children.hidden = true;
+        row.classList.remove("open");
         saveSession();
         return;
       }
       for (const folder of folders) children.appendChild(folderRow(folder, depth + 1));
     }
-    if (children.childElementCount) children.hidden = false;
+    if (children.childElementCount) {
+      children.hidden = false;
+      row.classList.add("open");
+    }
     saveSession();
   });
   wrap.appendChild(row);
@@ -753,9 +764,11 @@ async function expandTo(target) {
     if (next.toLowerCase() === target.toLowerCase()) {
       document.querySelectorAll(".tree-row").forEach((el) => el.classList.remove("active"));
       row.classList.add("active");
+      if (children.childElementCount && !children.hidden) row.classList.add("open");
       row.scrollIntoView({ block: "nearest" });
       return;
     }
+    if (children.childElementCount && !children.hidden) row.classList.add("open");
   }
 }
 
