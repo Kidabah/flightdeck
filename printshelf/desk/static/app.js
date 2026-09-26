@@ -114,8 +114,8 @@ function renderCard(item) {
     thumb.appendChild(img);
     kind.remove();
   } else if (item.kind === "stl" || item.kind === "obj") {
+    img.src = previewUrl(item);
     thumb.appendChild(img);
-    queueThumb(item, img);
     img.addEventListener("load", () => kind.remove());
   }
   const body = document.createElement("div");

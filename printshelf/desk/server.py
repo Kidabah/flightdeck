@@ -427,6 +427,78 @@ def _sample_obj_handle(handle) -> bytes:
     return _pack_tris(out)
 
 
+def _raster_png(payload: bytes, up: str) -> bytes:
+    """Draw a small shaded picture of a sampled mesh. Cards already show real images."""
+    import io
+    import math
+
+    import numpy as np
+    from PIL import Image, ImageDraw
+
+    count = struct.unpack_from("<I", payload, 0)[0]
+    if count <= 0 or len(payload) < 4 + count * 36:
+        raise ValueError("empty mesh")
+    verts = np.frombuffer(payload, dtype="<f4", offset=4, count=count * 9).astype(np.float64).reshape(-1, 3)
+    if up == "z":
+        x = verts[:, 0].copy()
+        y = verts[:, 1].copy()
+        z = verts[:, 2].copy()
+        verts[:, 0] = x
+        verts[:, 1] = z
+        verts[:, 2] = -y
+    verts[:, 0] -= float((verts[:, 0].min() + verts[:, 0].max()) * 0.5)
+    verts[:, 1] -= float(verts[:, 1].min())
+    verts[:, 2] -= float((verts[:, 2].min() + verts[:, 2].max()) * 0.5)
+    yaw, pitch = math.radians(42), math.radians(26)
+    cy, sy = math.cos(yaw), math.sin(yaw)
+    cp, sp = math.cos(pitch), math.sin(pitch)
+    x = verts[:, 0] * cy + verts[:, 2] * sy
+    z = -verts[:, 0] * sy + verts[:, 2] * cy
+    y2 = verts[:, 1] * cp - z * sp
+    z2 = verts[:, 1] * sp + z * cp
+    width, height = 480, 360
+    span_x = max(float(np.ptp(x)), 1e-6)
+    span_y = max(float(np.ptp(y2)), 1e-6)
+    scale = min(width * 0.88 / span_x, height * 0.88 / span_y)
+    sx = width * 0.5 + (x - float((x.min() + x.max()) * 0.5)) * scale
+    sy = height * 0.5 - (y2 - float((y2.min() + y2.max()) * 0.5)) * scale
+    view = np.stack([x, y2, z2], axis=1).reshape(-1, 3, 3)
+    normal = np.cross(view[:, 1] - view[:, 0], view[:, 2] - view[:, 0])
+    length = np.linalg.norm(normal, axis=1)
+    length[length < 1e-8] = 1.0
+    normal /= length[:, None]
+    light = np.array([0.2, 0.72, 0.66], dtype=np.float64)
+    light /= np.linalg.norm(light)
+    shade = 0.42 + 0.58 * np.abs(normal @ light)
+    shade = np.repeat(shade, 3)
+    order = np.argsort(z2)
+    image = Image.new("RGB", (width, height), (42, 48, 56))
+    draw = ImageDraw.Draw(image)
+    base = np.array([214, 220, 228], dtype=np.float64)
+    radius = 3.4
+    for index in order:
+        tone = float(shade[index])
+        color = tuple(int(channel * tone) for channel in base)
+        px = float(sx[index])
+        py = float(sy[index])
+        draw.ellipse((px - radius, py - radius, px + radius, py + radius), fill=color)
+    buf = io.BytesIO()
+    image.save(buf, format="PNG", optimize=True)
+    return buf.getvalue()
+
+
+def preview_png(path: Path, entry: str = "") -> bytes:
+    cache = _preview_cache(path, entry).with_suffix(".png")
+    if cache.is_file() and cache.stat().st_size > 32:
+        return cache.read_bytes()
+    kind = _kind_for(Path(entry).name if entry else path.name)
+    png = _raster_png(build_preview(path, entry), "y" if kind == "obj" else "z")
+    tmp = cache.with_suffix(".tmp")
+    tmp.write_bytes(png)
+    tmp.replace(cache)
+    return png
+
+
 def build_preview(path: Path, entry: str = "") -> bytes:
     cache = _preview_cache(path, entry)
     if cache.is_file() and cache.stat().st_size >= 4:
@@ -661,11 +733,11 @@ class Handler(BaseHTTPRequestHandler):
             self._json(400, {"error": "No mesh preview for this file"})
             return
         try:
-            data = build_preview(target, entry)
-        except (OSError, zipfile.BadZipFile, ValueError, FileNotFoundError, KeyError) as exc:
+            data = preview_png(target, entry)
+        except (OSError, zipfile.BadZipFile, ValueError, FileNotFoundError, KeyError, ImportError) as exc:
             self._json(404, {"error": str(exc)})
             return
-        self._send(200, data, "application/octet-stream")
+        self._send(200, data, "image/png")
 
     def _file_bytes(self, query: dict) -> None:
         raw = (query.get("path") or [""])[0]
