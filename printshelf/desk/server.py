@@ -427,85 +427,176 @@ def _sample_obj_handle(handle) -> bytes:
     return _pack_tris(out)
 
 
-def _raster_png(payload: bytes, up: str) -> bytes:
-    """Draw a small shaded picture of a sampled mesh. Cards already show real images."""
+def _load_stl_tris(data: bytes):
+    import numpy as np
+
+    if len(data) < 84:
+        raise ValueError("empty mesh")
+    count = struct.unpack_from("<I", data, 80)[0]
+    if count <= 0 or 84 + count * 50 > len(data):
+        raise ValueError("not a binary stl")
+    recs = np.frombuffer(data, dtype=np.uint8, offset=84, count=count * 50).reshape(count, 50)
+    verts = np.empty((count, 3, 3), np.float32)
+    for corner in range(3):
+        chunk = np.ascontiguousarray(recs[:, 12 + corner * 12 : 24 + corner * 12])
+        verts[:, corner] = chunk.view(np.float32).reshape(count, 3)
+    return verts
+
+
+def _load_obj_tris(data: bytes):
+    import numpy as np
+
+    verts = []
+    faces = []
+    for line in data.splitlines():
+        if line.startswith((b"v ", b"v\t")):
+            parts = line.split()
+            if len(parts) < 4:
+                continue
+            try:
+                verts.append((float(parts[1]), float(parts[2]), float(parts[3])))
+            except ValueError:
+                continue
+            continue
+        if not line.startswith((b"f ", b"f\t")):
+            continue
+        indexes = []
+        total = len(verts)
+        for token in line.split()[1:]:
+            head = token.split(b"/", 1)[0]
+            if not head:
+                indexes = []
+                break
+            try:
+                raw = int(head)
+            except ValueError:
+                indexes = []
+                break
+            indexes.append(total + raw if raw < 0 else raw - 1)
+        if len(indexes) < 3:
+            continue
+        for slot in range(1, len(indexes) - 1):
+            faces.append((indexes[0], indexes[slot], indexes[slot + 1]))
+    if not verts or not faces:
+        raise ValueError("empty mesh")
+    points = np.asarray(verts, np.float32)
+    tris = np.asarray(faces, np.int32)
+    ok = (tris >= 0).all(axis=1) & (tris < len(points)).all(axis=1)
+    return points[tris[ok]]
+
+
+def _cluster_tris(tris, grid: int = 120):
+    import numpy as np
+
+    mins = tris.min(axis=(0, 1))
+    span = np.maximum(tris.max(axis=(0, 1)) - mins, 1e-8)
+    quantized = np.floor((tris - mins) / span * (grid - 1)).astype(np.int32)
+    quantized = np.clip(quantized, 0, grid - 1)
+    keys = (quantized[..., 0] + (quantized[..., 1] + quantized[..., 2] * grid) * grid).reshape(-1)
+    positions = tris.reshape(-1, 3).astype(np.float64)
+    _uniq, inverse = np.unique(keys, return_inverse=True)
+    totals = np.zeros((int(inverse.max()) + 1, 3), np.float64)
+    weight = np.zeros(totals.shape[0], np.float64)
+    np.add.at(totals, inverse, positions)
+    np.add.at(weight, inverse, 1.0)
+    centers = totals / weight[:, None]
+    faces = inverse.reshape(-1, 3)
+    keep = (faces[:, 0] != faces[:, 1]) & (faces[:, 1] != faces[:, 2]) & (faces[:, 0] != faces[:, 2])
+    return centers[faces[keep]]
+
+
+def _shade_png(tris, up: str) -> bytes:
     import io
     import math
 
     import numpy as np
     from PIL import Image, ImageDraw
 
-    count = struct.unpack_from("<I", payload, 0)[0]
-    if count <= 0 or len(payload) < 4 + count * 36:
+    if len(tris) == 0:
         raise ValueError("empty mesh")
-    verts = np.frombuffer(payload, dtype="<f4", offset=4, count=count * 9).astype(np.float64).reshape(-1, 3)
     if up == "z":
-        x = verts[:, 0].copy()
-        y = verts[:, 1].copy()
-        z = verts[:, 2].copy()
-        verts[:, 0] = x
-        verts[:, 1] = z
-        verts[:, 2] = -y
-    verts[:, 0] -= float((verts[:, 0].min() + verts[:, 0].max()) * 0.5)
-    verts[:, 1] -= float(verts[:, 1].min())
-    verts[:, 2] -= float((verts[:, 2].min() + verts[:, 2].max()) * 0.5)
+        x = tris[..., 0].copy()
+        y = tris[..., 1].copy()
+        z = tris[..., 2].copy()
+        tris = np.stack([x, z, -y], axis=-1)
+    tris = tris.astype(np.float64)
+    center = tris.mean(axis=1)
+    tris = tris - np.array([
+        (center[:, 0].min() + center[:, 0].max()) * 0.5,
+        center[:, 1].min(),
+        (center[:, 2].min() + center[:, 2].max()) * 0.5,
+    ])
     yaw, pitch = math.radians(42), math.radians(26)
-    cy, sy = math.cos(yaw), math.sin(yaw)
-    cp, sp = math.cos(pitch), math.sin(pitch)
-    x = verts[:, 0] * cy + verts[:, 2] * sy
-    z = -verts[:, 0] * sy + verts[:, 2] * cy
-    y2 = verts[:, 1] * cp - z * sp
-    z2 = verts[:, 1] * sp + z * cp
-    width, height = 480, 360
+    cos_yaw, sin_yaw = math.cos(yaw), math.sin(yaw)
+    cos_pitch, sin_pitch = math.cos(pitch), math.sin(pitch)
+    x = tris[..., 0] * cos_yaw + tris[..., 2] * sin_yaw
+    z = -tris[..., 0] * sin_yaw + tris[..., 2] * cos_yaw
+    y2 = tris[..., 1] * cos_pitch - z * sin_pitch
+    z2 = tris[..., 1] * sin_pitch + z * cos_pitch
+    width, height = 640, 480
     span_x = max(float(np.ptp(x)), 1e-6)
     span_y = max(float(np.ptp(y2)), 1e-6)
     scale = min(width * 0.88 / span_x, height * 0.88 / span_y)
     sx = width * 0.5 + (x - float((x.min() + x.max()) * 0.5)) * scale
     sy = height * 0.5 - (y2 - float((y2.min() + y2.max()) * 0.5)) * scale
-    view = np.stack([x, y2, z2], axis=1).reshape(-1, 3, 3)
-    normal = np.cross(view[:, 1] - view[:, 0], view[:, 2] - view[:, 0])
+    normal = np.cross(
+        np.stack([x[:, 1] - x[:, 0], y2[:, 1] - y2[:, 0], z2[:, 1] - z2[:, 0]], axis=1),
+        np.stack([x[:, 2] - x[:, 0], y2[:, 2] - y2[:, 0], z2[:, 2] - z2[:, 0]], axis=1),
+    )
     length = np.linalg.norm(normal, axis=1)
     length[length < 1e-8] = 1.0
     normal /= length[:, None]
-    light = np.array([0.2, 0.72, 0.66], dtype=np.float64)
+    light = np.array([0.25, 0.85, 0.45])
     light /= np.linalg.norm(light)
-    shade = 0.42 + 0.58 * np.abs(normal @ light)
-    # One dot per triangle. The three corners of a sampled facet land on the same pixel,
-    # so drawing all three leaves a hole between facets.
-    px = sx.reshape(-1, 3).mean(axis=1)
-    py = sy.reshape(-1, 3).mean(axis=1)
-    pz = z2.reshape(-1, 3).mean(axis=1)
-    spacing = math.sqrt(max(span_x * scale * span_y * scale, 1.0) / max(int(px.size), 1))
-    radius = min(18.0, max(4.5, spacing * 1.55))
-    order = np.argsort(pz)
-    image = Image.new("RGB", (width, height), (42, 48, 56))
+    shade = 0.28 + 0.72 * np.abs(normal @ light)
+    order = np.argsort(z2.mean(axis=1))
+    image = Image.new("RGB", (width, height), (26, 32, 40))
     draw = ImageDraw.Draw(image)
-    base = np.array([214, 220, 228], dtype=np.float64)
+    base = np.array([232, 236, 242])
     for index in order:
         tone = float(shade[index])
         color = tuple(int(channel * tone) for channel in base)
-        cx = float(px[index])
-        cy = float(py[index])
-        draw.ellipse((cx - radius, cy - radius, cx + radius, cy + radius), fill=color)
-    from PIL import ImageFilter
-    # Close small gaps between the dots, then soften the edges.
-    image = image.filter(ImageFilter.MaxFilter(11)).filter(ImageFilter.MinFilter(11))
-    image = image.filter(ImageFilter.GaussianBlur(radius=1.25))
+        draw.polygon(
+            [
+                (float(sx[index, 0]), float(sy[index, 0])),
+                (float(sx[index, 1]), float(sy[index, 1])),
+                (float(sx[index, 2]), float(sy[index, 2])),
+            ],
+            fill=color,
+        )
+    image = image.resize((480, 360), Image.Resampling.LANCZOS)
     buf = io.BytesIO()
-    image.save(buf, format="PNG", optimize=True)
+    image.save(buf, format="PNG")
     return buf.getvalue()
 
 
+def _mesh_bytes(path: Path, entry: str) -> bytes:
+    if not entry:
+        return path.read_bytes()
+    entry = entry.replace("\\", "/").lstrip("/")
+    with zipfile.ZipFile(path) as zf:
+        return zf.read(entry)
+
+
 def preview_png(path: Path, entry: str = "") -> bytes:
-    cache = _preview_cache(path, entry).with_suffix(".s4.png")
+    cache = _preview_cache(path, entry).with_suffix(".s5.png")
     if cache.is_file() and cache.stat().st_size > 32:
         return cache.read_bytes()
-    kind = _kind_for(Path(entry).name if entry else path.name)
-    png = _raster_png(build_preview(path, entry), "y" if kind == "obj" else "z")
-    tmp = cache.with_suffix(".tmp")
-    tmp.write_bytes(png)
-    tmp.replace(cache)
-    return png
+    with _preview_lock:
+        if cache.is_file() and cache.stat().st_size > 32:
+            return cache.read_bytes()
+        kind = _kind_for(Path(entry).name if entry else path.name)
+        data = _mesh_bytes(path, entry)
+        if kind == "obj":
+            tris = _cluster_tris(_load_obj_tris(data))
+            png = _shade_png(tris, "y")
+        else:
+            tris = _cluster_tris(_load_stl_tris(data))
+            png = _shade_png(tris, "z")
+        tmp = cache.with_suffix(".tmp")
+        tmp.write_bytes(png)
+        tmp.replace(cache)
+        return png
 
 
 def build_preview(path: Path, entry: str = "") -> bytes:
