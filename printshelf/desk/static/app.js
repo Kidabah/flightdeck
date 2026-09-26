@@ -565,17 +565,82 @@ async function selectFile(item, card) {
   $("backBtn").hidden = false;
 }
 
+const excludePicks = new Set();
+
+function excludeLabel() {
+  const button = $("excludeBtn");
+  if (!button) return;
+  const count = excludePicks.size;
+  button.hidden = count === 0;
+  button.textContent = count === 1 ? "1 folder to exclude" : `${count} folders to exclude`;
+}
+
+function removeExcludedRows(paths) {
+  const tree = $("tree");
+  const scroll = tree.scrollTop;
+  for (const path of paths) {
+    const row = document.querySelector(`.tree-row[data-path="${CSS.escape(path)}"]`);
+    const wrap = row?.closest(".tree-item") || row?.parentElement;
+    if (document.activeElement && wrap?.contains(document.activeElement)) document.activeElement.blur();
+    wrap?.remove();
+    excludePicks.delete(path);
+  }
+  const keep = () => { tree.scrollTop = scroll; };
+  keep();
+  requestAnimationFrame(keep);
+  excludeLabel();
+  saveSession();
+}
+
+async function excludePaths(paths) {
+  const saved = [];
+  try {
+    for (const path of paths) {
+      await api("/api/exclude", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path }),
+      });
+      saved.push(path);
+    }
+  } finally {
+    if (saved.length) removeExcludedRows(saved);
+  }
+}
+
+function treeKids(row) {
+  const kids = row?.parentElement?.nextElementSibling;
+  if (kids?.classList.contains("tree-children")) return kids;
+  return row?.nextElementSibling?.classList.contains("tree-children") ? row.nextElementSibling : null;
+}
+
 function folderRow(item, depth) {
   const wrap = document.createElement("div");
+  wrap.className = "tree-item";
+  const line = document.createElement("div");
+  line.className = "tree-line";
+  line.style.paddingLeft = `${depth * 14}px`;
   const row = document.createElement("button");
   row.type = "button";
   row.className = "tree-row";
   row.dataset.path = item.path;
   row.dataset.depth = String(depth);
-  row.style.paddingLeft = `${8 + depth * 14}px`;
   const mark = item.kind === "zip" || item.kind === "zipdir" ? "zip" : "dir";
   row.innerHTML = `<span class="twist" aria-hidden="true"></span><span class="mark">${mark}</span><span class="name"></span>`;
   row.querySelector(".name").textContent = item.name;
+  if (item.kind !== "zipdir") {
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.className = "tree-check";
+    box.title = "Mark this folder to exclude";
+    box.checked = excludePicks.has(item.path);
+    box.addEventListener("click", () => {
+      if (box.checked) excludePicks.add(item.path);
+      else excludePicks.delete(item.path);
+      excludeLabel();
+    });
+    line.appendChild(box);
+  }
   const children = document.createElement("div");
   children.className = "tree-children";
   children.hidden = true;
@@ -589,7 +654,8 @@ function folderRow(item, depth) {
     event.stopPropagation();
     showTreeMenu(event.clientX, event.clientY, item);
   });
-  row.addEventListener("click", async () => {
+  row.addEventListener("click", async (event) => {
+    if (event.target.closest(".tree-check")) return;
     if (row.dataset.button && row.dataset.button !== "0") {
       row.dataset.button = "0";
       return;
@@ -627,7 +693,8 @@ function folderRow(item, depth) {
     }
     saveSession();
   });
-  wrap.appendChild(row);
+  line.appendChild(row);
+  wrap.appendChild(line);
   wrap.appendChild(children);
   return wrap;
 }
@@ -885,7 +952,7 @@ function saveSession() {
       ? { path: browse.path, name: browse.name }
       : (folderBrowse || { path: "", name: "" });
     const open = [...document.querySelectorAll(".tree-row[data-path]")].filter((row) => {
-      const kids = row.nextElementSibling;
+      const kids = treeKids(row);
       return kids && kids.classList.contains("tree-children") && !kids.hidden;
     }).map((row) => row.dataset.path);
     api("/api/session", {
@@ -911,7 +978,7 @@ async function expandTo(target) {
     if (!next || next === previous) return;
     previous = next;
     const row = document.querySelector(`.tree-row[data-path="${CSS.escape(next)}"]`);
-    const children = row?.nextElementSibling;
+    const children = treeKids(row);
     if (!row || !children) return;
     children.hidden = false;
     if (!children.childElementCount) {
@@ -933,6 +1000,8 @@ async function expandTo(target) {
 }
 
 async function loadTree({ openPath = "", openName = "" } = {}) {
+  excludePicks.clear();
+  excludeLabel();
   await refreshFavs().catch(() => {});
   const session = openPath ? null : await api("/api/session").catch(() => null);
   if (session) {
@@ -1227,7 +1296,7 @@ function baseName(path) {
 }
 
 async function fillTreeChildren(row) {
-  const children = row.nextElementSibling;
+  const children = treeKids(row);
   if (!children) return;
   children.hidden = false;
   if (children.childElementCount) return;
@@ -1335,21 +1404,7 @@ async function runTreeAction(act) {
     return;
   }
   if (act === "exclude") {
-    const tree = $("tree");
-    const scroll = tree.scrollTop;
-    await api("/api/exclude", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path: item.path }),
-    });
-    const row = document.querySelector(`.tree-row[data-path="${CSS.escape(item.path)}"]`);
-    const wrap = row?.parentElement;
-    if (document.activeElement && wrap?.contains(document.activeElement)) document.activeElement.blur();
-    wrap?.remove();
-    const keep = () => { tree.scrollTop = scroll; };
-    keep();
-    requestAnimationFrame(keep);
-    saveSession();
+    await excludePaths([item.path]);
     return;
   }
   if (act === "collection") {
@@ -1558,6 +1613,21 @@ $("backBtn").addEventListener("click", () => {
   pathFile = "";
   showGallery();
   renderPath();
+});
+
+$("excludeBtn").addEventListener("click", async () => {
+  const paths = [...excludePicks];
+  if (!paths.length) return;
+  const button = $("excludeBtn");
+  button.disabled = true;
+  try {
+    await excludePaths(paths);
+  } catch (err) {
+    showEmpty(err.message || String(err));
+    excludeLabel();
+  } finally {
+    button.disabled = false;
+  }
 });
 
 $("addFolder").addEventListener("click", async () => {

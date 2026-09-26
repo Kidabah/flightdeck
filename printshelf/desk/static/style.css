@@ -156,6 +156,40 @@ button, input { font: inherit; color: inherit; }
   z-index: 2;
 }
 
+.exclude-btn {
+  margin: 8px 8px 0;
+  flex: 0 0 auto;
+  border: 1px solid var(--accent);
+  background: rgba(59, 130, 246, 0.14);
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.exclude-btn:hover:not(:disabled) { background: rgba(59, 130, 246, 0.24); }
+
+.exclude-btn:disabled { opacity: 0.5; cursor: default; }
+
+.tree-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tree-line .tree-row {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tree-check {
+  width: 14px;
+  height: 14px;
+  margin: 0 0 0 8px;
+  flex: 0 0 auto;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
 .tree, .files {
   overflow: auto;
   overflow-anchor: none;
