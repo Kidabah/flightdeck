@@ -216,9 +216,18 @@ function renderCard(item) {
   const meta = document.createElement("div");
   meta.className = "model-meta";
   meta.textContent = fmtBytes(item.size);
+  const foot = document.createElement("div");
+  foot.className = "model-foot";
+  foot.appendChild(meta);
+  if (item.kind === "stl" || item.kind === "obj" || item.kind === "3mf" || item.kind === "gcode.3mf" || item.kind === "gcode") {
+    const tech = document.createElement("span");
+    tech.className = "tech-tag";
+    tech.textContent = "FDM";
+    foot.appendChild(tech);
+  }
   body.appendChild(tags);
   body.appendChild(name);
-  body.appendChild(meta);
+  body.appendChild(foot);
   card.appendChild(thumb);
   card.appendChild(body);
   card._item = item;
