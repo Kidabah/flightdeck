@@ -1,3 +1,13 @@
+## 2026-09-26 Session update (model sits on the plate)
+
+Latest commit: `41d6dbf` — models stand on the grid instead of through it.
+
+- The viewer was centring the mesh, so the plate cut through the middle. The lowest point is now z = 0 and the model stands on the grid.
+- Files: `printshelf/desk/static/viewer.js`, `printshelf/desk/static/index.html` (`viewer.js?v=3`).
+- Local window reopened. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (local viewer was covered)
 
 Latest commit: `d404ae7` — the local viewer was hidden behind an empty panel.
