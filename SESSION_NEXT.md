@@ -1,3 +1,12 @@
+## 2026-09-26 Session update (exclude stays put)
+
+Latest commit: `d879773` — Exclude from library is back on the folder menu. Hiding a folder only removes that row. The tree no longer jumps back to the last folder you opened.
+
+- Files: `printshelf/desk/static/app.js`, `index.html`. Cache: `app.js?v=29`.
+- Hard refresh. The window was left running so the duplicate scan can finish. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (no exclude reminder)
 
 Latest commit: `7fe11fc` — right-click on a folder no longer offers Exclude from library. Folders already hidden stay hidden. The duplicate scan was left running.
