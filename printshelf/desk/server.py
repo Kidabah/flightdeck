@@ -272,7 +272,7 @@ def list_zip(zip_path: Path, prefix: str) -> dict:
     return {"folders": folder_rows, "files": files}
 
 
-MAX_PREVIEW_TRIS = 4500
+MAX_PREVIEW_TRIS = 8000
 _preview_lock = threading.Lock()
 
 
@@ -280,7 +280,7 @@ def _preview_cache(path: Path, entry: str) -> Path:
     folder = config_path().parent / "previews"
     folder.mkdir(parents=True, exist_ok=True)
     st = path.stat()
-    raw = f"{path.resolve()}|{entry}|{st.st_mtime_ns}|{st.st_size}"
+    raw = f"{path.resolve()}|{entry}|{st.st_mtime_ns}|{st.st_size}|solid2"
     name = hashlib.sha1(raw.encode("utf-8", "replace")).hexdigest()
     return folder / f"{name}.bin"
 
@@ -470,25 +470,34 @@ def _raster_png(payload: bytes, up: str) -> bytes:
     light = np.array([0.2, 0.72, 0.66], dtype=np.float64)
     light /= np.linalg.norm(light)
     shade = 0.42 + 0.58 * np.abs(normal @ light)
-    shade = np.repeat(shade, 3)
-    order = np.argsort(z2)
+    # One dot per triangle. The three corners of a sampled facet land on the same pixel,
+    # so drawing all three leaves a hole between facets.
+    px = sx.reshape(-1, 3).mean(axis=1)
+    py = sy.reshape(-1, 3).mean(axis=1)
+    pz = z2.reshape(-1, 3).mean(axis=1)
+    spacing = math.sqrt(max(span_x * scale * span_y * scale, 1.0) / max(int(px.size), 1))
+    radius = min(18.0, max(4.5, spacing * 1.55))
+    order = np.argsort(pz)
     image = Image.new("RGB", (width, height), (42, 48, 56))
     draw = ImageDraw.Draw(image)
     base = np.array([214, 220, 228], dtype=np.float64)
-    radius = 3.4
     for index in order:
         tone = float(shade[index])
         color = tuple(int(channel * tone) for channel in base)
-        px = float(sx[index])
-        py = float(sy[index])
-        draw.ellipse((px - radius, py - radius, px + radius, py + radius), fill=color)
+        cx = float(px[index])
+        cy = float(py[index])
+        draw.ellipse((cx - radius, cy - radius, cx + radius, cy + radius), fill=color)
+    from PIL import ImageFilter
+    # Close small gaps between the dots, then soften the edges.
+    image = image.filter(ImageFilter.MaxFilter(11)).filter(ImageFilter.MinFilter(11))
+    image = image.filter(ImageFilter.GaussianBlur(radius=1.25))
     buf = io.BytesIO()
     image.save(buf, format="PNG", optimize=True)
     return buf.getvalue()
 
 
 def preview_png(path: Path, entry: str = "") -> bytes:
-    cache = _preview_cache(path, entry).with_suffix(".png")
+    cache = _preview_cache(path, entry).with_suffix(".s4.png")
     if cache.is_file() and cache.stat().st_size > 32:
         return cache.read_bytes()
     kind = _kind_for(Path(entry).name if entry else path.name)
