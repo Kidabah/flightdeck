@@ -1,3 +1,13 @@
+## 2026-09-26 Session update (shift-select)
+
+Latest commit: `ce04d1a` — shift-click selects a run of cards while adding to a collection.
+
+- Click the first card, then shift-click the last. Everything between them is selected and the bar can add them.
+- Files: `printshelf/desk/static/app.js`, `index.html`. Cache: `app.js?v=17`.
+- Local window reopened. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (collections)
 
 Latest commit: `68ffb9b` — collections use an in-app window, not a browser prompt.
