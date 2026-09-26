@@ -62,11 +62,14 @@ function seatMatrix(box, up) {
 }
 
 function addMesh(parent, geometry) {
+  return addPreviewMesh(parent, geometry, "z");
+}
+
+function addPreviewMesh(parent, geometry, up) {
   geometry.computeBoundingBox();
-  geometry.applyMatrix4(seatMatrix(geometry.boundingBox, "z"));
+  geometry.applyMatrix4(seatMatrix(geometry.boundingBox, up));
   geometry.computeVertexNormals();
-  const material = meshMaterial();
-  parent.add(new THREE.Mesh(geometry, material));
+  parent.add(new THREE.Mesh(geometry, meshMaterial()));
   geometry.computeBoundingSphere();
   return geometry.boundingSphere;
 }
@@ -420,53 +423,65 @@ export function unmountViewer() {
   disposeActive();
 }
 
-export async function renderThumb(url, kind) {
+let thumbRig = null;
+
+function previewGeometry(buf) {
+  if (buf.byteLength < 4) throw new Error("empty preview");
+  const count = new DataView(buf).getUint32(0, true);
+  const need = 4 + count * 9 * 4;
+  if (!count || buf.byteLength < need) throw new Error("empty preview");
+  const positions = new Float32Array(buf.slice(4, need));
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  return geometry;
+}
+
+function clearThumbMeshes(scene) {
+  const drop = [];
+  scene.traverse((obj) => {
+    if (obj.isMesh) drop.push(obj);
+  });
+  for (const obj of drop) {
+    obj.parent?.remove(obj);
+    obj.geometry?.dispose();
+    const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+    mats.forEach((mat) => mat?.dispose());
+  }
+}
+
+function ensureThumbRig() {
+  if (thumbRig) return thumbRig;
   const width = 480;
   const height = 360;
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
   renderer.setSize(width, height, false);
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x2a3038);
   const camera = new THREE.PerspectiveCamera(42, width / height, 0.01, 5000);
-  scene.add(new THREE.HemisphereLight(0xfff4e8, 0x243044, 1.2));
+  scene.add(new THREE.HemisphereLight(0xfff4e8, 0x243044, 1.25));
   const key = new THREE.DirectionalLight(0xffffff, 0.9);
   key.position.set(3, 5, 2);
   scene.add(key);
-  let objectUrl = "";
-  try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error("preview failed");
-    const buf = await res.arrayBuffer();
-    objectUrl = URL.createObjectURL(new Blob([buf]));
-    let sphere;
-    if (kind === "obj") {
-      const group = await new OBJLoader().loadAsync(objectUrl);
-      scene.add(group);
-      sphere = seatGroup(group);
-    } else {
-      const geometry = await new STLLoader().loadAsync(objectUrl);
-      sphere = addMesh(scene, geometry);
-    }
-    const center = sphere?.center || new THREE.Vector3();
-    const radius = Math.max(sphere?.radius || 1, 0.1);
-    camera.position.set(center.x + radius * 1.55, center.y + radius * 0.95, center.z + radius * 1.7);
-    camera.lookAt(center);
-    camera.near = radius / 100;
-    camera.far = radius * 40;
-    camera.updateProjectionMatrix();
-    renderer.render(scene, camera);
-    return renderer.domElement.toDataURL("image/jpeg", 0.8);
-  } finally {
-    if (objectUrl) URL.revokeObjectURL(objectUrl);
-    scene.traverse((obj) => {
-      if (obj.geometry) obj.geometry.dispose();
-      if (obj.material) {
-        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-        mats.forEach((mat) => mat.dispose());
-      }
-    });
-    renderer.dispose();
-  }
+  thumbRig = { renderer, scene, camera };
+  return thumbRig;
+}
+
+export async function renderThumb(url, kind) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("preview failed");
+  const geometry = previewGeometry(await res.arrayBuffer());
+  const { renderer, scene, camera } = ensureThumbRig();
+  clearThumbMeshes(scene);
+  const sphere = addPreviewMesh(scene, geometry, kind === "obj" ? "y" : "z");
+  const center = sphere?.center || new THREE.Vector3();
+  const radius = Math.max(sphere?.radius || 1, 0.1);
+  camera.position.set(center.x + radius * 1.55, center.y + radius * 0.95, center.z + radius * 1.7);
+  camera.lookAt(center);
+  camera.near = radius / 100;
+  camera.far = radius * 40;
+  camera.updateProjectionMatrix();
+  renderer.render(scene, camera);
+  return renderer.domElement.toDataURL("image/jpeg", 0.8);
 }
 
 window.MeshFinderViewer = { mountViewer, unmountViewer, renderThumb };

@@ -4,9 +4,14 @@ The Pi is not on this path. Nothing here starts a print.
 """
 from __future__ import annotations
 
+import array
+import hashlib
 import json
 import mimetypes
 import os
+import random
+import struct
+import threading
 import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -267,6 +272,192 @@ def list_zip(zip_path: Path, prefix: str) -> dict:
     return {"folders": folder_rows, "files": files}
 
 
+MAX_PREVIEW_TRIS = 4500
+_preview_lock = threading.Lock()
+
+
+def _preview_cache(path: Path, entry: str) -> Path:
+    folder = config_path().parent / "previews"
+    folder.mkdir(parents=True, exist_ok=True)
+    st = path.stat()
+    raw = f"{path.resolve()}|{entry}|{st.st_mtime_ns}|{st.st_size}"
+    name = hashlib.sha1(raw.encode("utf-8", "replace")).hexdigest()
+    return folder / f"{name}.bin"
+
+
+def _pack_tris(verts: array.array) -> bytes:
+    count = len(verts) // 9
+    return struct.pack("<I", count) + verts.tobytes()
+
+
+def _stl_triangle_count(head: bytes, size: int) -> int | None:
+    if len(head) < 84 or size < 84:
+        return None
+    count = struct.unpack_from("<I", head, 80)[0]
+    if count <= 0:
+        return None
+    expect = 84 + count * 50
+    if size == expect:
+        return count
+    if size > expect and size - expect < 1024 and head[:5].lower() != b"solid":
+        return count
+    return None
+
+
+def _sample_binary_seek(handle, count: int, origin: int = 84) -> bytes:
+    step = max(1, count // MAX_PREVIEW_TRIS)
+    out = array.array("f")
+    for index in range(0, count, step):
+        handle.seek(origin + index * 50 + 12)
+        chunk = handle.read(36)
+        if len(chunk) < 36:
+            break
+        out.frombytes(chunk)
+        if len(out) // 9 >= MAX_PREVIEW_TRIS:
+            break
+    return _pack_tris(out)
+
+
+def _sample_binary_seq(handle, count: int) -> bytes:
+    step = max(1, count // MAX_PREVIEW_TRIS)
+    out = array.array("f")
+    for index in range(count):
+        rec = handle.read(50)
+        if len(rec) < 50:
+            break
+        if index % step == 0:
+            out.frombytes(rec[12:48])
+            if len(out) // 9 >= MAX_PREVIEW_TRIS:
+                break
+    return _pack_tris(out)
+
+
+def _sample_ascii_stl(data: bytes) -> bytes:
+    verts = array.array("f")
+    for line in data.splitlines():
+        stripped = line.lstrip()
+        if stripped[:6].lower() != b"vertex":
+            continue
+        parts = stripped.split()
+        if len(parts) < 4:
+            continue
+        try:
+            verts.extend((float(parts[1]), float(parts[2]), float(parts[3])))
+        except ValueError:
+            continue
+    count = len(verts) // 9
+    if count <= MAX_PREVIEW_TRIS:
+        return _pack_tris(verts[: count * 9])
+    step = max(1, count // MAX_PREVIEW_TRIS)
+    sampled = array.array("f")
+    for index in range(0, count, step):
+        start = index * 9
+        sampled.extend(verts[start : start + 9])
+        if len(sampled) // 9 >= MAX_PREVIEW_TRIS:
+            break
+    return _pack_tris(sampled)
+
+
+def _sample_stl_handle(handle, size: int, *, seek: bool) -> bytes:
+    head = handle.read(84)
+    count = _stl_triangle_count(head, size)
+    if count is not None:
+        if seek:
+            return _sample_binary_seek(handle, count, 84)
+        return _sample_binary_seq(handle, count)
+    rest = handle.read()
+    return _sample_ascii_stl(head + rest)
+
+
+def _face_indexes(tokens: list[bytes], nverts: int) -> list[int] | None:
+    indexes = []
+    for token in tokens:
+        head = token.split(b"/", 1)[0]
+        if not head:
+            return None
+        try:
+            raw = int(head)
+        except ValueError:
+            return None
+        if raw < 0:
+            raw = nverts + raw
+        else:
+            raw -= 1
+        indexes.append(raw)
+    return indexes if len(indexes) >= 3 else None
+
+
+def _sample_obj_handle(handle) -> bytes:
+    verts = array.array("f")
+    faces: list[tuple[int, int, int]] = []
+    seen = 0
+    for line in handle:
+        if line.startswith((b"v ", b"v\t")):
+            parts = line.split()
+            if len(parts) < 4:
+                continue
+            try:
+                verts.extend((float(parts[1]), float(parts[2]), float(parts[3])))
+            except ValueError:
+                continue
+            continue
+        if not line.startswith((b"f ", b"f\t")):
+            continue
+        nverts = len(verts) // 3
+        indexes = _face_indexes(line.split()[1:], nverts)
+        if not indexes:
+            continue
+        for slot in range(1, len(indexes) - 1):
+            tri = (indexes[0], indexes[slot], indexes[slot + 1])
+            seen += 1
+            if len(faces) < MAX_PREVIEW_TRIS:
+                faces.append(tri)
+            else:
+                pick = random.randrange(seen)
+                if pick < MAX_PREVIEW_TRIS:
+                    faces[pick] = tri
+    nverts = len(verts) // 3
+    out = array.array("f")
+    for a, b, c in faces:
+        if not (0 <= a < nverts and 0 <= b < nverts and 0 <= c < nverts):
+            continue
+        out.extend(verts[a * 3 : a * 3 + 3])
+        out.extend(verts[b * 3 : b * 3 + 3])
+        out.extend(verts[c * 3 : c * 3 + 3])
+    return _pack_tris(out)
+
+
+def build_preview(path: Path, entry: str = "") -> bytes:
+    cache = _preview_cache(path, entry)
+    if cache.is_file() and cache.stat().st_size >= 4:
+        return cache.read_bytes()
+    with _preview_lock:
+        if cache.is_file() and cache.stat().st_size >= 4:
+            return cache.read_bytes()
+        kind = _kind_for(Path(entry).name if entry else path.name)
+        if entry:
+            if path.suffix.lower() != ".zip":
+                raise ValueError("Entry only works on a zip")
+            entry = entry.replace("\\", "/").lstrip("/")
+            with zipfile.ZipFile(path) as zf:
+                info = zf.getinfo(entry)
+                with zf.open(info, "r") as handle:
+                    if kind == "obj":
+                        data = _sample_obj_handle(handle)
+                    else:
+                        data = _sample_stl_handle(handle, int(info.file_size or 0), seek=False)
+        elif kind == "obj":
+            with path.open("rb") as handle:
+                data = _sample_obj_handle(handle)
+        else:
+            with path.open("rb") as handle:
+                data = _sample_stl_handle(handle, path.stat().st_size, seek=True)
+        tmp = cache.with_suffix(".tmp")
+        tmp.write_bytes(data)
+        tmp.replace(cache)
+        return data
+
+
 def read_zip_entry(zip_path: Path, entry: str) -> bytes:
     entry = entry.replace("\\", "/").lstrip("/")
     if not entry or ".." in entry.split("/"):
@@ -345,6 +536,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/api/file":
             self._file_bytes(query)
+            return
+        if path == "/api/preview":
+            self._preview(query)
             return
         self._json(404, {"error": "Not found"})
 
@@ -450,6 +644,28 @@ class Handler(BaseHTTPRequestHandler):
         payload["prefix"] = prefix.replace("\\", "/").strip("/")
         payload["roots"] = roots
         self._json(200, payload)
+
+    def _preview(self, query: dict) -> None:
+        raw = (query.get("path") or [""])[0]
+        entry = (query.get("entry") or [""])[0]
+        try:
+            target = Path(raw).resolve()
+        except Exception:
+            self._json(400, {"error": "Bad path"})
+            return
+        if not target.is_file() or not self._allowed(target):
+            self._json(404, {"error": "File not found"})
+            return
+        kind = _kind_for(Path(entry).name if entry else target.name)
+        if kind not in {"stl", "obj"}:
+            self._json(400, {"error": "No mesh preview for this file"})
+            return
+        try:
+            data = build_preview(target, entry)
+        except (OSError, zipfile.BadZipFile, ValueError, FileNotFoundError, KeyError) as exc:
+            self._json(404, {"error": str(exc)})
+            return
+        self._send(200, data, "application/octet-stream")
 
     def _file_bytes(self, query: dict) -> None:
         raw = (query.get("path") or [""])[0]

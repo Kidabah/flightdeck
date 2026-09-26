@@ -7,11 +7,20 @@ let cols = "4";
 const thumbCache = new Map();
 const thumbQueue = [];
 let thumbBusy = false;
-const THUMB_LIMIT = 8 * 1024 * 1024;
 
 function fileUrl(item) {
   const q = new URLSearchParams({ path: item.path, entry: item.entry || "" });
   return `/api/file?${q}`;
+}
+
+function previewUrl(item) {
+  const q = new URLSearchParams({ path: item.path, entry: item.entry || "" });
+  return `/api/preview?${q}`;
+}
+
+function thumbRank(item) {
+  const kind = item.kind === "stl" ? 0 : 1;
+  return kind * 1e15 + (Number(item.size) || 0);
 }
 
 function fmtBytes(n) {
@@ -53,6 +62,10 @@ async function api(url, options) {
 
 function pumpThumbs() {
   if (thumbBusy) return;
+  if (!window.MeshFinderViewer?.renderThumb) {
+    setTimeout(pumpThumbs, 50);
+    return;
+  }
   const job = thumbQueue.shift();
   if (!job) return;
   if (!job.img.isConnected) {
@@ -60,7 +73,7 @@ function pumpThumbs() {
     return;
   }
   thumbBusy = true;
-  window.MeshFinderViewer.renderThumb(fileUrl(job.item), job.item.kind)
+  window.MeshFinderViewer.renderThumb(previewUrl(job.item), job.item.kind)
     .then((url) => {
       thumbCache.set(job.key, url);
       if (job.img.isConnected) job.img.src = url;
@@ -78,8 +91,8 @@ function queueThumb(item, img) {
     img.src = thumbCache.get(key);
     return;
   }
-  if ((item.size || 0) > THUMB_LIMIT) return;
   thumbQueue.push({ item, img, key });
+  thumbQueue.sort((a, b) => thumbRank(a.item) - thumbRank(b.item));
   pumpThumbs();
 }
 
