@@ -4,6 +4,7 @@ let selected = null;
 let browse = { path: "", name: "" };
 let galleryOffset = 0;
 let cols = "4";
+const favourites = new Set();
 const thumbCache = new Map();
 const thumbQueue = [];
 let thumbBusy = false;
@@ -96,6 +97,54 @@ function queueThumb(item, img) {
   pumpThumbs();
 }
 
+function favKey(item) {
+  return `${item.path}\n${item.entry || ""}`;
+}
+
+function zipName(item) {
+  if (!item.entry) return "";
+  const parts = String(item.path || "").split(/[/\\]/);
+  return parts[parts.length - 1] || "";
+}
+
+function paintHeart(button, on) {
+  button.classList.toggle("on", on);
+  button.textContent = on ? "♥" : "♡";
+  button.title = on ? "Remove from favourites" : "Add to favourites";
+}
+
+async function refreshFavs() {
+  const data = await api("/api/favourites");
+  favourites.clear();
+  for (const item of data.items || []) favourites.add(favKey(item));
+  return data.items || [];
+}
+
+async function toggleFav(item, button) {
+  const key = favKey(item);
+  if (favourites.has(key)) {
+    const q = new URLSearchParams({ path: item.path, entry: item.entry || "" });
+    await api(`/api/favourites?${q}`, { method: "DELETE" });
+    favourites.delete(key);
+    paintHeart(button, false);
+    if (browse.path === "favourites") button.closest(".model-card")?.remove();
+    return;
+  }
+  await api("/api/favourites", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      path: item.path,
+      entry: item.entry || "",
+      name: item.name,
+      kind: item.kind,
+      size: item.size || 0,
+    }),
+  });
+  favourites.add(key);
+  paintHeart(button, true);
+}
+
 function renderCard(item) {
   const card = document.createElement("div");
   card.className = "model-card";
@@ -109,6 +158,15 @@ function renderCard(item) {
   kind.className = "model-kind";
   kind.textContent = item.kind.toUpperCase();
   thumb.appendChild(kind);
+  const heart = document.createElement("button");
+  heart.type = "button";
+  heart.className = "fav-btn";
+  paintHeart(heart, favourites.has(favKey(item)));
+  heart.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleFav(item, heart).catch((err) => showEmpty(err.message || String(err)));
+  });
+  thumb.appendChild(heart);
   if (item.kind === "image") {
     img.src = fileUrl(item);
     thumb.appendChild(img);
@@ -120,12 +178,28 @@ function renderCard(item) {
   }
   const body = document.createElement("div");
   body.className = "model-body";
+  const tags = document.createElement("div");
+  tags.className = "model-tags";
+  const pill = document.createElement("span");
+  pill.className = "kind-pill";
+  pill.textContent = item.kind.toUpperCase();
+  tags.appendChild(pill);
+  const zip = zipName(item);
+  if (zip) {
+    const zipEl = document.createElement("span");
+    zipEl.className = "zip-name";
+    zipEl.title = zip;
+    zipEl.textContent = zip;
+    tags.appendChild(zipEl);
+  }
   const name = document.createElement("div");
   name.className = "model-name";
   name.textContent = item.name;
+  name.title = item.name;
   const meta = document.createElement("div");
   meta.className = "model-meta";
-  meta.textContent = `${item.kind.toUpperCase()} · ${fmtBytes(item.size)}`;
+  meta.textContent = fmtBytes(item.size);
+  body.appendChild(tags);
   body.appendChild(name);
   body.appendChild(meta);
   card.appendChild(thumb);
@@ -260,9 +334,11 @@ function folderRow(item, depth) {
 }
 
 async function loadTree() {
+  await refreshFavs().catch(() => {});
   const data = await api("/api/list");
   const host = $("tree");
   host.innerHTML = "";
+  host.appendChild(favouritesRow());
   const folders = data.folders || [];
   for (const folder of folders) host.appendChild(folderRow(folder, 0));
   if (!folders.length) {
@@ -272,8 +348,38 @@ async function loadTree() {
   await loadGallery(folders[0].path, folders[0].name);
 }
 
+async function showFavourites() {
+  browse = { path: "favourites", name: "Favourites" };
+  galleryOffset = 0;
+  $("gallery").innerHTML = "";
+  showGallery();
+  const items = await refreshFavs();
+  const host = $("gallery");
+  if (!items.length) {
+    host.innerHTML = `<div class="note">No favourites yet. Use the heart on a card.</div>`;
+  }
+  for (const item of items) host.appendChild(renderCard(item));
+  $("crumb").textContent = `Favourites · ${items.length}`;
+}
+
+function favouritesRow() {
+  const wrap = document.createElement("div");
+  const row = document.createElement("button");
+  row.type = "button";
+  row.className = "tree-row";
+  row.style.paddingLeft = "8px";
+  row.innerHTML = `<span class="mark">fav</span><span class="name">Favourites</span>`;
+  row.addEventListener("click", async () => {
+    document.querySelectorAll(".tree-row").forEach((el) => el.classList.remove("active"));
+    row.classList.add("active");
+    await showFavourites();
+  });
+  wrap.appendChild(row);
+  return wrap;
+}
+
 $("showAll").addEventListener("change", () => {
-  if (!browse.path) return;
+  if (!browse.path || browse.path === "favourites") return;
   loadGallery(browse.path, browse.name).catch((err) => showEmpty(err.message || String(err)));
 });
 

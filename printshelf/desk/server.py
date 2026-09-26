@@ -45,18 +45,30 @@ def default_roots() -> list[str]:
     return []
 
 
-def load_roots() -> list[str]:
+def _read_config() -> dict:
     path = config_path()
     if not path.is_file():
-        roots = default_roots()
-        save_roots(roots)
-        return roots
+        return {"roots": default_roots(), "favourites": []}
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
-        return default_roots()
+        return {"roots": default_roots(), "favourites": []}
+    return data if isinstance(data, dict) else {"roots": default_roots(), "favourites": []}
+
+
+def _write_config(data: dict) -> None:
+    config_path().write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
+def load_roots() -> list[str]:
+    data = _read_config()
+    raw_roots = data.get("roots")
+    if not isinstance(raw_roots, list):
+        raw_roots = default_roots()
+        data["roots"] = raw_roots
+        _write_config(data)
     roots = []
-    for raw in data.get("roots") or []:
+    for raw in raw_roots:
         try:
             folder = Path(raw).expanduser().resolve()
         except Exception:
@@ -67,10 +79,42 @@ def load_roots() -> list[str]:
 
 
 def save_roots(roots: list[str]) -> None:
-    config_path().write_text(
-        json.dumps({"roots": roots}, indent=2),
-        encoding="utf-8",
-    )
+    data = _read_config()
+    data["roots"] = roots
+    _write_config(data)
+
+
+def load_favourites() -> list[dict]:
+    data = _read_config()
+    roots = load_roots()
+    items = []
+    for raw in data.get("favourites") or []:
+        if not isinstance(raw, dict):
+            continue
+        try:
+            target = Path(str(raw.get("path") or "")).resolve()
+        except Exception:
+            continue
+        if not target.is_file() or not _under_root(target, roots):
+            continue
+        try:
+            size = int(raw.get("size") or 0)
+        except (TypeError, ValueError):
+            size = 0
+        items.append({
+            "path": str(target),
+            "entry": str(raw.get("entry") or ""),
+            "name": str(raw.get("name") or target.name),
+            "kind": str(raw.get("kind") or "file"),
+            "size": size,
+        })
+    return items
+
+
+def save_favourites(items: list[dict]) -> None:
+    data = _read_config()
+    data["favourites"] = items
+    _write_config(data)
 
 
 def _under_root(path: Path, roots: list[str]) -> bool:
@@ -746,15 +790,20 @@ def _pack_mesh(tris) -> bytes:
     return struct.pack("<I", len(tris)) + flat.tobytes()
 
 
+def _view_mesh(tris):
+    # Stride-sampling a round model leaves a cloud of specks. Clustering keeps a solid surface.
+    return _cluster_tris(tris, 200)
+
+
 def mesh_preview(path: Path, entry: str = "") -> bytes:
-    cache = _preview_cache(path, entry).with_suffix(".mesh")
+    cache = _preview_cache(path, entry).with_suffix(".m2")
     if cache.is_file() and cache.stat().st_size > 16:
         return cache.read_bytes()
     with _preview_lock:
         if cache.is_file() and cache.stat().st_size > 16:
             return cache.read_bytes()
         data = _mesh_bytes(path, entry)
-        packed = _pack_mesh(_cap_tris(_load_3mf_tris(data)))
+        packed = _pack_mesh(_view_mesh(_load_3mf_tris(data)))
         tmp = cache.with_suffix(".tmp")
         tmp.write_bytes(packed)
         tmp.replace(cache)
@@ -780,9 +829,9 @@ def preview_png(path: Path, entry: str = "") -> bytes:
         data = _mesh_bytes(path, entry)
         if kind in {"3mf", "gcode.3mf"}:
             tris = _load_3mf_tris(data)
-            mesh_cache = _preview_cache(path, entry).with_suffix(".mesh")
+            mesh_cache = _preview_cache(path, entry).with_suffix(".m2")
             if not mesh_cache.is_file():
-                packed = _pack_mesh(_cap_tris(tris))
+                packed = _pack_mesh(_view_mesh(tris))
                 tmp_mesh = mesh_cache.with_suffix(".tmp")
                 tmp_mesh.write_bytes(packed)
                 tmp_mesh.replace(mesh_cache)
@@ -915,6 +964,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/mesh":
             self._mesh(query)
             return
+        if path == "/api/favourites":
+            self._json(200, {"items": load_favourites()})
+            return
         self._json(404, {"error": "Not found"})
 
     def do_POST(self) -> None:  # noqa: N802
@@ -939,11 +991,17 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/api/open":
             self._open_external()
             return
+        if parsed.path == "/api/favourites":
+            self._add_favourite()
+            return
         self._json(404, {"error": "Not found"})
 
     def do_DELETE(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         query = parse_qs(parsed.query)
+        if parsed.path == "/api/favourites":
+            self._remove_favourite(query)
+            return
         if parsed.path != "/api/roots":
             self._json(404, {"error": "Not found"})
             return
@@ -955,6 +1013,54 @@ class Handler(BaseHTTPRequestHandler):
         roots = [item for item in load_roots() if item != target]
         save_roots(roots)
         self._json(200, {"roots": roots})
+
+    def _favourite_from_body(self, body: dict) -> dict | None:
+        raw = str(body.get("path") or "")
+        entry = str(body.get("entry") or "")
+        try:
+            target = Path(raw).resolve()
+        except Exception:
+            return None
+        if not target.is_file() or not self._allowed(target):
+            return None
+        try:
+            size = int(body.get("size") or 0)
+        except (TypeError, ValueError):
+            size = 0
+        return {
+            "path": str(target),
+            "entry": entry,
+            "name": str(body.get("name") or target.name),
+            "kind": str(body.get("kind") or "file"),
+            "size": size,
+        }
+
+    def _add_favourite(self) -> None:
+        item = self._favourite_from_body(self._read_json())
+        if not item:
+            self._json(400, {"error": "That file is not in the library"})
+            return
+        items = [
+            saved for saved in load_favourites()
+            if not (saved["path"] == item["path"] and saved["entry"] == item["entry"])
+        ]
+        items.insert(0, item)
+        save_favourites(items)
+        self._json(200, {"items": items})
+
+    def _remove_favourite(self, query: dict) -> None:
+        raw = (query.get("path") or [""])[0]
+        entry = (query.get("entry") or [""])[0]
+        try:
+            target = str(Path(raw).resolve())
+        except Exception:
+            target = raw
+        items = [
+            saved for saved in load_favourites()
+            if not (saved["path"] == target and saved["entry"] == entry)
+        ]
+        save_favourites(items)
+        self._json(200, {"items": items})
 
     def _file(self, target: Path, content_type: str) -> None:
         if not target.is_file():
