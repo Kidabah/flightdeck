@@ -84,9 +84,10 @@ function queueThumb(item, img) {
 }
 
 function renderCard(item) {
-  const card = document.createElement("button");
-  card.type = "button";
+  const card = document.createElement("div");
   card.className = "model-card";
+  card.tabIndex = 0;
+  card.setAttribute("role", "button");
   const thumb = document.createElement("div");
   thumb.className = "model-thumb";
   const img = document.createElement("img");

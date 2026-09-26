@@ -31,6 +31,7 @@ function meshMaterial() {
     color: 0xd5dde6,
     metalness: 0.08,
     roughness: 0.46,
+    side: THREE.DoubleSide,
   });
 }
 
@@ -72,31 +73,115 @@ function addMesh(parent, geometry) {
 
 function seatGroup(group) {
   group.updateMatrixWorld(true);
+  const baked = [];
   group.traverse((obj) => {
     if (!obj.isMesh || !obj.geometry) return;
-    obj.geometry = obj.geometry.clone();
-    obj.geometry.applyMatrix4(obj.matrixWorld);
-    obj.position.set(0, 0, 0);
-    obj.rotation.set(0, 0, 0);
-    obj.quaternion.identity();
-    obj.scale.set(1, 1, 1);
-    obj.updateMatrix();
+    const geometry = obj.geometry.clone();
+    geometry.applyMatrix4(obj.matrixWorld);
+    baked.push(geometry);
   });
-  const box = new THREE.Box3();
-  group.traverse((obj) => {
-    if (!obj.isMesh || !obj.geometry) return;
-    obj.geometry.computeBoundingBox();
-    box.union(obj.geometry.boundingBox);
-  });
+  while (group.children.length) group.remove(group.children[0]);
+  group.position.set(0, 0, 0);
+  group.quaternion.identity();
+  group.scale.set(1, 1, 1);
+  for (const geometry of baked) group.add(new THREE.Mesh(geometry, meshMaterial()));
+  group.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(group);
   if (box.isEmpty()) return new THREE.Sphere(new THREE.Vector3(), 1);
   const mat = seatMatrix(box, "y");
   group.traverse((obj) => {
     if (!obj.isMesh || !obj.geometry) return;
     obj.geometry.applyMatrix4(mat);
     obj.geometry.computeVertexNormals();
-    obj.material = meshMaterial();
+    obj.geometry.computeBoundingBox();
   });
   return new THREE.Box3().setFromObject(group).getBoundingSphere(new THREE.Sphere());
+}
+
+// STL files repeat vertices, so a "face" is every coplanar triangle that shares an edge.
+function faceGraph(geometry) {
+  if (geometry.userData.faceGraph) return geometry.userData.faceGraph;
+  const pos = geometry.attributes.position;
+  const index = geometry.index;
+  const triCount = Math.floor((index ? index.count : pos.count) / 3);
+  geometry.computeBoundingBox();
+  const size = geometry.boundingBox.getSize(new THREE.Vector3());
+  const span = Math.max(size.x, size.y, size.z, 1e-6);
+  const quant = Math.max(span * 1e-4, 1e-6);
+  const q = 1 / quant;
+  const v = new THREE.Vector3();
+  const corner = (tri, slot) => {
+    const at = tri * 3 + slot;
+    return index ? index.getX(at) : at;
+  };
+  const vkey = (point) => `${Math.round(point.x * q)}|${Math.round(point.y * q)}|${Math.round(point.z * q)}`;
+  const tris = new Array(triCount);
+  const edges = new Map();
+  const link = (ka, kb, tri) => {
+    const key = ka < kb ? `${ka}=${kb}` : `${kb}=${ka}`;
+    const list = edges.get(key);
+    if (list) list.push(tri);
+    else edges.set(key, [tri]);
+  };
+  for (let t = 0; t < triCount; t++) {
+    const a = v.clone().fromBufferAttribute(pos, corner(t, 0));
+    const b = new THREE.Vector3().fromBufferAttribute(pos, corner(t, 1));
+    const c = new THREE.Vector3().fromBufferAttribute(pos, corner(t, 2));
+    const normal = new THREE.Vector3().subVectors(b, a).cross(new THREE.Vector3().subVectors(c, a));
+    if (normal.lengthSq() > 1e-20) normal.normalize();
+    else normal.set(0, 1, 0);
+    const ka = vkey(a);
+    const kb = vkey(b);
+    const kc = vkey(c);
+    tris[t] = { a, b, c, normal };
+    link(ka, kb, t);
+    link(kb, kc, t);
+    link(kc, ka, t);
+  }
+  const neighbors = Array.from({ length: triCount }, () => []);
+  for (const list of edges.values()) {
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        neighbors[list[i]].push(list[j]);
+        neighbors[list[j]].push(list[i]);
+      }
+    }
+  }
+  const graph = { tris, neighbors, planeTol: quant, regionOf: new Map(), regions: [] };
+  geometry.userData.faceGraph = graph;
+  return graph;
+}
+
+function faceRegion(geometry, start) {
+  const graph = faceGraph(geometry);
+  if (graph.regionOf.has(start)) return graph.regions[graph.regionOf.get(start)];
+  const seed = graph.tris[start];
+  if (!seed) return [];
+  const n = seed.normal;
+  const origin = seed.a;
+  const tmp = new THREE.Vector3();
+  const onPlane = (point) => Math.abs(tmp.copy(point).sub(origin).dot(n)) <= graph.planeTol;
+  const seen = new Set([start]);
+  const stack = [start];
+  while (stack.length) {
+    const tri = stack.pop();
+    for (const next of graph.neighbors[tri]) {
+      if (seen.has(next)) continue;
+      const other = graph.tris[next];
+      if (other.normal.dot(n) < 0.999) continue;
+      if (!onPlane(other.a) || !onPlane(other.b) || !onPlane(other.c)) continue;
+      seen.add(next);
+      stack.push(next);
+    }
+  }
+  const id = graph.regions.length;
+  const region = [];
+  seen.forEach((tri) => {
+    graph.regionOf.set(tri, id);
+    region.push(tri);
+  });
+  graph.regions.push(region);
+  return region;
 }
 
 export async function mountViewer(container, { url, kind } = {}) {
@@ -161,7 +246,9 @@ export async function mountViewer(container, { url, kind } = {}) {
   const highlightMat = new THREE.MeshBasicMaterial({
     color: 0xf0a040,
     side: THREE.DoubleSide,
-    depthTest: true,
+    transparent: true,
+    opacity: 0.72,
+    depthWrite: false,
     polygonOffset: true,
     polygonOffsetFactor: -2,
     polygonOffsetUnits: -2,
@@ -193,25 +280,42 @@ export async function mountViewer(container, { url, kind } = {}) {
     highlight = null;
   }
 
+  function facingNormal(hit) {
+    const normal = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
+    if (normal.lengthSq() < 1e-8) return null;
+    normal.normalize();
+    if (normal.dot(raycaster.ray.direction) > 0) normal.negate();
+    return normal;
+  }
+
   function showFace(hit) {
+    if (hit?.faceIndex == null) return;
+    const region = faceRegion(hit.object.geometry, hit.faceIndex);
+    const graph = hit.object.geometry.userData.faceGraph;
+    const regionId = graph?.regionOf.get(hit.faceIndex);
+    const key = `${hit.object.uuid}:${regionId}`;
+    if (!region.length || highlight?.userData.key === key) return;
     clearHighlight();
-    if (!hit?.face) return;
-    const pos = hit.object.geometry.attributes.position;
-    const verts = [hit.face.a, hit.face.b, hit.face.c].map((index) => (
-      new THREE.Vector3().fromBufferAttribute(pos, index).applyMatrix4(hit.object.matrixWorld)
-    ));
-    const normal = hit.face.normal.clone().transformDirection(hit.object.matrixWorld).normalize();
-    const lift = normal.multiplyScalar(Math.max(hit.distance, 1) * 0.002);
+    const normal = facingNormal(hit);
+    if (!normal) return;
+    const span = new THREE.Box3().setFromObject(hit.object).getSize(new THREE.Vector3()).length();
+    const lift = Math.max(span, 1) * 0.0015;
+    const flat = new Float32Array(region.length * 9);
+    const world = hit.object.matrixWorld;
+    let offset = 0;
+    for (const triIndex of region) {
+      const tri = graph.tris[triIndex];
+      for (const point of [tri.a, tri.b, tri.c]) {
+        const placed = point.clone().applyMatrix4(world).addScaledVector(normal, lift);
+        flat[offset++] = placed.x;
+        flat[offset++] = placed.y;
+        flat[offset++] = placed.z;
+      }
+    }
     const geometry = new THREE.BufferGeometry();
-    const flat = new Float32Array(9);
-    verts.forEach((vert, i) => {
-      vert.add(lift);
-      flat[i * 3] = vert.x;
-      flat[i * 3 + 1] = vert.y;
-      flat[i * 3 + 2] = vert.z;
-    });
     geometry.setAttribute("position", new THREE.BufferAttribute(flat, 3));
     highlight = new THREE.Mesh(geometry, highlightMat);
+    highlight.userData.key = key;
     scene.add(highlight);
   }
 
@@ -253,8 +357,8 @@ export async function mountViewer(container, { url, kind } = {}) {
     if (moved > 6) return;
     const hit = hitAt(event);
     if (!hit?.face) return;
-    const normal = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
-    if (normal.lengthSq() < 1e-8) return;
+    const normal = facingNormal(hit);
+    if (!normal) return;
     layOnFace(normal);
   };
   renderer.domElement.addEventListener("pointerdown", onPointerDown);
