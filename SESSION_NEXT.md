@@ -1,3 +1,13 @@
+## 2026-09-26 Session update (3MF cards and viewer)
+
+Latest commit: `def3fb1` — a 3MF gets a picture on the card and opens on the bed.
+
+- STL and OBJ were already solid. A 3MF was still just the word. The mesh inside the package is drawn the same way, and a click puts it on the bed so a face can be laid flat.
+- Files: `printshelf/desk/server.py`, `printshelf/desk/static/app.js`, `viewer.js`, `index.html`. Cache: `app.js?v=7`, `viewer.js?v=10`.
+- Local window reopened. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (solid shaded cards)
 
 Latest commit: `53ddb8a` — card pictures are shaded models, not a dotted sketch.
