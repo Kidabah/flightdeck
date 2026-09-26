@@ -1,3 +1,14 @@
+## 2026-09-26 Session update (MeshFinder scan stays usable)
+
+Latest commit: `b2834fd` — MeshFinder lists files while a scan runs.
+
+- A library scan was re-reading every unchanged zip and committing once per file, so the grid sat on blank cards and the API stopped answering. Unchanged files are now marked seen in batches. Mesh thumbs for old zips stay on Rebuild thumbs.
+- Cards show the file type straight away, then the picture when it loads.
+- Files: `printshelf/app/scanner.py`, `printshelf/app/db.py`, `printshelf/static/app.js`, `printshelf/static/style.css`, `printshelf/static/index.html`.
+- Cache: `app.js?v=76`, `style.css?v=69`. Restart printshelf. Reopen MeshFinder.
+
+---
+
 ## 2026-09-25 Session update (check a spool in the AMS)
 
 Latest commit: `6873e01` — “Check if spool 14 is in AMS 1 slot 2 on BigBoy” reads Flightdeck.
