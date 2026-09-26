@@ -112,7 +112,15 @@ def _already_running() -> bool:
     return True
 
 
+def _own_taskbar_icon() -> None:
+    """Keep this window off the Flightdeck pythonw icon."""
+    if sys.platform != "win32":
+        return
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Kidabah.MeshFinder.Desk")
+
+
 def main() -> int:
+    _own_taskbar_icon()
     if _already_running():
         return 0
     _allow_foreground()

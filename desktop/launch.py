@@ -187,7 +187,15 @@ def _post_nav(target: str) -> bool:
         return False
 
 
+def _own_taskbar_icon() -> None:
+    """Keep this window off the MeshFinder pythonw icon."""
+    if sys.platform != "win32":
+        return
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Kidabah.Flightdeck.Desktop")
+
+
 def main() -> int:
+    _own_taskbar_icon()
     pending = _peek_pending()
     if _already_running():
         if pending:

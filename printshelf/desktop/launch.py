@@ -79,7 +79,15 @@ def _already_running() -> bool:
     return True
 
 
+def _own_taskbar_icon() -> None:
+    """The Pi library is not the local MeshFinder window."""
+    if sys.platform != "win32":
+        return
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Kidabah.MeshFinder.Library")
+
+
 def main() -> int:
+    _own_taskbar_icon()
     if _already_running():
         return 0
     import webview
