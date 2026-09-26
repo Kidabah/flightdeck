@@ -60,12 +60,12 @@ function seatMatrix(box, up) {
   return rot.multiply(shift);
 }
 
-function addMesh(scene, geometry) {
+function addMesh(parent, geometry) {
   geometry.computeBoundingBox();
   geometry.applyMatrix4(seatMatrix(geometry.boundingBox, "z"));
   geometry.computeVertexNormals();
   const material = meshMaterial();
-  scene.add(new THREE.Mesh(geometry, material));
+  parent.add(new THREE.Mesh(geometry, material));
   geometry.computeBoundingSphere();
   return geometry.boundingSphere;
 }
@@ -154,7 +154,116 @@ export async function mountViewer(container, { url, kind } = {}) {
     controls.update();
     renderer.render(scene, camera);
   };
-  active = { renderer, scene, controls, raf: 0, resizeObs, objectUrl: null };
+  const model = new THREE.Group();
+  scene.add(model);
+  const raycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+  const highlightMat = new THREE.MeshBasicMaterial({
+    color: 0xf0a040,
+    side: THREE.DoubleSide,
+    depthTest: true,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+  });
+  let highlight = null;
+  let press = null;
+
+  function modelMeshes() {
+    const meshes = [];
+    model.traverse((obj) => {
+      if (obj.isMesh) meshes.push(obj);
+    });
+    return meshes;
+  }
+
+  function hitAt(event) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
+    const hits = raycaster.intersectObjects(modelMeshes(), false);
+    return hits[0] || null;
+  }
+
+  function clearHighlight() {
+    if (!highlight) return;
+    scene.remove(highlight);
+    highlight.geometry.dispose();
+    highlight = null;
+  }
+
+  function showFace(hit) {
+    clearHighlight();
+    if (!hit?.face) return;
+    const pos = hit.object.geometry.attributes.position;
+    const verts = [hit.face.a, hit.face.b, hit.face.c].map((index) => (
+      new THREE.Vector3().fromBufferAttribute(pos, index).applyMatrix4(hit.object.matrixWorld)
+    ));
+    const normal = hit.face.normal.clone().transformDirection(hit.object.matrixWorld).normalize();
+    const lift = normal.multiplyScalar(Math.max(hit.distance, 1) * 0.002);
+    const geometry = new THREE.BufferGeometry();
+    const flat = new Float32Array(9);
+    verts.forEach((vert, i) => {
+      vert.add(lift);
+      flat[i * 3] = vert.x;
+      flat[i * 3 + 1] = vert.y;
+      flat[i * 3 + 2] = vert.z;
+    });
+    geometry.setAttribute("position", new THREE.BufferAttribute(flat, 3));
+    highlight = new THREE.Mesh(geometry, highlightMat);
+    scene.add(highlight);
+  }
+
+  function layOnFace(worldNormal) {
+    const down = new THREE.Vector3(0, -1, 0);
+    const turn = new THREE.Quaternion().setFromUnitVectors(worldNormal.clone().normalize(), down);
+    model.updateMatrixWorld(true);
+    const center = new THREE.Box3().setFromObject(model).getCenter(new THREE.Vector3());
+    model.position.sub(center);
+    model.applyQuaternion(turn);
+    model.position.add(center);
+    model.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(model);
+    const mid = box.getCenter(new THREE.Vector3());
+    model.position.x -= mid.x;
+    model.position.z -= mid.z;
+    model.position.y -= box.min.y;
+    model.updateMatrixWorld(true);
+    controls.target.copy(new THREE.Box3().setFromObject(model).getCenter(new THREE.Vector3()));
+    const size = box.getSize(new THREE.Vector3());
+    const span = Math.max(size.x, size.y, size.z, 1) * 1.6;
+    grid.scale.setScalar(span / 10);
+    clearHighlight();
+  }
+
+  const onPointerDown = (event) => {
+    press = { x: event.clientX, y: event.clientY };
+  };
+  const onPointerMove = (event) => {
+    if (press) return;
+    const hit = hitAt(event);
+    if (hit) showFace(hit);
+    else clearHighlight();
+  };
+  const onPointerUp = (event) => {
+    if (!press) return;
+    const moved = Math.hypot(event.clientX - press.x, event.clientY - press.y);
+    press = null;
+    if (moved > 6) return;
+    const hit = hitAt(event);
+    if (!hit?.face) return;
+    const normal = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
+    if (normal.lengthSq() < 1e-8) return;
+    layOnFace(normal);
+  };
+  renderer.domElement.addEventListener("pointerdown", onPointerDown);
+  renderer.domElement.addEventListener("pointermove", onPointerMove);
+  renderer.domElement.addEventListener("pointerup", onPointerUp);
+
+  active = {
+    renderer, scene, controls, raf: 0, resizeObs, objectUrl: null, model,
+  };
   tick();
 
   try {
@@ -178,16 +287,20 @@ export async function mountViewer(container, { url, kind } = {}) {
     let sphere;
     if (kind === "obj") {
       const group = await new OBJLoader().loadAsync(objectUrl);
-      scene.add(group);
+      model.add(group);
       sphere = seatGroup(group);
     } else {
       const geometry = await new STLLoader().loadAsync(objectUrl);
-      sphere = addMesh(scene, geometry);
+      sphere = addMesh(model, geometry);
     }
     const radius = fitCamera(camera, controls, sphere);
     const span = Math.max(radius * 2.4, 1);
     grid.scale.setScalar(span / 10);
     status.remove();
+    const tip = document.createElement("div");
+    tip.className = "viewer-tip";
+    tip.textContent = "Click a face to lay it on the bed";
+    container.appendChild(tip);
   } catch (err) {
     status.textContent = `Could not open this model: ${err?.message || err}`;
     status.classList.add("error");
