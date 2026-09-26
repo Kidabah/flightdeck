@@ -1,3 +1,12 @@
+## 2026-09-26 Session update (Favourites and Collections stay put)
+
+Latest commit: `0252ac2` — Favourites and Collections sit under the Folders heading and stay there. Only the directory list scrolls.
+
+- Files: `printshelf/desk/static/app.js`, `style.css`, `index.html`. Cache: `app.js?v=24`, `style.css?v=18`.
+- Local window reopened. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (click a folder to close it)
 
 Latest commit: `e7646ff` — click an open directory again and it folds shut. The little mark shows › when closed and ⌄ when open. Hard refresh if the tree still only grows.
