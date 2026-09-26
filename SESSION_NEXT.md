@@ -1,3 +1,14 @@
+## 2026-09-26 Session update (collections)
+
+Latest commit: `68ffb9b` — collections use an in-app window, not a browser prompt.
+
+- Collections sits in the folder list. New collection opens a name window. Add models turns Printable off, and selecting cards shows a bar to add them.
+- Right-click a folder for Show in Explorer, Rename, Exclude from library, or Add to collection. Exclude only hides it here.
+- Files: `printshelf/desk/server.py`, `printshelf/desk/static/`. Cache: `app.js?v=16`, `style.css?v=11`.
+- Local window reopened. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (empty folder note)
 
 Latest commit: `b95bb8e` — a folder of only subfolders no longer looks like a failed scan.
