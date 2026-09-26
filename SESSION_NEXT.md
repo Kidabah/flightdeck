@@ -1,3 +1,12 @@
+## 2026-09-26 Session update (card spacing and FDM tag)
+
+Latest commit: `182e7ea` — printable cards show an FDM tag, and the grid has more room between cards.
+
+- Files: `printshelf/desk/static/app.js`, `style.css`, `index.html`. Cache: `app.js?v=21`, `style.css?v=12`.
+- Local window reopened. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (whole folder, not each zip)
 
 Latest commit: `95bcc4c` — clicking a folder loads every zip in it, the way Meshory loads Dragon Ball Z.
