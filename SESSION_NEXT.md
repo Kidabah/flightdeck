@@ -1,3 +1,12 @@
+## 2026-09-26 Session update (exclude no longer jumps to Koko)
+
+Latest commit: `04c8db7` — Exclude from library only removes that folder row. The tree stays scrolled where it is, and the gallery stays on the folder you already had open.
+
+- Files: `printshelf/desk/static/app.js`, `style.css`, `index.html`. Cache: `style.css?v=21`, `app.js?v=30`.
+- Hard refresh. The window was left running so the duplicate scan can finish. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (exclude stays put)
 
 Latest commit: `d879773` — Exclude from library is back on the folder menu. Hiding a folder only removes that row. The tree no longer jumps back to the last folder you opened.
