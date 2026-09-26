@@ -1,3 +1,15 @@
+## 2026-09-26 Session update (card menu and printable filter)
+
+Latest commit: `ecf1625` — right-click a card, and switch between printable files and everything else.
+
+- Right-click a card for Open, Open in slicer, Show in Explorer, Go to location, and favourites. Go to location opens that folder in the tree and highlights the file.
+- Printable is on by default, so the grid stays models. Turn it off to also see pictures, SVGs, and documents.
+- Search and Send to STL Painter are next, once the painter app path is known.
+- Files: `printshelf/desk/server.py`, `printshelf/desk/static/`. Cache: `app.js?v=9`, `style.css?v=7`.
+- Local window reopened. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (solid 3MF view, card details, favourites)
 
 Latest commit: `907f4c9` — the bed view stays solid, cards show zip and size, and a heart saves favourites.
