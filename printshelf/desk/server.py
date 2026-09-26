@@ -121,6 +121,90 @@ def save_favourites(items: list[dict]) -> None:
     _write_config(data)
 
 
+def load_excluded() -> list[str]:
+    data = _read_config()
+    found = []
+    for raw in data.get("excluded") or []:
+        try:
+            folder = Path(str(raw)).expanduser().resolve()
+        except Exception:
+            continue
+        if folder.exists():
+            found.append(str(folder))
+    return found
+
+
+def save_excluded(items: list[str]) -> None:
+    data = _read_config()
+    data["excluded"] = items
+    _write_config(data)
+
+
+def _is_excluded(path: Path) -> bool:
+    try:
+        key = str(path.resolve()).casefold()
+    except Exception:
+        return False
+    for item in load_excluded():
+        other = item.casefold()
+        if key == other or key.startswith(other.rstrip("\\") + "\\"):
+            return True
+    return False
+
+
+def _collection_member(raw) -> dict | None:
+    if isinstance(raw, str):
+        path, entry, name, kind, size = raw, "", Path(raw).name, "folder", 0
+    elif isinstance(raw, dict):
+        path = str(raw.get("path") or "")
+        entry = str(raw.get("entry") or "")
+        name = str(raw.get("name") or Path(path).name)
+        kind = str(raw.get("kind") or "folder")
+        try:
+            size = int(raw.get("size") or 0)
+        except (TypeError, ValueError):
+            size = 0
+    else:
+        return None
+    try:
+        target = Path(path).expanduser().resolve()
+    except Exception:
+        return None
+    if not target.exists() or _is_excluded(target) or not _under_root(target, load_roots()):
+        return None
+    return {"path": str(target), "entry": entry, "name": name or target.name, "kind": kind, "size": size}
+
+
+def load_collections() -> list[dict]:
+    data = _read_config()
+    groups = []
+    for raw in data.get("collections") or []:
+        if not isinstance(raw, dict):
+            continue
+        name = str(raw.get("name") or "").strip()
+        if not name:
+            continue
+        items = []
+        seen = set()
+        for item in raw.get("items") or raw.get("paths") or []:
+            member = _collection_member(item)
+            if not member:
+                continue
+            key = f"{member['path']}|{member['entry']}".casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            items.append(member)
+        groups.append({"name": name, "items": items})
+    return groups
+
+
+def save_collections(items: list[dict]) -> None:
+    data = _read_config()
+    data["collections"] = items
+    _write_config(data)
+
+
 def _under_root(path: Path, roots: list[str]) -> bool:
     resolved = path.resolve()
     for root in roots:
@@ -173,7 +257,7 @@ def list_folder(folder: Path) -> dict:
     except OSError as exc:
         return {"error": str(exc), "folders": [], "files": []}
     for child in children:
-        if _skip_name(child.name):
+        if _skip_name(child.name) or _is_excluded(child):
             continue
         try:
             if child.is_dir():
@@ -237,7 +321,7 @@ def _iter_dir_cards(folder: Path, recursive: bool, printable: bool = True):
         except OSError:
             return
         for child in children:
-            if _skip_name(child.name) or not child.is_file():
+            if _skip_name(child.name) or not child.is_file() or _is_excluded(child):
                 continue
             if child.suffix.lower() == ".zip":
                 yield from _iter_zip_cards(child, printable)
@@ -251,11 +335,13 @@ def _iter_dir_cards(folder: Path, recursive: bool, printable: bool = True):
                 yield card
         return
     for dirpath, dirnames, filenames in os.walk(folder):
-        dirnames[:] = sorted((name for name in dirnames if not _skip_name(name)), key=str.lower)
+        dirnames[:] = sorted((name for name in dirnames if not _skip_name(name) and not _is_excluded(Path(dirpath) / name)), key=str.lower)
         for name in sorted(filenames, key=str.lower):
             if _skip_name(name):
                 continue
             path = Path(dirpath) / name
+            if _is_excluded(path):
+                continue
             if path.suffix.lower() == ".zip":
                 yield from _iter_zip_cards(path, printable)
                 continue
@@ -318,7 +404,7 @@ def _search_loose(needle: str, *, printable: bool, offset: int, limit: int) -> d
         if not _local_root(root):
             continue
         for dirpath, dirnames, filenames in os.walk(root):
-            dirnames[:] = sorted((name for name in dirnames if not _skip_name(name)), key=str.lower)
+            dirnames[:] = sorted((name for name in dirnames if not _skip_name(name) and not _is_excluded(Path(dirpath) / name)), key=str.lower)
             for name in filenames:
                 if _skip_name(name) or name.lower().endswith(".zip"):
                     continue
@@ -1109,6 +1195,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/favourites":
             self._json(200, {"items": load_favourites()})
             return
+        if path == "/api/collections":
+            self._json(200, {"items": load_collections()})
+            return
         self._json(404, {"error": "Not found"})
 
     def do_POST(self) -> None:  # noqa: N802
@@ -1142,6 +1231,21 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/api/favourites":
             self._add_favourite()
             return
+        if parsed.path == "/api/exclude":
+            self._exclude_folder()
+            return
+        if parsed.path == "/api/rename":
+            self._rename_folder()
+            return
+        if parsed.path == "/api/collections":
+            self._add_collection()
+            return
+        if parsed.path == "/api/collections/items":
+            self._add_collection_items()
+            return
+        if parsed.path == "/api/collections/rename":
+            self._rename_collection()
+            return
         self._json(404, {"error": "Not found"})
 
     def do_DELETE(self) -> None:  # noqa: N802
@@ -1149,6 +1253,9 @@ class Handler(BaseHTTPRequestHandler):
         query = parse_qs(parsed.query)
         if parsed.path == "/api/favourites":
             self._remove_favourite(query)
+            return
+        if parsed.path == "/api/collections":
+            self._delete_collection(query)
             return
         if parsed.path != "/api/roots":
             self._json(404, {"error": "Not found"})
@@ -1261,7 +1368,11 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, {
                 "path": "",
                 "prefix": "",
-                "folders": [{"name": Path(root).name or root, "path": root, "kind": "folder"} for root in roots],
+                "folders": [
+                    {"name": Path(root).name or root, "path": root, "kind": "folder"}
+                    for root in roots
+                    if not _is_excluded(Path(root))
+                ],
                 "files": [],
                 "roots": roots,
             })
@@ -1454,6 +1565,164 @@ class Handler(BaseHTTPRequestHandler):
             self._json(502, {"error": "The Flightdeck app did not open"})
             return
         self._json(200, {"ok": True, "opened": target_hash, "name": safe})
+
+    def _exclude_folder(self) -> None:
+        target = _library_target(str(self._read_json().get("path") or ""))
+        if target is None:
+            self._json(404, {"error": "Folder not found"})
+            return
+        items = load_excluded()
+        key = str(target).casefold()
+        if key not in {item.casefold() for item in items}:
+            items.append(str(target))
+            save_excluded(items)
+        self._json(200, {"ok": True, "excluded": str(target)})
+
+    def _rename_folder(self) -> None:
+        body = self._read_json()
+        target = _library_target(str(body.get("path") or ""))
+        new_name = Path(str(body.get("name") or "")).name.strip()
+        if target is None:
+            self._json(404, {"error": "Folder not found"})
+            return
+        if not new_name or new_name in {".", ".."} or any(ch in new_name for ch in '\\/:*?"<>|'):
+            self._json(400, {"error": "That name will not work"})
+            return
+        dest = target.parent / new_name
+        if dest.exists():
+            self._json(409, {"error": "Something already has that name"})
+            return
+        old = str(target)
+        try:
+            target.rename(dest)
+        except OSError as exc:
+            self._json(500, {"error": str(exc)})
+            return
+        new = str(dest.resolve())
+        data = _read_config()
+        data["roots"] = [_replace_stored_path(old, new, str(item)) for item in data.get("roots") or []]
+        data["excluded"] = [_replace_stored_path(old, new, str(item)) for item in data.get("excluded") or []]
+        groups = []
+        for raw in data.get("collections") or []:
+            if not isinstance(raw, dict):
+                continue
+            items = []
+            for item in raw.get("items") or raw.get("paths") or []:
+                if isinstance(item, str):
+                    items.append({"path": _replace_stored_path(old, new, item), "entry": "", "name": Path(item).name, "kind": "folder", "size": 0})
+                elif isinstance(item, dict):
+                    item["path"] = _replace_stored_path(old, new, str(item.get("path") or ""))
+                    items.append(item)
+            groups.append({"name": str(raw.get("name") or ""), "items": items})
+        data["collections"] = groups
+        favourites = []
+        for raw in data.get("favourites") or []:
+            if not isinstance(raw, dict):
+                continue
+            raw["path"] = _replace_stored_path(old, new, str(raw.get("path") or ""))
+            favourites.append(raw)
+        data["favourites"] = favourites
+        _write_config(data)
+        self._json(200, {"ok": True, "path": new, "name": dest.name})
+
+    def _add_collection(self) -> None:
+        body = self._read_json()
+        name = str(body.get("name") or "").strip()
+        if not name:
+            self._json(400, {"error": "Name the collection"})
+            return
+        groups = load_collections()
+        found = next((group for group in groups if group["name"].casefold() == name.casefold()), None)
+        raw_path = str(body.get("path") or "")
+        if found is None:
+            found = {"name": name, "items": []}
+            groups.append(found)
+        elif not raw_path:
+            self._json(409, {"error": "That collection already exists"})
+            return
+        if raw_path:
+            target = _library_target(raw_path)
+            if target is None:
+                self._json(404, {"error": "Folder not found"})
+                return
+            member = {"path": str(target), "entry": "", "name": target.name, "kind": "folder" if target.is_dir() else "file", "size": 0}
+            key = member["path"].casefold()
+            if key not in {item["path"].casefold() for item in found["items"] if not item.get("entry")}:
+                found["items"].append(member)
+        save_collections(groups)
+        self._json(200, {"ok": True, "items": groups})
+
+    def _add_collection_items(self) -> None:
+        body = self._read_json()
+        name = str(body.get("name") or "").strip()
+        if not name:
+            self._json(400, {"error": "Name the collection"})
+            return
+        groups = load_collections()
+        found = next((group for group in groups if group["name"].casefold() == name.casefold()), None)
+        if found is None:
+            self._json(404, {"error": "Collection not found"})
+            return
+        seen = {f"{item['path']}|{item['entry']}".casefold() for item in found["items"]}
+        for raw in body.get("items") or []:
+            if not isinstance(raw, dict):
+                continue
+            member = _collection_member(raw)
+            if not member:
+                continue
+            key = f"{member['path']}|{member['entry']}".casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            found["items"].append(member)
+        save_collections(groups)
+        self._json(200, {"ok": True, "items": groups})
+
+    def _rename_collection(self) -> None:
+        body = self._read_json()
+        name = str(body.get("name") or "").strip()
+        new_name = str(body.get("newName") or "").strip()
+        if not name or not new_name:
+            self._json(400, {"error": "Name the collection"})
+            return
+        groups = load_collections()
+        found = next((group for group in groups if group["name"].casefold() == name.casefold()), None)
+        if found is None:
+            self._json(404, {"error": "Collection not found"})
+            return
+        if any(group["name"].casefold() == new_name.casefold() and group is not found for group in groups):
+            self._json(409, {"error": "That collection already exists"})
+            return
+        found["name"] = new_name
+        save_collections(groups)
+        self._json(200, {"ok": True, "items": groups})
+
+    def _delete_collection(self, query: dict) -> None:
+        name = (query.get("name") or [""])[0].strip()
+        groups = [group for group in load_collections() if group["name"].casefold() != name.casefold()]
+        save_collections(groups)
+        self._json(200, {"ok": True, "items": groups})
+
+
+def _library_target(raw: str) -> Path | None:
+    try:
+        target = Path(raw).expanduser().resolve()
+    except Exception:
+        return None
+    if not target.exists() or not _under_root(target, load_roots()):
+        return None
+    return target
+
+
+def _replace_stored_path(old: str, new: str, value: str) -> str:
+    old_key = old.casefold()
+    value_key = value.casefold()
+    if value_key == old_key:
+        return new
+    prefix = old_key.rstrip("\\") + "\\"
+    if value_key.startswith(prefix):
+        return new.rstrip("\\") + value[len(old):]
+    return value
 
 
 def _post_flightdeck_page(target: str) -> bool:

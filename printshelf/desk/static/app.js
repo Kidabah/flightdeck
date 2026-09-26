@@ -2,6 +2,10 @@ const $ = (id) => document.getElementById(id);
 
 let selected = null;
 let browse = { path: "", name: "" };
+let folderBrowse = null;
+let addingTo = "";
+let printableWas = null;
+const picked = new Map();
 let libraryBrowse = null;
 let searchQuery = "";
 let searchToken = 0;
@@ -209,7 +213,14 @@ function renderCard(item) {
   body.appendChild(meta);
   card.appendChild(thumb);
   card.appendChild(body);
-  card.addEventListener("click", () => selectFile(item, card));
+  if (picked.has(favKey(item))) card.classList.add("picked");
+  card.addEventListener("click", () => {
+    if (addingTo) {
+      togglePick(item, card);
+      return;
+    }
+    selectFile(item, card);
+  });
   card.addEventListener("contextmenu", (event) => {
     event.preventDefault();
     showCardMenu(event.clientX, event.clientY, item, card);
@@ -393,6 +404,12 @@ function folderRow(item, depth) {
   const children = document.createElement("div");
   children.className = "tree-children";
   children.hidden = true;
+  row.addEventListener("contextmenu", (event) => {
+    if (item.kind === "zipdir") return;
+    event.preventDefault();
+    event.stopPropagation();
+    showTreeMenu(event.clientX, event.clientY, item);
+  });
   row.addEventListener("click", async () => {
     document.querySelectorAll(".tree-row").forEach((el) => el.classList.remove("active"));
     row.classList.add("active");
@@ -417,22 +434,249 @@ function folderRow(item, depth) {
   return wrap;
 }
 
-async function loadTree() {
+function rememberFolder() {
+  if (browse.path && !["favourites", "search", "collections"].includes(browse.path)) {
+    folderBrowse = { path: browse.path, name: browse.name };
+  }
+}
+
+function collectionsRow() {
+  const wrap = document.createElement("div");
+  const row = document.createElement("button");
+  row.type = "button";
+  row.className = "tree-row";
+  row.style.paddingLeft = "8px";
+  row.innerHTML = `<span class="mark">col</span><span class="name">Collections</span>`;
+  row.addEventListener("click", async () => {
+    document.querySelectorAll(".tree-row").forEach((el) => el.classList.remove("active"));
+    row.classList.add("active");
+    $("search").value = "";
+    searchQuery = "";
+    searchToken += 1;
+    await showCollections();
+  });
+  wrap.appendChild(row);
+  return wrap;
+}
+
+async function showCollections() {
+  rememberFolder();
+  browse = { path: "collections", name: "Collections" };
+  showGallery();
+  const data = await api("/api/collections");
+  const groups = data.items || [];
+  const host = $("gallery");
+  host.innerHTML = "";
+  const page = document.createElement("div");
+  page.className = "collect-page";
+  page.innerHTML = `<div class="collect-head"><div><div class="collect-name">Collections</div><div class="collect-meta">${groups.length} collection${groups.length === 1 ? "" : "s"}</div></div><button type="button" class="open-btn" data-act="new">New collection</button></div>`;
+  const list = document.createElement("div");
+  list.className = "collect-list";
+  if (!groups.length) {
+    list.innerHTML = `<div class="note">No collections yet. Create one to group files across folders.</div>`;
+  }
+  for (const group of groups) list.appendChild(collectionCard(group));
+  page.appendChild(list);
+  host.appendChild(page);
+  $("crumb").textContent = `Collections · ${groups.length}`;
+}
+
+function collectionCard(group) {
+  const card = document.createElement("div");
+  card.className = "collect-card";
+  const count = (group.items || []).length;
+  const info = document.createElement("div");
+  const title = document.createElement("button");
+  title.type = "button";
+  title.className = "text-btn collect-name";
+  title.textContent = group.name;
+  title.addEventListener("click", () => showCollection(group));
+  const meta = document.createElement("div");
+  meta.className = "collect-meta";
+  meta.textContent = count === 1 ? "1 item" : `${count} items`;
+  info.appendChild(title);
+  info.appendChild(meta);
+  const actions = document.createElement("div");
+  const add = document.createElement("button");
+  add.type = "button";
+  add.className = "text-btn";
+  add.textContent = "Add models";
+  add.addEventListener("click", () => startAdding(group.name));
+  const rename = document.createElement("button");
+  rename.type = "button";
+  rename.className = "text-btn";
+  rename.textContent = "Rename";
+  rename.addEventListener("click", () => renameCollection(group.name));
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "text-btn";
+  remove.textContent = "Delete";
+  remove.addEventListener("click", () => deleteCollection(group.name));
+  actions.append(add, rename, remove);
+  card.append(info, actions);
+  return card;
+}
+
+async function showCollection(group) {
+  rememberFolder();
+  browse = { path: "collections", name: group.name };
+  showGallery();
+  const host = $("gallery");
+  host.innerHTML = "";
+  const items = group.items || [];
+  if (!items.length) {
+    host.innerHTML = `<div class="note">Nothing in ${group.name} yet.</div>`;
+  }
+  for (const item of items) host.appendChild(renderCard(item));
+  $("crumb").textContent = `${group.name} · ${items.length}`;
+}
+
+let dialogSubmit = null;
+
+function openDialog({ title, placeholder, value, submit, choices, onSubmit }) {
+  dialogSubmit = onSubmit;
+  $("collectTitle").textContent = title;
+  $("collectName").placeholder = placeholder || "";
+  $("collectName").value = value || "";
+  $("collectSubmit").textContent = submit || "Create";
+  const list = $("collectChoices");
+  list.innerHTML = "";
+  list.hidden = !choices?.length;
+  for (const choice of choices || []) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "text-btn";
+    button.textContent = choice.label;
+    button.addEventListener("click", () => {
+      closeCollectDialog();
+      Promise.resolve(choice.onPick()).catch((err) => showEmpty(err.message || String(err)));
+    });
+    list.appendChild(button);
+  }
+  $("collectDialog").hidden = false;
+  $("collectName").focus();
+  $("collectName").select();
+}
+
+function openCollectDialog() {
+  openDialog({
+    title: "New collection",
+    placeholder: "Collection name",
+    submit: "Create",
+    onSubmit: async (name) => {
+      await api("/api/collections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      await showCollections();
+    },
+  });
+}
+
+function closeCollectDialog() {
+  $("collectDialog").hidden = true;
+  dialogSubmit = null;
+}
+
+async function startAdding(name) {
+  rememberFolder();
+  addingTo = name;
+  printableWas = $("printable").checked;
+  $("printable").checked = false;
+  picked.clear();
+  $("addTitle").textContent = `Adding to "${name}"`;
+  $("addBanner").hidden = false;
+  updatePickBar();
+  const back = folderBrowse;
+  if (back?.path) {
+    await loadGallery(back.path, back.name);
+    return;
+  }
+  const data = await api("/api/list");
+  const first = (data.folders || [])[0];
+  if (first) await loadGallery(first.path, first.name);
+}
+
+function stopAdding() {
+  const wasOff = printableWas === false;
+  addingTo = "";
+  picked.clear();
+  $("addBanner").hidden = true;
+  $("pickBar").hidden = true;
+  document.querySelectorAll(".model-card.picked").forEach((el) => el.classList.remove("picked"));
+  if (printableWas !== null) $("printable").checked = printableWas;
+  printableWas = null;
+  if (!wasOff && folderBrowse?.path) {
+    loadGallery(folderBrowse.path, folderBrowse.name).catch((err) => showEmpty(err.message || String(err)));
+  }
+}
+
+function togglePick(item, card) {
+  const key = favKey(item);
+  if (picked.has(key)) {
+    picked.delete(key);
+    card.classList.remove("picked");
+  } else {
+    picked.set(key, item);
+    card.classList.add("picked");
+  }
+  updatePickBar();
+}
+
+function updatePickBar() {
+  const count = picked.size;
+  $("pickBar").hidden = !addingTo || count === 0;
+  $("pickCount").textContent = count === 1 ? "1 selected" : `${count} selected`;
+  $("pickAdd").textContent = `Add ${count} to "${addingTo}"`;
+}
+
+function renameCollection(name) {
+  openDialog({
+    title: "Rename collection",
+    value: name,
+    submit: "Rename",
+    onSubmit: async (next) => {
+      if (next === name) return;
+      await api("/api/collections/rename", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, newName: next }),
+      });
+      await showCollections();
+    },
+  });
+}
+
+async function deleteCollection(name) {
+  if (!window.confirm(`Delete the collection "${name}"? The files stay where they are.`)) return;
+  const q = new URLSearchParams({ name });
+  await api(`/api/collections?${q}`, { method: "DELETE" });
+  await showCollections();
+}
+
+async function loadTree({ openPath = "", openName = "" } = {}) {
   await refreshFavs().catch(() => {});
   const data = await api("/api/list");
   const host = $("tree");
   host.innerHTML = "";
   host.appendChild(favouritesRow());
+  host.appendChild(collectionsRow());
   const folders = data.folders || [];
   for (const folder of folders) host.appendChild(folderRow(folder, 0));
+  if (openPath) {
+    await loadGallery(openPath, openName || baseName(openPath));
+    return;
+  }
   if (!folders.length) {
-    host.innerHTML = `<div class="note">Add a folder to start.</div>`;
+    host.insertAdjacentHTML("beforeend", `<div class="note">Add a folder to start.</div>`);
     return;
   }
   await loadGallery(folders[0].path, folders[0].name);
 }
 
 async function showFavourites() {
+  rememberFolder();
   browse = { path: "favourites", name: "Favourites" };
   galleryOffset = 0;
   $("gallery").innerHTML = "";
@@ -523,6 +767,7 @@ async function goToLocation(item) {
 
 let menuItem = null;
 let menuCard = null;
+let menuMode = "card";
 
 function hideCardMenu() {
   $("cardMenu").hidden = true;
@@ -530,7 +775,93 @@ function hideCardMenu() {
   menuCard = null;
 }
 
+function showTreeMenu(x, y, item) {
+  menuMode = "tree";
+  menuItem = item;
+  menuCard = null;
+  const menu = $("cardMenu");
+  const actions = [
+    ["explorer", "Show in Explorer"],
+    ["rename", "Rename..."],
+    ["exclude", "Exclude from library"],
+    ["collection", "Add to collection"],
+  ];
+  menu.innerHTML = "";
+  for (const [act, label] of actions) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.act = act;
+    button.textContent = label;
+    menu.appendChild(button);
+  }
+  menu.hidden = false;
+  menu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - 220))}px`;
+  menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - 46 * actions.length))}px`;
+}
+
+async function runTreeAction(act) {
+  const item = menuItem;
+  hideCardMenu();
+  if (!item?.path) return;
+  if (act === "explorer") {
+    await api("/api/reveal", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: item.path }),
+    });
+    return;
+  }
+  if (act === "rename") {
+    openDialog({
+      title: "Rename",
+      value: item.name,
+      submit: "Rename",
+      onSubmit: async (name) => {
+        if (name === item.name) return;
+        const saved = await api("/api/rename", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ path: item.path, name }),
+        });
+        await loadTree({ openPath: saved.path, openName: saved.name });
+      },
+    });
+    return;
+  }
+  if (act === "exclude") {
+    const ok = window.confirm(`Hide ${item.name} from MeshFinder? The files stay where they are.`);
+    if (!ok) return;
+    await api("/api/exclude", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: item.path }),
+    });
+    await loadTree();
+    return;
+  }
+  if (act === "collection") {
+    const data = await api("/api/collections").catch(() => ({ items: [] }));
+    const addTo = async (name) => {
+      await api("/api/collections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: item.path, name }),
+      });
+      const keep = browse.path && browse.path !== "favourites" && browse.path !== "search" && browse.path !== "collections";
+      await loadTree(keep ? { openPath: browse.path, openName: browse.name } : {});
+    };
+    openDialog({
+      title: "Add to collection",
+      placeholder: "New collection name",
+      submit: "Create",
+      choices: (data.items || []).map((group) => ({ label: group.name, onPick: () => addTo(group.name) })),
+      onSubmit: addTo,
+    });
+  }
+}
+
 function showCardMenu(x, y, item, card) {
+  menuMode = "card";
   menuItem = item;
   menuCard = card;
   const menu = $("cardMenu");
@@ -609,13 +940,18 @@ async function runMenuAction(act) {
 $("cardMenu").addEventListener("click", (event) => {
   const button = event.target.closest("button");
   if (!button) return;
-  runMenuAction(button.dataset.act).catch((err) => showEmpty(err.message || String(err)));
+  const run = menuMode === "tree" ? runTreeAction : runMenuAction;
+  run(button.dataset.act).catch((err) => showEmpty(err.message || String(err)));
 });
 document.addEventListener("click", () => hideCardMenu());
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     if (!$("cardMenu").hidden) {
       hideCardMenu();
+      return;
+    }
+    if (!$("collectDialog").hidden) {
+      closeCollectDialog();
       return;
     }
     if (searchQuery || document.activeElement === $("search")) {
@@ -643,8 +979,47 @@ $("search").addEventListener("input", () => {
   }, 280);
 });
 
+$("gallery").addEventListener("click", (event) => {
+  if (event.target.closest("[data-act='new']")) openCollectDialog();
+});
+
+$("collectForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const name = $("collectName").value.trim();
+  const submit = dialogSubmit;
+  if (!name || !submit) return;
+  closeCollectDialog();
+  Promise.resolve(submit(name)).catch((err) => showEmpty(err.message || String(err)));
+});
+$("collectCancel").addEventListener("click", closeCollectDialog);
+$("collectDismiss").addEventListener("click", closeCollectDialog);
+$("collectDialog").addEventListener("click", (event) => {
+  if (event.target === $("collectDialog")) closeCollectDialog();
+});
+$("addDone").addEventListener("click", stopAdding);
+$("pickClose").addEventListener("click", stopAdding);
+$("pickAdd").addEventListener("click", () => {
+  const items = [...picked.values()].map((item) => ({
+    path: item.path,
+    entry: item.entry || "",
+    name: item.name,
+    kind: item.kind,
+    size: item.size || 0,
+  }));
+  api("/api/collections/items", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: addingTo, items }),
+  }).then(() => {
+    picked.clear();
+    document.querySelectorAll(".model-card.picked").forEach((el) => el.classList.remove("picked"));
+    updatePickBar();
+    $("crumb").textContent = `Added ${items.length} to "${addingTo}"`;
+  }).catch((err) => showEmpty(err.message || String(err)));
+});
+
 $("showAll").addEventListener("change", () => {
-  if (!browse.path || browse.path === "favourites" || browse.path === "search") return;
+  if (!browse.path || browse.path === "favourites" || browse.path === "search" || browse.path === "collections") return;
   loadGallery(browse.path, browse.name).catch((err) => showEmpty(err.message || String(err)));
 });
 
@@ -653,7 +1028,7 @@ $("printable").addEventListener("change", () => {
     loadSearch(searchQuery).catch((err) => showEmpty(err.message || String(err)));
     return;
   }
-  if (!browse.path || browse.path === "favourites") return;
+  if (!browse.path || browse.path === "favourites" || browse.path === "collections") return;
   loadGallery(browse.path, browse.name).catch((err) => showEmpty(err.message || String(err)));
 });
 

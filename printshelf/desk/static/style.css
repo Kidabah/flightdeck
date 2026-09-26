@@ -406,3 +406,72 @@ button, input { font: inherit; color: inherit; }
   color: var(--muted);
   font-size: 12px;
 }
+
+.model-card.picked { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.add-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 10px 14px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+}
+.add-banner p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+
+.pick-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--pane);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+}
+.pick-bar #pickClose { min-width: 36px; }
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.55);
+}
+.modal-card {
+  width: min(440px, calc(100% - 32px));
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--pane);
+}
+.modal-head, .modal-actions, .collect-head, .collect-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.modal-head { margin-bottom: 12px; }
+.modal-actions { margin-top: 12px; justify-content: flex-end; }
+.collect-page { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 12px; }
+.collect-list { display: flex; flex-direction: column; gap: 10px; }
+.collect-card {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+}
+.collect-card button { margin-left: 6px; }
+.collect-choices { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.collect-choices button { text-align: left; }
+.collect-name { font-weight: 650; }
+.collect-meta { color: var(--muted); font-size: 12px; margin-top: 4px; }

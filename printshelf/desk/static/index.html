@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MeshFinder</title>
-  <link rel="stylesheet" href="/static/style.css?v=9">
+  <link rel="stylesheet" href="/static/style.css?v=11">
   <script type="importmap">
   {
     "imports": {
@@ -50,6 +50,13 @@
         </div>
         <button type="button" id="openFile" class="open-btn" disabled>Open in slicer</button>
       </header>
+      <div id="addBanner" class="add-banner" hidden>
+        <div>
+          <strong id="addTitle">Adding to a collection</strong>
+          <p>Click a card to select it. Click it again to take it off.</p>
+        </div>
+        <button type="button" id="addDone" class="text-btn">Done</button>
+      </div>
       <div id="stage" class="stage-body">
         <div id="gallery" class="gallery cols-4"></div>
         <div id="viewer" class="viewer" hidden></div>
@@ -60,7 +67,26 @@
     </main>
   </div>
   <div id="cardMenu" class="card-menu" hidden></div>
+  <div id="pickBar" class="pick-bar" hidden>
+    <span id="pickCount">0 selected</span>
+    <button type="button" id="pickAdd" class="open-btn">Add</button>
+    <button type="button" id="pickClose" class="text-btn" title="Stop selecting">×</button>
+  </div>
+  <div id="collectDialog" class="modal" hidden>
+    <form id="collectForm" class="modal-card">
+      <div class="modal-head">
+        <strong id="collectTitle">New collection</strong>
+        <button type="button" id="collectCancel" class="text-btn" title="Close">×</button>
+      </div>
+      <div id="collectChoices" class="collect-choices" hidden></div>
+      <input id="collectName" class="search" placeholder="Collection name" autocomplete="off">
+      <div class="modal-actions">
+        <button type="button" id="collectDismiss" class="text-btn">Cancel</button>
+        <button type="submit" id="collectSubmit" class="open-btn">Create</button>
+      </div>
+    </form>
+  </div>
   <script type="module" src="/static/viewer.js?v=10"></script>
-  <script src="/static/app.js?v=13"></script>
+  <script src="/static/app.js?v=16"></script>
 </body>
 </html>
