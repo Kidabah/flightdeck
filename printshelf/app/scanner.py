@@ -7,6 +7,7 @@ import logging
 import os
 import re
 import threading
+import time
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable
 
@@ -584,6 +585,26 @@ def run_scan(
             skipped_roots: list[dict[str, str]] = []
             status = "ok"
             err = None
+            # Unchanged files only need last_seen. One commit per file was
+            # locking the library (blank cards) for the whole walk.
+            pending_seen: list[int] = []
+
+            def flush_seen(*, force: bool = False) -> None:
+                if not pending_seen:
+                    return
+                if not force and len(pending_seen) < 400:
+                    return
+                now_seen = utcnow()
+                ids = pending_seen[:]
+                pending_seen.clear()
+                for i in range(0, len(ids), 400):
+                    chunk = ids[i:i + 400]
+                    marks = ",".join("?" * len(chunk))
+                    conn.execute(
+                        f"UPDATE assets SET last_seen = ?, missing = 0 WHERE id IN ({marks})",
+                        (now_seen, *chunk),
+                    )
+                conn.commit()
             for folder in folders:
                 root = Path(folder.get("path") or "")
                 ready, reason = _root_ready_to_scan(root)
@@ -648,7 +669,7 @@ def run_scan(
                             st = path.stat()
                             abs_path = str(path.resolve())
                             existing = conn.execute(
-                                "SELECT id, size_bytes, mtime, meta_json, thumb_path FROM assets WHERE abs_path = ?",
+                                "SELECT id, size_bytes, mtime FROM assets WHERE abs_path = ?",
                                 (abs_path,),
                             ).fetchone()
                             unchanged = bool(
@@ -656,22 +677,15 @@ def run_scan(
                                 and int(existing["size_bytes"] or 0) == int(st.st_size)
                                 and abs(float(existing["mtime"] or 0) - float(st.st_mtime)) < 0.001
                             )
-                            needs_backfill = bool(
-                                existing and unchanged and (
-                                    _needs_image_backfill(existing, kind)
-                                    or _needs_zip_thumb_backfill(existing, kind)
-                                )
-                            )
-                            if unchanged and not needs_backfill:
-                                conn.execute(
-                                    "UPDATE assets SET last_seen = ?, missing = 0 WHERE id = ?",
-                                    (utcnow(), existing["id"]),
-                                )
+                            if unchanged:
+                                # Same size and time: the file is already in the library.
+                                # Mesh thumbs for old zips stay on Rebuild thumbs, not this walk.
+                                pending_seen.append(int(existing["id"]))
                                 SCAN_STATE["files_skipped"] += 1
                                 seen_paths.add(abs_path)
-                                _clear_scan_issue(conn, abs_path)
-                                conn.commit()
+                                flush_seen()
                             else:
+                                flush_seen(force=True)
                                 digest = file_hash(path, max_bytes=32_768 if kind == "zip" else 262_144, st=st)
                                 parsed = parse_asset(path, kind)
                                 upsert_asset(conn, folder, path, parsed, digest, thumbs)
@@ -679,6 +693,8 @@ def run_scan(
                                 seen_paths.add(abs_path)
                                 _clear_scan_issue(conn, abs_path)
                                 conn.commit()
+                                # Let the grid and thumb requests run between new files.
+                                time.sleep(0.02)
                         except Exception as exc:
                             SCAN_STATE["files_failed"] += 1
                             SCAN_STATE["error"] = f"{name}: {exc}"
@@ -697,22 +713,39 @@ def run_scan(
                             log.warning("Scan skip %s: %s", path, exc)
                             continue
 
-                        if SCAN_STATE["files_seen"] % 25 == 0:
+                        if SCAN_STATE["files_seen"] % 200 == 0:
+                            flush_seen(force=True)
                             _flush_scan_progress(conn, run_id)
                             if progress:
                                 progress(get_scan_state())
 
+                flush_seen(force=True)
+
+            flush_seen(force=True)
             SCAN_STATE["skipped_roots"] = skipped_roots
             if scanned_roots:
-                rows = conn.execute("SELECT id, abs_path, root_path FROM assets").fetchall()
+                # Seen files were already touched. Only stat files the walk did not list,
+                # and mark those missing in batches so the grid is not locked at the end.
+                rows = conn.execute(
+                    "SELECT id, abs_path, root_path FROM assets WHERE missing = 0"
+                ).fetchall()
+                gone: list[int] = []
                 for row in rows:
                     if row["root_path"] not in scanned_roots:
                         continue
-                    missing = 0 if row["abs_path"] in seen_paths else (0 if Path(row["abs_path"]).exists() else 1)
+                    if row["abs_path"] in seen_paths:
+                        continue
+                    if Path(row["abs_path"]).exists():
+                        continue
+                    gone.append(int(row["id"]))
+                for i in range(0, len(gone), 400):
+                    chunk = gone[i:i + 400]
+                    marks = ",".join("?" * len(chunk))
                     conn.execute(
-                        "UPDATE assets SET missing = ?, last_seen = CASE WHEN ? = 0 THEN ? ELSE last_seen END WHERE id = ?",
-                        (missing, missing, utcnow(), row["id"]),
+                        f"UPDATE assets SET missing = 1 WHERE id IN ({marks})",
+                        tuple(chunk),
                     )
+                    conn.commit()
 
             status = "ok"
             err = None if not SCAN_STATE.get("files_failed") else SCAN_STATE.get("error")

@@ -801,7 +801,7 @@ async function refreshLibraryView({ reloadGrid = true, rescan = false } = {}) {
         "Scanning for new files…",
         root
           ? `Refreshing ${root === "kidabah-pc" ? "Kidabah PC" : root === "koko-kidabah" ? "NAS" : root} from disk`
-          : "Walking watched folders — new zips show up when this finishes",
+          : "Walking watched folders — files stay on screen while it runs",
         "ok",
         6000,
       );
@@ -1269,9 +1269,9 @@ function appendDesignCard(grid, item) {
       <button type="button" class="card-menu-btn" aria-label="More actions">⋮</button>
       <div class="card-menu-panel" role="menu"></div>
     </div>
-    <div class="card-thumb">${thumbSrc
+    <div class="card-thumb"><span class="pill thumb-kind">${escapeHtml(item.cover_kind || "design")}</span>${thumbSrc
       ? `<img src="${thumbSrc}" alt="" loading="lazy">`
-      : `<span class="pill">${escapeHtml(item.cover_kind || "design")}</span>`}</div>
+      : ""}</div>
     <div class="card-body">
       <h3 class="card-title">${escapeHtml(item.name || "Design")}</h3>
       <div class="card-meta">
@@ -1366,9 +1366,9 @@ function appendAssetCard(grid, item) {
       <button type="button" class="card-menu-btn" aria-label="More actions">⋮</button>
       <div class="card-menu-panel" role="menu"></div>
     </div>
-    <div class="card-thumb">${thumbSrc
+    <div class="card-thumb"><span class="pill thumb-kind">${escapeHtml(item.kind)}</span>${thumbSrc
       ? `<img src="${thumbSrc}" alt="" loading="lazy">`
-      : `<span class="pill">${escapeHtml(item.kind)}</span>`}</div>
+      : ""}</div>
     <div class="card-body">
       <h3 class="card-title">${escapeHtml(item.file_name)}</h3>
       <div class="card-meta">

@@ -122,10 +122,13 @@ def utcnow() -> str:
 
 def connect(db_file: Path) -> sqlite3.Connection:
     db_file.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(db_file), check_same_thread=False)
+    conn = sqlite3.connect(str(db_file), check_same_thread=False, timeout=8.0)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode = WAL")
+    # Readers (the grid, thumbs, scan banner) must not sit behind a scan write.
+    conn.execute("PRAGMA busy_timeout = 8000")
+    conn.execute("PRAGMA synchronous = NORMAL")
     return conn
 
 
