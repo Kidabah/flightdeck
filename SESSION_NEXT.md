@@ -1,3 +1,12 @@
+## 2026-09-26 Session update (path bar and a draggable folder edge)
+
+Latest commit: `620fa17` — the folder path sits across the top, like Meshory. Click a parent to jump there, or the house to go to the top of that library. Drag the edge between the folders and the cards to make the tree wider. Double-click that edge to put it back.
+
+- Files: `printshelf/desk/static/app.js`, `style.css`, `index.html`. Cache: `app.js?v=25`, `style.css?v=19`.
+- Local window reopened. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (Favourites and Collections stay put)
 
 Latest commit: `0252ac2` — Favourites and Collections sit under the Folders heading and stay there. Only the directory list scrolls.
