@@ -5,6 +5,7 @@ let browse = { path: "", name: "" };
 let folderBrowse = null;
 let addingTo = "";
 let printableWas = null;
+let pickAnchor = null;
 const picked = new Map();
 let libraryBrowse = null;
 let searchQuery = "";
@@ -213,13 +214,20 @@ function renderCard(item) {
   body.appendChild(meta);
   card.appendChild(thumb);
   card.appendChild(body);
+  card._item = item;
   if (picked.has(favKey(item))) card.classList.add("picked");
-  card.addEventListener("click", () => {
-    if (addingTo) {
-      togglePick(item, card);
+  card.addEventListener("click", (event) => {
+    if (!addingTo) {
+      selectFile(item, card);
       return;
     }
-    selectFile(item, card);
+    if (event.shiftKey && pickAnchor) {
+      event.preventDefault();
+      selectPickRange(pickAnchor, card);
+      return;
+    }
+    togglePick(item, card);
+    pickAnchor = card;
   });
   card.addEventListener("contextmenu", (event) => {
     event.preventDefault();
@@ -584,6 +592,7 @@ async function startAdding(name) {
   addingTo = name;
   printableWas = $("printable").checked;
   $("printable").checked = false;
+  pickAnchor = null;
   picked.clear();
   $("addTitle").textContent = `Adding to "${name}"`;
   $("addBanner").hidden = false;
@@ -601,6 +610,7 @@ async function startAdding(name) {
 function stopAdding() {
   const wasOff = printableWas === false;
   addingTo = "";
+  pickAnchor = null;
   picked.clear();
   $("addBanner").hidden = true;
   $("pickBar").hidden = true;
@@ -610,6 +620,23 @@ function stopAdding() {
   if (!wasOff && folderBrowse?.path) {
     loadGallery(folderBrowse.path, folderBrowse.name).catch((err) => showEmpty(err.message || String(err)));
   }
+}
+
+function selectPickRange(from, to) {
+  const cards = [...document.querySelectorAll("#gallery .model-card")];
+  let start = cards.indexOf(from);
+  let end = cards.indexOf(to);
+  if (start < 0) start = end;
+  if (end < 0) return;
+  if (start > end) [start, end] = [end, start];
+  for (let i = start; i <= end; i += 1) {
+    const card = cards[i];
+    const item = card._item;
+    if (!item) continue;
+    picked.set(favKey(item), item);
+    card.classList.add("picked");
+  }
+  updatePickBar();
 }
 
 function togglePick(item, card) {
@@ -1012,6 +1039,7 @@ $("pickAdd").addEventListener("click", () => {
     body: JSON.stringify({ name: addingTo, items }),
   }).then(() => {
     picked.clear();
+    pickAnchor = null;
     document.querySelectorAll(".model-card.picked").forEach((el) => el.classList.remove("picked"));
     updatePickBar();
     $("crumb").textContent = `Added ${items.length} to "${addingTo}"`;
