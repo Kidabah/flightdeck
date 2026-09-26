@@ -292,7 +292,7 @@ function renderPath(status) {
   const segs = $("pathsegs");
   if (!segs) return;
   segs.innerHTML = "";
-  const titles = { favourites: "Favourites", search: "Search", collections: browse.name || "Collections" };
+  const titles = { favourites: "Favourites", search: "Search", collections: browse.name || "Collections", duplicates: "Duplicates" };
   if (!browse.path || titles[browse.path]) {
     const label = document.createElement("span");
     label.className = "path-current";
@@ -346,14 +346,14 @@ async function openCrumb(path, name) {
 
 async function goPathHome() {
   pathFile = "";
-  if (browse.path && !["favourites", "search", "collections"].includes(browse.path)) {
+  if (browse.path && !["favourites", "search", "collections", "duplicates"].includes(browse.path)) {
     const top = splitLibraryPath(browse.path)[0];
     if (top) {
       await openCrumb(top.path, top.name);
       return;
     }
   }
-  if (folderBrowse?.path && !["favourites", "search", "collections"].includes(folderBrowse.path)) {
+  if (folderBrowse?.path && !["favourites", "search", "collections", "duplicates"].includes(folderBrowse.path)) {
     await openCrumb(folderBrowse.path, folderBrowse.name);
     return;
   }
@@ -444,6 +444,10 @@ function leaveSearch() {
   if (!back?.path || back.path === "search") return;
   if (back.path === "favourites") {
     showFavourites().catch((err) => showEmpty(err.message || String(err)));
+    return;
+  }
+  if (back.path === "duplicates") {
+    showDuplicates().catch((err) => showEmpty(err.message || String(err)));
     return;
   }
   loadGallery(back.path, back.name).catch((err) => showEmpty(err.message || String(err)));
@@ -621,7 +625,7 @@ function folderRow(item, depth) {
 }
 
 function rememberFolder() {
-  if (browse.path && !["favourites", "search", "collections"].includes(browse.path)) {
+  if (browse.path && !["favourites", "search", "collections", "duplicates"].includes(browse.path)) {
     folderBrowse = { path: browse.path, name: browse.name };
   }
 }
@@ -869,7 +873,7 @@ function saveSession() {
   if (restoring) return;
   clearTimeout(sessionTimer);
   sessionTimer = setTimeout(() => {
-    const place = browse.path && !["favourites", "search", "collections"].includes(browse.path)
+    const place = browse.path && !["favourites", "search", "collections", "duplicates"].includes(browse.path)
       ? { path: browse.path, name: browse.name }
       : (folderBrowse || { path: "", name: "" });
     const open = [...document.querySelectorAll(".tree-row[data-path]")].filter((row) => {
@@ -934,6 +938,7 @@ async function loadTree({ openPath = "", openName = "" } = {}) {
   pins.innerHTML = "";
   pins.appendChild(favouritesRow());
   pins.appendChild(collectionsRow());
+  pins.appendChild(duplicatesRow());
   const host = $("tree");
   host.innerHTML = "";
   const folders = data.folders || [];
@@ -944,7 +949,7 @@ async function loadTree({ openPath = "", openName = "" } = {}) {
     return;
   }
   const place = session?.place?.path || "";
-  if (place && !["favourites", "search", "collections"].includes(place)) {
+  if (place && !["favourites", "search", "collections", "duplicates"].includes(place)) {
     try {
       for (const path of session.open || []) await expandTo(path);
       await expandTo(place);
@@ -993,6 +998,198 @@ function favouritesRow() {
     searchQuery = "";
     searchToken += 1;
     await showFavourites();
+  });
+  wrap.appendChild(row);
+  return wrap;
+}
+
+let dupTimer = 0;
+let lastDup = null;
+const dupKeep = new Map();
+
+function dupCopyKey(copy) {
+  return `${copy.path}\0${copy.entry || ""}`;
+}
+
+function chosenKeep(group) {
+  const copies = group.copies || [];
+  const saved = dupKeep.get(group.hash);
+  if (saved && copies.some((copy) => dupCopyKey(copy) === saved)) return saved;
+  const looseLocal = copies.find((copy) => !copy.entry && !String(copy.path).startsWith("\\\\"));
+  const loose = copies.find((copy) => !copy.entry);
+  return dupCopyKey(looseLocal || loose || copies[0] || { path: "", entry: "" });
+}
+
+function dupWhere(copy) {
+  if (copy.entry) return `${baseName(copy.path)} · ${copy.entry}`;
+  return copy.path;
+}
+
+function dupGroup(group) {
+  const card = document.createElement("div");
+  card.className = "dup-group";
+  const keep = chosenKeep(group);
+  const copies = group.copies || [];
+  const head = document.createElement("div");
+  head.className = "dup-group-head";
+  const label = document.createElement("div");
+  const strong = document.createElement("strong");
+  strong.textContent = copies[0]?.name || "File";
+  const sub = document.createElement("div");
+  sub.className = "dup-meta";
+  sub.textContent = `${group.count} copies · ${fmtBytes(group.reclaimable)} spare`;
+  label.append(strong, sub);
+  head.appendChild(label);
+  const spare = copies.filter((copy) => !copy.entry && dupCopyKey(copy) !== keep);
+  if (spare.length) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "text-btn";
+    button.textContent = spare.length === 1 ? "Delete spare" : `Delete ${spare.length} spares`;
+    button.addEventListener("click", () => {
+      deleteSpares(group, spare).catch((err) => showEmpty(err.message || String(err)));
+    });
+    head.appendChild(button);
+  }
+  card.appendChild(head);
+  for (const copy of copies) {
+    const row = document.createElement("div");
+    row.className = "dup-copy";
+    const where = document.createElement("div");
+    where.className = "dup-where";
+    where.title = dupWhere(copy);
+    where.textContent = dupWhere(copy);
+    row.appendChild(where);
+    const key = dupCopyKey(copy);
+    if (!copy.entry && key !== keep) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "text-btn";
+      button.textContent = "Keep this one";
+      button.addEventListener("click", () => {
+        dupKeep.set(group.hash, key);
+        if (lastDup) renderDuplicates(lastDup);
+      });
+      row.appendChild(button);
+    } else {
+      const tag = document.createElement("span");
+      tag.className = "dup-tag";
+      tag.textContent = copy.entry ? "in a zip" : "keep";
+      row.appendChild(tag);
+    }
+    card.appendChild(row);
+  }
+  return card;
+}
+
+function renderDuplicates(data) {
+  const host = $("gallery");
+  host.innerHTML = "";
+  const page = document.createElement("div");
+  page.className = "dup-page";
+  const head = document.createElement("div");
+  head.className = "dup-head";
+  const title = document.createElement("div");
+  const name = document.createElement("div");
+  name.className = "dup-title";
+  name.textContent = "Duplicates";
+  const meta = document.createElement("div");
+  meta.className = "dup-meta";
+  if (data.running) {
+    meta.textContent = data.phase === "hashing"
+      ? `Checking files that share a size · ${data.hashed || 0} checked`
+      : `Looking through the library · ${data.scanned || 0} files`;
+  } else if (data.error) {
+    meta.textContent = data.error;
+  } else if (data.groupCount) {
+    const more = data.capped ? " · showing the 200 largest" : "";
+    meta.textContent = `${data.groupCount} identical file${data.groupCount === 1 ? "" : "s"} · ${fmtBytes(data.reclaimable)} spare${more}`;
+  } else if (data.built) {
+    meta.textContent = "No identical files.";
+  } else {
+    meta.textContent = "Same file saved in more than one place.";
+  }
+  title.append(name, meta);
+  const action = document.createElement("button");
+  action.type = "button";
+  action.className = "open-btn";
+  action.textContent = data.running ? "Stop" : "Analyze";
+  action.addEventListener("click", () => {
+    const path = data.running ? "/api/duplicates/stop" : "/api/duplicates/analyze";
+    api(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })
+      .then(() => refreshDuplicates())
+      .catch((err) => showEmpty(err.message || String(err)));
+  });
+  head.append(title, action);
+  page.appendChild(head);
+  if (!data.running && !(data.groups || []).length) {
+    const note = document.createElement("div");
+    note.className = "note";
+    note.textContent = data.built
+      ? "Nothing to clean up."
+      : "Analyze when you want a look. It only spends time on files that are the same size.";
+    page.appendChild(note);
+  }
+  for (const group of data.groups || []) page.appendChild(dupGroup(group));
+  host.appendChild(page);
+  pathFile = "";
+  renderPath(meta.textContent);
+}
+
+async function deleteSpares(group, spare) {
+  const network = spare.some((copy) => String(copy.path).startsWith("\\\\"));
+  const noun = spare.length === 1 ? "this spare copy" : `${spare.length} spare copies`;
+  const extra = network ? " One of them is on a network drive, which has no Trash." : "";
+  if (!window.confirm(`Delete ${noun} for good?${extra} This cannot be undone.`)) return;
+  const data = await api("/api/duplicates/delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      hash: group.hash,
+      remove: spare.map((copy) => ({ path: copy.path, entry: "" })),
+    }),
+  });
+  lastDup = data;
+  if (browse.path === "duplicates") renderDuplicates(data);
+}
+
+async function refreshDuplicates() {
+  const data = await api("/api/duplicates");
+  if (browse.path !== "duplicates") return;
+  lastDup = data;
+  renderDuplicates(data);
+  clearTimeout(dupTimer);
+  if (data.running) {
+    dupTimer = setTimeout(() => {
+      refreshDuplicates().catch((err) => showEmpty(err.message || String(err)));
+    }, 1500);
+  }
+}
+
+async function showDuplicates() {
+  rememberFolder();
+  browse = { path: "duplicates", name: "Duplicates" };
+  pathFile = "";
+  showGallery();
+  clearTimeout(dupTimer);
+  $("gallery").innerHTML = `<div class="note">Looking up duplicates…</div>`;
+  await refreshDuplicates();
+}
+
+function duplicatesRow() {
+  const wrap = document.createElement("div");
+  const row = document.createElement("button");
+  row.type = "button";
+  row.className = "tree-row";
+  row.style.paddingLeft = "8px";
+  row.innerHTML = `<span class="mark">dup</span><span class="name">Duplicates</span>`;
+  row.addEventListener("click", async () => {
+    document.querySelectorAll(".tree-row").forEach((el) => el.classList.remove("active"));
+    row.classList.add("active");
+    $("search").value = "";
+    searchQuery = "";
+    searchToken += 1;
+    await showDuplicates();
   });
   wrap.appendChild(row);
   return wrap;
@@ -1136,7 +1333,7 @@ async function runTreeAction(act) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ path: item.path, name }),
       });
-      const keep = browse.path && browse.path !== "favourites" && browse.path !== "search" && browse.path !== "collections";
+      const keep = browse.path && browse.path !== "favourites" && browse.path !== "search" && browse.path !== "collections" && browse.path !== "duplicates";
       await loadTree(keep ? { openPath: browse.path, openName: browse.name } : {});
     };
     openDialog({
@@ -1308,7 +1505,7 @@ $("pickAdd").addEventListener("click", () => {
 });
 
 $("showAll").addEventListener("change", () => {
-  if (!browse.path || browse.path === "favourites" || browse.path === "search" || browse.path === "collections") return;
+  if (!browse.path || browse.path === "favourites" || browse.path === "search" || browse.path === "collections" || browse.path === "duplicates") return;
   loadGallery(browse.path, browse.name).catch((err) => showEmpty(err.message || String(err)));
 });
 
@@ -1317,7 +1514,7 @@ $("printable").addEventListener("change", () => {
     loadSearch(searchQuery).catch((err) => showEmpty(err.message || String(err)));
     return;
   }
-  if (!browse.path || browse.path === "favourites" || browse.path === "collections") return;
+  if (!browse.path || browse.path === "favourites" || browse.path === "collections" || browse.path === "duplicates") return;
   loadGallery(browse.path, browse.name).catch((err) => showEmpty(err.message || String(err)));
 });
 

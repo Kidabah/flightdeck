@@ -531,6 +531,361 @@ def search_library(needle: str, *, printable: bool, offset: int, limit: int) -> 
     return _search_loose(needle, printable=printable, offset=offset, limit=limit)
 
 
+_dup_lock = threading.Lock()
+_dup_state: dict = {
+    "running": False,
+    "phase": "idle",
+    "scanned": 0,
+    "candidates": 0,
+    "hashed": 0,
+    "groups": [],
+    "groupCount": 0,
+    "reclaimable": 0,
+    "capped": False,
+    "cancel": False,
+    "error": "",
+    "built": 0,
+}
+
+
+def _dup_file() -> Path:
+    return config_path().parent / "duplicates.json"
+
+
+def _dup_snapshot() -> dict:
+    with _dup_lock:
+        groups = list(_dup_state["groups"])
+        return {
+            "running": bool(_dup_state["running"]),
+            "phase": _dup_state["phase"],
+            "scanned": int(_dup_state["scanned"]),
+            "candidates": int(_dup_state["candidates"]),
+            "hashed": int(_dup_state["hashed"]),
+            "groups": groups[:200],
+            "groupCount": int(_dup_state["groupCount"]),
+            "reclaimable": int(_dup_state["reclaimable"]),
+            "capped": bool(_dup_state["capped"]),
+            "error": _dup_state["error"],
+            "built": _dup_state["built"],
+        }
+
+
+def _dup_set(**kwargs) -> None:
+    with _dup_lock:
+        _dup_state.update(kwargs)
+
+
+def _load_saved_duplicates() -> None:
+    with _dup_lock:
+        if _dup_state["running"] or _dup_state["groups"] or _dup_state["built"]:
+            return
+    path = _dup_file()
+    if not path.is_file():
+        return
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return
+    if not isinstance(data, dict):
+        return
+    groups = data.get("groups") if isinstance(data.get("groups"), list) else []
+    _dup_set(
+        phase="done" if groups or data.get("built") else "idle",
+        groups=groups,
+        groupCount=int(data.get("groupCount") or len(groups)),
+        reclaimable=int(data.get("reclaimable") or 0),
+        capped=bool(data.get("capped")),
+        scanned=int(data.get("scanned") or 0),
+        candidates=int(data.get("candidates") or 0),
+        hashed=int(data.get("hashed") or 0),
+        built=data.get("built") or 0,
+        error="",
+    )
+
+
+def _save_duplicates() -> None:
+    snap = _dup_snapshot()
+    snap["groups"] = []
+    with _dup_lock:
+        snap["groups"] = list(_dup_state["groups"])
+    try:
+        path = _dup_file()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(snap), encoding="utf-8")
+    except OSError:
+        pass
+
+
+class _DupStop(Exception):
+    pass
+
+
+def _dup_check() -> None:
+    with _dup_lock:
+        if _dup_state.get("cancel"):
+            raise _DupStop()
+
+
+def _sha256_stream(stream, limit: int | None = None) -> str:
+    digest = hashlib.sha256()
+    left = limit
+    while True:
+        if left is not None and left <= 0:
+            break
+        chunk = stream.read(1024 * 1024 if left is None else min(1024 * 1024, left))
+        if not chunk:
+            break
+        digest.update(chunk)
+        if left is not None:
+            left -= len(chunk)
+    return digest.hexdigest()
+
+
+def _hash_loose(path: str, limit: int | None) -> str:
+    with open(path, "rb") as handle:
+        return _sha256_stream(handle, limit)
+
+
+def _hash_bucket(items: list[dict], limit: int | None) -> list[tuple[str, dict]]:
+    hashed: list[tuple[str, dict]] = []
+    loose = [item for item in items if not item.get("entry")]
+    zipped: dict[str, list[dict]] = {}
+    for item in items:
+        if item.get("entry"):
+            zipped.setdefault(item["path"], []).append(item)
+    for item in loose:
+        try:
+            digest = _hash_loose(item["path"], limit)
+        except OSError:
+            continue
+        hashed.append((digest, item))
+        _dup_check()
+        with _dup_lock:
+            _dup_state["hashed"] = int(_dup_state["hashed"]) + 1
+    for zip_path, members in zipped.items():
+        try:
+            archive = zipfile.ZipFile(zip_path)
+        except (OSError, zipfile.BadZipFile):
+            continue
+        try:
+            for item in members:
+                try:
+                    with archive.open(item["entry"], "r") as handle:
+                        digest = _sha256_stream(handle, limit)
+                except (OSError, KeyError, RuntimeError, zipfile.BadZipFile):
+                    continue
+                hashed.append((digest, item))
+                _dup_check()
+                with _dup_lock:
+                    _dup_state["hashed"] = int(_dup_state["hashed"]) + 1
+        finally:
+            archive.close()
+    return hashed
+
+
+def _group_by_hash(pairs: list[tuple[str, dict]]) -> dict[str, list[dict]]:
+    buckets: dict[str, list[dict]] = {}
+    for digest, item in pairs:
+        buckets.setdefault(digest, []).append(item)
+    return {digest: copies for digest, copies in buckets.items() if len(copies) > 1}
+
+
+def _run_duplicate_scan() -> None:
+    try:
+        _dup_set(phase="listing", scanned=0, candidates=0, hashed=0, error="")
+        singles: dict[int, dict] = {}
+        piles: dict[int, list[dict]] = {}
+        scanned = 0
+        for root in load_roots():
+            folder = Path(root)
+            if _is_excluded(folder):
+                continue
+            for card in _iter_dir_cards(folder, True, True):
+                size = int(card.get("size") or 0)
+                if size <= 0:
+                    continue
+                scanned += 1
+                if size in piles:
+                    piles[size].append(card)
+                elif size in singles:
+                    piles[size] = [singles.pop(size), card]
+                else:
+                    singles[size] = card
+                if scanned % 250 == 0:
+                    _dup_check()
+                    _dup_set(scanned=scanned)
+        _dup_check()
+        _dup_set(scanned=scanned, phase="hashing", candidates=sum(len(items) for items in piles.values()))
+        found = []
+        for size, items in piles.items():
+            _dup_check()
+            partial = _group_by_hash(_hash_bucket(items, 65536))
+            for copies in partial.values():
+                if all(int(item.get("size") or 0) <= 65536 for item in copies):
+                    found.append(copies)
+                    continue
+                full = _group_by_hash(_hash_bucket(copies, None))
+                found.extend(full.values())
+        groups = []
+        reclaimable = 0
+        for copies in found:
+            size = int(copies[0].get("size") or 0)
+            waste = size * (len(copies) - 1)
+            reclaimable += waste
+            groups.append({
+                "hash": hashlib.sha256("|".join(
+                    f"{item.get('path')}|{item.get('entry')}" for item in copies
+                ).encode("utf-8", "replace")).hexdigest()[:16],
+                "size": size,
+                "count": len(copies),
+                "reclaimable": waste,
+                "copies": copies,
+            })
+        groups.sort(key=lambda item: (-item["reclaimable"], item["copies"][0]["name"].casefold()))
+        _dup_set(
+            running=False,
+            phase="done",
+            groups=groups,
+            groupCount=len(groups),
+            reclaimable=reclaimable,
+            capped=len(groups) > 200,
+            built=time.time(),
+            error="",
+        )
+        _save_duplicates()
+    except _DupStop:
+        _dup_set(
+            running=False,
+            phase="idle",
+            cancel=False,
+            groups=[],
+            groupCount=0,
+            reclaimable=0,
+            capped=False,
+            built=0,
+            error="",
+        )
+        _load_saved_duplicates()
+    except Exception as exc:
+        _dup_set(running=False, phase="done", error=str(exc))
+
+
+def start_duplicate_scan() -> bool:
+    _load_saved_duplicates()
+    with _dup_lock:
+        if _dup_state["running"]:
+            return False
+        _dup_state["running"] = True
+        _dup_state["phase"] = "listing"
+        _dup_state["error"] = ""
+        _dup_state["groups"] = []
+        _dup_state["groupCount"] = 0
+        _dup_state["reclaimable"] = 0
+        _dup_state["capped"] = False
+        _dup_state["cancel"] = False
+    threading.Thread(target=_run_duplicate_scan, name="meshfinder-duplicates", daemon=True).start()
+    return True
+
+
+def stop_duplicate_scan() -> dict:
+    with _dup_lock:
+        if _dup_state["running"]:
+            _dup_state["cancel"] = True
+    return duplicates_status()
+
+
+def duplicates_status() -> dict:
+    _load_saved_duplicates()
+    return _dup_snapshot()
+
+
+def _copy_identity(path: str, entry: str) -> tuple[str, str]:
+    return (str(path).casefold(), str(entry or "").replace("\\", "/"))
+
+
+def delete_duplicate_copies(body: dict) -> dict:
+    group_hash = str(body.get("hash") or "")
+    requested = body.get("remove") if isinstance(body.get("remove"), list) else []
+    with _dup_lock:
+        groups = _dup_state["groups"]
+        group = next((item for item in groups if item.get("hash") == group_hash), None)
+    if group is None:
+        return {"ok": False, "error": "That duplicate group is gone. Analyze again."}
+    identities = {
+        _copy_identity(item.get("path") or "", item.get("entry") or ""): item
+        for item in group.get("copies") or []
+    }
+    targets = []
+    for raw in requested:
+        if not isinstance(raw, dict):
+            continue
+        entry = str(raw.get("entry") or "")
+        if entry:
+            return {"ok": False, "error": "A copy inside a zip stays put. MeshFinder will not rewrite the archive."}
+        identity = _copy_identity(str(raw.get("path") or ""), "")
+        item = identities.get(identity)
+        if item is None:
+            continue
+        targets.append(item)
+    if not targets:
+        return {"ok": False, "error": "Nothing loose to delete in that group."}
+    if len(targets) >= len(identities):
+        return {"ok": False, "error": "One copy has to stay."}
+    deleted = []
+    errors = []
+    for item in targets:
+        try:
+            target = Path(str(item["path"])).resolve()
+        except Exception:
+            errors.append(item["path"])
+            continue
+        if not target.is_file() or not _under_root(target, load_roots()):
+            errors.append(str(item["path"]))
+            continue
+        try:
+            target.unlink()
+        except OSError as exc:
+            errors.append(f"{item['path']}: {exc}")
+            continue
+        deleted.append(_copy_identity(item["path"], ""))
+    if deleted:
+        gone = set(deleted)
+        with _dup_lock:
+            kept = []
+            reclaimable = 0
+            for item in _dup_state["groups"]:
+                copies = [
+                    copy for copy in item.get("copies") or []
+                    if _copy_identity(copy.get("path") or "", copy.get("entry") or "") not in gone
+                ]
+                if len(copies) < 2:
+                    continue
+                size = int(copies[0].get("size") or 0)
+                waste = size * (len(copies) - 1)
+                reclaimable += waste
+                item = dict(item)
+                item["copies"] = copies
+                item["count"] = len(copies)
+                item["reclaimable"] = waste
+                item["size"] = size
+                kept.append(item)
+            _dup_state["groups"] = kept
+            _dup_state["groupCount"] = len(kept)
+            _dup_state["reclaimable"] = reclaimable
+            _dup_state["capped"] = len(kept) > 200
+        _save_duplicates()
+    status = duplicates_status()
+    status["ok"] = bool(deleted) and not errors
+    status["deleted"] = len(deleted)
+    if errors and not deleted:
+        status["ok"] = False
+        status["error"] = errors[0]
+    elif errors:
+        status["ok"] = True
+        status["error"] = f"Deleted {len(deleted)}. {len(errors)} could not be removed."
+    return status
+
+
 def gallery_page(folder: Path, *, recursive: bool, offset: int, limit: int, printable: bool = True) -> dict:
     items = []
     skipped = 0
@@ -1349,6 +1704,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/session":
             self._json(200, load_session())
             return
+        if path == "/api/duplicates":
+            self._json(200, duplicates_status())
+            return
         self._json(404, {"error": "Not found"})
 
     def do_POST(self) -> None:  # noqa: N802
@@ -1399,6 +1757,17 @@ class Handler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/collections/rename":
             self._rename_collection()
+            return
+        if parsed.path == "/api/duplicates/analyze":
+            start_duplicate_scan()
+            self._json(200, duplicates_status())
+            return
+        if parsed.path == "/api/duplicates/stop":
+            self._json(200, stop_duplicate_scan())
+            return
+        if parsed.path == "/api/duplicates/delete":
+            result = delete_duplicate_copies(self._read_json())
+            self._json(200 if result.get("ok") else 400, result)
             return
         self._json(404, {"error": "Not found"})
 
