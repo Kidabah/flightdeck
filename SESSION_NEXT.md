@@ -1,3 +1,14 @@
+## 2026-09-26 Session update (library search)
+
+Latest commit: `8a04378` — a search box at the top matches file names.
+
+- Type two or more letters. Printable still applies, so turn it off to find SVGs and pictures. Ctrl+F focuses the box. Escape clears it.
+- Names on this PC show up straight away. Files inside zips, and files on the Koko share, join in once a background list finishes. The first pass through Koko can take a while.
+- Files: `printshelf/desk/server.py`, `printshelf/desk/static/`. Cache: `app.js?v=10`, `style.css?v=8`.
+- Local window reopened. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (card menu and printable filter)
 
 Latest commit: `ecf1625` — right-click a card, and switch between printable files and everything else.
