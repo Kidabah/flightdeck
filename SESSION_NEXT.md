@@ -1,3 +1,13 @@
+## 2026-09-26 Session update (grid cards and whole-face highlight)
+
+Latest commit: `c4f082a` — library cards keep their height, and a click highlights the whole flat face.
+
+- The 2-across view had squeezed every card into a line. Cards now keep a picture area and a name. Hover lights the whole flat face, not one triangle, including on OBJ.
+- Files: `printshelf/desk/static/`. Cache: `app.js?v=4`, `style.css?v=5`, `viewer.js?v=7`.
+- Local window reopened. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (click a face to lay it on the bed)
 
 Latest commit: `3e71672` — click a face in the local viewer and that face goes flat on the bed.
