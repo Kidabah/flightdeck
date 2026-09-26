@@ -1,3 +1,13 @@
+## 2026-09-26 Session update (send to STL Painter)
+
+Latest commit: `23b04e4` — right-click a model and it opens in STL Painter on the Pi.
+
+- Send to STL Painter uploads the STL, OBJ, or 3MF to Flightdeck and opens Painter with that file. It does not start a print.
+- Hard refresh Flightdeck so the shell is `app.js?v=740` and Painter says **b630**.
+- MeshFinder cache: `app.js?v=11`. Local window reopened. Pi service restarted.
+
+---
+
 ## 2026-09-26 Session update (library search)
 
 Latest commit: `8a04378` — a search box at the top matches file names.
