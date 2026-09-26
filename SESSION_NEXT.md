@@ -1,3 +1,14 @@
+## 2026-09-26 Session update (solid 3MF view, card details, favourites)
+
+Latest commit: `907f4c9` — the bed view stays solid, cards show zip and size, and a heart saves favourites.
+
+- A round 3MF looked like dust on the bed because the viewer skipped most triangles. It now uses the same solid surface as the card.
+- Each card shows the kind, the zip name when the file is inside one, the file name, and the size. A heart adds it to Favourites in the folder list.
+- Files: `printshelf/desk/server.py`, `printshelf/desk/static/`. Cache: `app.js?v=8`, `style.css?v=6`.
+- Local window reopened. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (3MF cards and viewer)
 
 Latest commit: `def3fb1` — a 3MF gets a picture on the card and opens on the bed.
