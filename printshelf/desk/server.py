@@ -599,17 +599,27 @@ def _pack_tris(verts: array.array) -> bytes:
 
 
 def _stl_triangle_count(head: bytes, size: int) -> int | None:
+    """How many complete binary triangles this buffer actually holds.
+
+    The header count is trusted when those records fit, even if the file has
+    extra bytes after them. A file shorter than the header still returns the
+    records that are present, so a cut-off STL can be previewed.
+    """
     if len(head) < 84 or size < 84:
         return None
     count = struct.unpack_from("<I", head, 80)[0]
     if count <= 0:
         return None
     expect = 84 + count * 50
-    if size == expect:
+    looks_ascii = head[:5].lower() == b"solid"
+    if expect <= size:
+        if looks_ascii and size != expect and size - expect >= 1024:
+            return None
         return count
-    if size > expect and size - expect < 1024 and head[:5].lower() != b"solid":
-        return count
-    return None
+    if looks_ascii:
+        return None
+    room = (size - 84) // 50
+    return room if room > 0 else None
 
 
 def _sample_binary_seek(handle, count: int, origin: int = 84) -> bytes:
@@ -735,14 +745,33 @@ def _sample_obj_handle(handle) -> bytes:
     return _pack_tris(out)
 
 
+def _load_ascii_stl_tris(data: bytes):
+    import numpy as np
+
+    verts = []
+    for line in data.splitlines():
+        stripped = line.lstrip()
+        if stripped[:6].lower() != b"vertex":
+            continue
+        parts = stripped.split()
+        if len(parts) < 4:
+            continue
+        try:
+            verts.append((float(parts[1]), float(parts[2]), float(parts[3])))
+        except ValueError:
+            continue
+    count = len(verts) // 3
+    if count <= 0:
+        raise ValueError("not a binary stl")
+    return np.asarray(verts[: count * 3], np.float32).reshape(count, 3, 3)
+
+
 def _load_stl_tris(data: bytes):
     import numpy as np
 
-    if len(data) < 84:
-        raise ValueError("empty mesh")
-    count = struct.unpack_from("<I", data, 80)[0]
-    if count <= 0 or 84 + count * 50 > len(data):
-        raise ValueError("not a binary stl")
+    count = _stl_triangle_count(data[:84], len(data))
+    if count is None:
+        return _load_ascii_stl_tris(data)
     recs = np.frombuffer(data, dtype=np.uint8, offset=84, count=count * 50).reshape(count, 50)
     verts = np.empty((count, 3, 3), np.float32)
     for corner in range(3):

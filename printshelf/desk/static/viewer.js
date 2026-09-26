@@ -380,6 +380,7 @@ export async function mountViewer(container, { url, kind } = {}) {
 
   try {
     let sphere;
+    let shortStl = null;
     if (kind === "3mf" || kind === "gcode.3mf") {
       const meshUrl = url.replace("/api/file?", "/api/mesh?");
       const meshRes = await fetch(meshUrl);
@@ -410,6 +411,7 @@ export async function mountViewer(container, { url, kind } = {}) {
     } else {
       const geometry = await new STLLoader().loadAsync(objectUrl);
       sphere = addMesh(model, geometry);
+      shortStl = geometry.userData?.stlShort || null;
     }
     }
     const radius = fitCamera(camera, controls, sphere);
@@ -418,7 +420,13 @@ export async function mountViewer(container, { url, kind } = {}) {
     status.remove();
     const tip = document.createElement("div");
     tip.className = "viewer-tip";
-    tip.textContent = "Click a face to lay it on the bed";
+    if (shortStl) {
+      const have = Number(shortStl.have).toLocaleString();
+      const claimed = Number(shortStl.claimed).toLocaleString();
+      tip.textContent = `Opened ${have} of ${claimed} triangles. This copy looks cut off.`;
+    } else {
+      tip.textContent = "Click a face to lay it on the bed";
+    }
     container.appendChild(tip);
   } catch (err) {
     status.textContent = `Could not open this model: ${err?.message || err}`;

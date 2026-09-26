@@ -163,7 +163,19 @@ class STLLoader extends Loader {
 		function parseBinary( data ) {
 
 			const reader = new DataView( data );
-			const faces = reader.getUint32( 80, true );
+			const claimed = reader.getUint32( 80, true );
+			const dataOffset = 84;
+			const faceLength = 12 * 4 + 2;
+			const room = Math.max( 0, Math.floor( ( reader.byteLength - dataOffset ) / faceLength ) );
+			// A short or cut-off file still has a full count in the header. Read only
+			// the complete 50-byte records that are actually in the buffer.
+			const faces = claimed > room ? room : claimed;
+
+			if ( faces <= 0 ) {
+
+				throw new Error( 'This STL is shorter than its header says' );
+
+			}
 
 			let r, g, b, hasColors = false, colors;
 			let defaultR, defaultG, defaultB, alpha;
@@ -188,9 +200,6 @@ class STLLoader extends Loader {
 				}
 
 			}
-
-			const dataOffset = 84;
-			const faceLength = 12 * 4 + 2;
 
 			const geometry = new BufferGeometry();
 
@@ -263,6 +272,12 @@ class STLLoader extends Loader {
 				geometry.setAttribute( 'color', new BufferAttribute( colors, 3 ) );
 				geometry.hasColors = true;
 				geometry.alpha = alpha;
+
+			}
+
+			if ( faces < claimed ) {
+
+				geometry.userData.stlShort = { have: faces, claimed };
 
 			}
 
