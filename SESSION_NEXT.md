@@ -1,3 +1,13 @@
+## 2026-09-26 Session update (document cards)
+
+Latest commit: `74a4be2` — a PDF, text, markdown, or CSV file gets a card picture.
+
+- Turn Printable off and documents show up. A PDF uses the first page. Text files show the opening lines on a page, with the file type in the corner. They no longer sit there as the word DOC.
+- Files: `printshelf/desk/server.py`, `printshelf/desk/static/app.js`, `index.html`. Cache: `app.js?v=19`.
+- Local window reopened. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (cut-off STL files)
 
 Latest commit: `4fe4872` — MeshFinder opens an STL whose header claims more triangles than the file holds.
