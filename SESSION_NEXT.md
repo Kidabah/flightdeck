@@ -1,3 +1,12 @@
+## 2026-09-26 Session update (solid mesh cards)
+
+Latest commit: `65ef2d7` — card pictures are filled in instead of a dotted shell.
+
+- The first pictures were only dots, so the models looked full of holes. Each card now paints a solid surface. A real opening in the mesh, like the top of a cup, still shows.
+- Files: `printshelf/desk/server.py`. Same card URL. Local window reopened. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (cards are pictures of the mesh)
 
 Latest commit: `40bd747` — STL and OBJ cards get a picture from the server.
