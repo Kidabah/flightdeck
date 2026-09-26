@@ -1,3 +1,12 @@
+## 2026-09-26 Session update (no exclude reminder)
+
+Latest commit: `7fe11fc` — right-click on a folder no longer offers Exclude from library. Folders already hidden stay hidden. The duplicate scan was left running.
+
+- Files: `printshelf/desk/static/app.js`, `index.html`. Cache: `app.js?v=28`.
+- Hard refresh to pick it up. No window restart, so Analyze can keep going. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (Analyze no longer blanks the page)
 
 Latest commit: `f3ad7fd` — clicking Analyze left the request unread, so the next check came back as HTTP 501 and wiped the page. That body is read now. Open Duplicates and press Analyze again.
