@@ -46,11 +46,15 @@ function fitCamera(camera, controls, sphere) {
   return radius;
 }
 
-// Print files are Z-up. Sit the lowest point on z = 0, then tip that axis up
-// so the mesh stands on the grid instead of through it.
-function seatMatrix(box) {
+// STL is Z-up, like a printer. OBJ is usually Y-up already. Sitting a Y-up
+// dog on Z rolls him onto his side.
+function seatMatrix(box, up) {
   const cx = (box.max.x + box.min.x) / 2;
   const cy = (box.max.y + box.min.y) / 2;
+  const cz = (box.max.z + box.min.z) / 2;
+  if (up === "y") {
+    return new THREE.Matrix4().makeTranslation(-cx, -box.min.y, -cz);
+  }
   const shift = new THREE.Matrix4().makeTranslation(-cx, -cy, -box.min.z);
   const rot = new THREE.Matrix4().makeRotationX(-Math.PI / 2);
   return rot.multiply(shift);
@@ -58,7 +62,7 @@ function seatMatrix(box) {
 
 function addMesh(scene, geometry) {
   geometry.computeBoundingBox();
-  geometry.applyMatrix4(seatMatrix(geometry.boundingBox));
+  geometry.applyMatrix4(seatMatrix(geometry.boundingBox, "z"));
   geometry.computeVertexNormals();
   const material = meshMaterial();
   scene.add(new THREE.Mesh(geometry, material));
@@ -85,7 +89,7 @@ function seatGroup(group) {
     box.union(obj.geometry.boundingBox);
   });
   if (box.isEmpty()) return new THREE.Sphere(new THREE.Vector3(), 1);
-  const mat = seatMatrix(box);
+  const mat = seatMatrix(box, "y");
   group.traverse((obj) => {
     if (!obj.isMesh || !obj.geometry) return;
     obj.geometry.applyMatrix4(mat);
