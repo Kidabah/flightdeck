@@ -26,28 +26,73 @@ function disposeActive() {
   active = null;
 }
 
-function fitCamera(camera, controls, radius) {
-  const span = Math.max(radius, 0.1);
-  controls.target.set(0, span * 0.15, 0);
-  camera.position.set(span * 1.8, span * 1.35, span * 1.8);
-  camera.near = span / 200;
-  camera.far = span * 80;
-  camera.updateProjectionMatrix();
-  controls.update();
-}
-
-function addMesh(scene, geometry) {
-  geometry.computeVertexNormals();
-  geometry.center();
-  geometry.rotateX(-Math.PI / 2);
-  const material = new THREE.MeshStandardMaterial({
+function meshMaterial() {
+  return new THREE.MeshStandardMaterial({
     color: 0xd5dde6,
     metalness: 0.08,
     roughness: 0.46,
   });
+}
+
+function fitCamera(camera, controls, sphere) {
+  const center = sphere?.center || new THREE.Vector3();
+  const radius = Math.max(sphere?.radius || 1, 0.1);
+  controls.target.copy(center);
+  camera.position.set(center.x + radius * 1.8, center.y + radius * 0.85, center.z + radius * 1.8);
+  camera.near = radius / 200;
+  camera.far = radius * 80;
+  camera.updateProjectionMatrix();
+  controls.update();
+  return radius;
+}
+
+// Print files are Z-up. Sit the lowest point on z = 0, then tip that axis up
+// so the mesh stands on the grid instead of through it.
+function seatMatrix(box) {
+  const cx = (box.max.x + box.min.x) / 2;
+  const cy = (box.max.y + box.min.y) / 2;
+  const shift = new THREE.Matrix4().makeTranslation(-cx, -cy, -box.min.z);
+  const rot = new THREE.Matrix4().makeRotationX(-Math.PI / 2);
+  return rot.multiply(shift);
+}
+
+function addMesh(scene, geometry) {
+  geometry.computeBoundingBox();
+  geometry.applyMatrix4(seatMatrix(geometry.boundingBox));
+  geometry.computeVertexNormals();
+  const material = meshMaterial();
   scene.add(new THREE.Mesh(geometry, material));
   geometry.computeBoundingSphere();
-  return geometry.boundingSphere?.radius || 1;
+  return geometry.boundingSphere;
+}
+
+function seatGroup(group) {
+  group.updateMatrixWorld(true);
+  group.traverse((obj) => {
+    if (!obj.isMesh || !obj.geometry) return;
+    obj.geometry = obj.geometry.clone();
+    obj.geometry.applyMatrix4(obj.matrixWorld);
+    obj.position.set(0, 0, 0);
+    obj.rotation.set(0, 0, 0);
+    obj.quaternion.identity();
+    obj.scale.set(1, 1, 1);
+    obj.updateMatrix();
+  });
+  const box = new THREE.Box3();
+  group.traverse((obj) => {
+    if (!obj.isMesh || !obj.geometry) return;
+    obj.geometry.computeBoundingBox();
+    box.union(obj.geometry.boundingBox);
+  });
+  if (box.isEmpty()) return new THREE.Sphere(new THREE.Vector3(), 1);
+  const mat = seatMatrix(box);
+  group.traverse((obj) => {
+    if (!obj.isMesh || !obj.geometry) return;
+    obj.geometry.applyMatrix4(mat);
+    obj.geometry.computeVertexNormals();
+    obj.material = meshMaterial();
+  });
+  return new THREE.Box3().setFromObject(group).getBoundingSphere(new THREE.Sphere());
 }
 
 export async function mountViewer(container, { url, kind } = {}) {
@@ -126,28 +171,18 @@ export async function mountViewer(container, { url, kind } = {}) {
     }
     const objectUrl = URL.createObjectURL(new Blob([buf]));
     active.objectUrl = objectUrl;
-    let radius = 1;
+    let sphere;
     if (kind === "obj") {
       const group = await new OBJLoader().loadAsync(objectUrl);
-      const box = new THREE.Box3().setFromObject(group);
-      const center = box.getCenter(new THREE.Vector3());
-      group.position.sub(center);
-      group.rotation.x = -Math.PI / 2;
-      group.traverse((obj) => {
-        if (obj.isMesh) {
-          obj.material = new THREE.MeshStandardMaterial({ color: 0xd5dde6, metalness: 0.08, roughness: 0.46 });
-        }
-      });
       scene.add(group);
-      const size = box.getSize(new THREE.Vector3());
-      radius = Math.max(size.x, size.y, size.z) * 0.5 || 1;
+      sphere = seatGroup(group);
     } else {
       const geometry = await new STLLoader().loadAsync(objectUrl);
-      radius = addMesh(scene, geometry);
+      sphere = addMesh(scene, geometry);
     }
+    const radius = fitCamera(camera, controls, sphere);
     const span = Math.max(radius * 2.4, 1);
     grid.scale.setScalar(span / 10);
-    fitCamera(camera, controls, radius);
     status.remove();
   } catch (err) {
     status.textContent = `Could not open this model: ${err?.message || err}`;
