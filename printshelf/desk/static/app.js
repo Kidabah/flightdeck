@@ -263,7 +263,7 @@ async function loadGallery(path, name, { append = false } = {}) {
   galleryOffset += items.length;
   const shown = galleryOffset;
   const more = data.truncated ? " · more below" : "";
-  $("crumb").textContent = `${browse.name || "Library"} · ${shown} shown${more}`;
+    $("crumb").textContent = `${browse.name || "Library"} · ${shown} shown${more}`;
   if (data.truncated) {
     const moreBtn = document.createElement("button");
     moreBtn.type = "button";
@@ -274,6 +274,7 @@ async function loadGallery(path, name, { append = false } = {}) {
     });
     host.appendChild(moreBtn);
   }
+  if (!append) saveSession();
 }
 
 function leaveSearch() {
@@ -426,16 +427,15 @@ function folderRow(item, depth) {
     searchToken += 1;
     await loadGallery(item.path, item.name);
     children.hidden = false;
-    if (children.childElementCount) return;
-    const q = new URLSearchParams({ path: item.path });
-    if (item.prefix) q.set("prefix", item.prefix);
-    const data = await api(`/api/list?${q}`);
-    const folders = (data.folders || []).slice(0, 400);
-    if (!folders.length) {
-      children.innerHTML = `<div class="note">No folders inside.</div>`;
-      return;
+    if (!children.childElementCount) {
+      const q = new URLSearchParams({ path: item.path });
+      if (item.prefix) q.set("prefix", item.prefix);
+      const data = await api(`/api/list?${q}`);
+      const folders = (data.folders || []).slice(0, 400);
+      if (!folders.length) children.innerHTML = `<div class="note">No folders inside.</div>`;
+      for (const folder of folders) children.appendChild(folderRow(folder, depth + 1));
     }
-    for (const folder of folders) children.appendChild(folderRow(folder, depth + 1));
+    saveSession();
   });
   wrap.appendChild(row);
   wrap.appendChild(children);
@@ -682,8 +682,70 @@ async function deleteCollection(name) {
   await showCollections();
 }
 
+let restoring = false;
+let sessionTimer = 0;
+
+function saveSession() {
+  if (restoring) return;
+  clearTimeout(sessionTimer);
+  sessionTimer = setTimeout(() => {
+    const place = browse.path && !["favourites", "search", "collections"].includes(browse.path)
+      ? { path: browse.path, name: browse.name }
+      : (folderBrowse || { path: "", name: "" });
+    const open = [...document.querySelectorAll(".tree-row[data-path]")].filter((row) => {
+      const kids = row.nextElementSibling;
+      return kids && kids.classList.contains("tree-children") && !kids.hidden;
+    }).map((row) => row.dataset.path);
+    api("/api/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        open,
+        place,
+        printable: $("printable").checked,
+        showAll: $("showAll").checked,
+      }),
+    }).catch(() => {});
+  }, 400);
+}
+
+async function expandTo(target) {
+  let previous = "";
+  for (let guard = 0; guard < 40; guard += 1) {
+    const known = [...document.querySelectorAll(".tree-row[data-path]")].map((row) => row.dataset.path);
+    const next = known
+      .filter((path) => target.toLowerCase() === path.toLowerCase() || target.toLowerCase().startsWith(`${path.toLowerCase()}\\`))
+      .sort((a, b) => b.length - a.length)[0];
+    if (!next || next === previous) return;
+    previous = next;
+    const row = document.querySelector(`.tree-row[data-path="${CSS.escape(next)}"]`);
+    const children = row?.nextElementSibling;
+    if (!row || !children) return;
+    children.hidden = false;
+    if (!children.childElementCount) {
+      const data = await api(`/api/list?${new URLSearchParams({ path: row.dataset.path })}`);
+      const depth = Number(row.dataset.depth || 0) + 1;
+      const folders = (data.folders || []).slice(0, 400);
+      if (!folders.length) children.innerHTML = `<div class="note">No folders inside.</div>`;
+      for (const folder of folders) children.appendChild(folderRow(folder, depth));
+    }
+    if (next.toLowerCase() === target.toLowerCase()) {
+      document.querySelectorAll(".tree-row").forEach((el) => el.classList.remove("active"));
+      row.classList.add("active");
+      row.scrollIntoView({ block: "nearest" });
+      return;
+    }
+  }
+}
+
 async function loadTree({ openPath = "", openName = "" } = {}) {
   await refreshFavs().catch(() => {});
+  const session = openPath ? null : await api("/api/session").catch(() => null);
+  if (session) {
+    restoring = true;
+    $("printable").checked = session.printable !== false;
+    $("showAll").checked = !!session.showAll;
+  }
   const data = await api("/api/list");
   const host = $("tree");
   host.innerHTML = "";
@@ -692,9 +754,23 @@ async function loadTree({ openPath = "", openName = "" } = {}) {
   const folders = data.folders || [];
   for (const folder of folders) host.appendChild(folderRow(folder, 0));
   if (openPath) {
+    restoring = false;
     await loadGallery(openPath, openName || baseName(openPath));
     return;
   }
+  const place = session?.place?.path || "";
+  if (place && !["favourites", "search", "collections"].includes(place)) {
+    try {
+      for (const path of session.open || []) await expandTo(path);
+      await expandTo(place);
+      restoring = false;
+      await loadGallery(place, session.place.name || baseName(place));
+      return;
+    } catch {
+      restoring = false;
+    }
+  }
+  restoring = false;
   if (!folders.length) {
     host.insertAdjacentHTML("beforeend", `<div class="note">Add a folder to start.</div>`);
     return;

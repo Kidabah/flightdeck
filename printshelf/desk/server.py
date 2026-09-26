@@ -205,6 +205,42 @@ def save_collections(items: list[dict]) -> None:
     _write_config(data)
 
 
+def load_session() -> dict:
+    data = _read_config()
+    raw = data.get("session") if isinstance(data.get("session"), dict) else {}
+    place = raw.get("place") if isinstance(raw.get("place"), dict) else {}
+    opened = []
+    for item in raw.get("open") or []:
+        text = str(item or "").strip()
+        if text and text not in opened:
+            opened.append(text)
+    return {
+        "open": opened[:80],
+        "place": {"path": str(place.get("path") or ""), "name": str(place.get("name") or "")},
+        "printable": raw.get("printable") is not False,
+        "showAll": bool(raw.get("showAll")),
+    }
+
+
+def save_session(body: dict) -> dict:
+    data = _read_config()
+    place = body.get("place") if isinstance(body.get("place"), dict) else {}
+    opened = []
+    for item in body.get("open") or []:
+        text = str(item or "").strip()
+        if text and text not in opened:
+            opened.append(text)
+    session = {
+        "open": opened[:80],
+        "place": {"path": str(place.get("path") or ""), "name": str(place.get("name") or "")},
+        "printable": body.get("printable") is not False,
+        "showAll": bool(body.get("showAll")),
+    }
+    data["session"] = session
+    _write_config(data)
+    return session
+
+
 def _under_root(path: Path, roots: list[str]) -> bool:
     resolved = path.resolve()
     for root in roots:
@@ -428,12 +464,15 @@ def _refresh_index() -> None:
     if path.is_file():
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
-            fresh = data.get("roots") == roots and time.time() - float(data.get("built") or 0) < 6 * 3600
-            if fresh and isinstance(data.get("items"), list):
+            same_roots = data.get("roots") == roots and isinstance(data.get("items"), list)
+            fresh = same_roots and time.time() - float(data.get("built") or 0) < 6 * 3600
+            if same_roots:
                 with _index_lock:
                     _index_cache = data
-                    _index_building = False
-                return
+                if fresh:
+                    with _index_lock:
+                        _index_building = False
+                    return
         except Exception:
             pass
     items = []
@@ -1198,6 +1237,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/collections":
             self._json(200, {"items": load_collections()})
             return
+        if path == "/api/session":
+            self._json(200, load_session())
+            return
         self._json(404, {"error": "Not found"})
 
     def do_POST(self) -> None:  # noqa: N802
@@ -1239,6 +1281,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/collections":
             self._add_collection()
+            return
+        if parsed.path == "/api/session":
+            self._json(200, save_session(self._read_json()))
             return
         if parsed.path == "/api/collections/items":
             self._add_collection_items()
