@@ -1111,6 +1111,77 @@ def _mesh_bytes(path: Path, entry: str) -> bytes:
         return zf.read(entry)
 
 
+def _png_bytes(image) -> bytes:
+    import io
+
+    buf = io.BytesIO()
+    image.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _doc_label(name: str) -> str:
+    suffix = Path(name).suffix.lower().lstrip(".")
+    return (suffix or "doc").upper()[:8]
+
+
+def _text_sheet_png(data: bytes, name: str) -> bytes:
+    from PIL import Image, ImageDraw, ImageFont
+
+    width, height = 480, 360
+    image = Image.new("RGB", (width, height), (17, 17, 24))
+    draw = ImageDraw.Draw(image)
+    left, top, right, bottom = 108, 24, 372, 336
+    draw.rounded_rectangle((left, top, right, bottom), radius=8, fill=(244, 241, 234))
+    fold = 26
+    draw.polygon(
+        [(right - fold, top), (right, top + fold), (right - fold, top + fold)],
+        fill=(214, 208, 196),
+    )
+    font = ImageFont.load_default()
+    lines = []
+    for raw in data[:6000].decode("utf-8", "replace").splitlines():
+        line = " ".join(raw.split())
+        if not line:
+            continue
+        lines.append(line[:42])
+        if len(lines) >= 8:
+            break
+    y = top + 46
+    for line in lines:
+        draw.text((left + 18, y), line, fill=(55, 65, 80), font=font)
+        y += 16
+    label = _doc_label(name)
+    draw.rounded_rectangle((left + 18, bottom - 44, left + 28 + 8 * len(label), bottom - 18), radius=4, fill=(59, 130, 246))
+    draw.text((left + 26, bottom - 38), label, fill=(255, 255, 255), font=font)
+    return _png_bytes(image)
+
+
+def _pdf_preview_png(data: bytes, name: str) -> bytes:
+    try:
+        import pypdfium2 as pdfium
+
+        pdf = pdfium.PdfDocument(data)
+        try:
+            if len(pdf) < 1:
+                raise ValueError("empty pdf")
+            page = pdf[0]
+            page_w, page_h = page.get_size()
+            scale = 480 / max(float(page_w), float(page_h), 1.0)
+            scale = min(max(scale, 0.4), 2.5)
+            image = page.render(scale=scale).to_pil().convert("RGB")
+        finally:
+            pdf.close()
+        return _png_bytes(image)
+    except Exception:
+        return _text_sheet_png(b"", name)
+
+
+def _doc_preview_png(data: bytes, name: str) -> bytes:
+    if name.lower().endswith(".pdf"):
+        return _pdf_preview_png(data, name)
+    return _text_sheet_png(data, name)
+
+
 def preview_png(path: Path, entry: str = "") -> bytes:
     cache = _preview_cache(path, entry).with_suffix(".s5.png")
     if cache.is_file() and cache.stat().st_size > 32:
@@ -1120,7 +1191,9 @@ def preview_png(path: Path, entry: str = "") -> bytes:
             return cache.read_bytes()
         kind = _kind_for(Path(entry).name if entry else path.name)
         data = _mesh_bytes(path, entry)
-        if kind in {"3mf", "gcode.3mf"}:
+        if kind == "doc":
+            png = _doc_preview_png(data, Path(entry).name if entry else path.name)
+        elif kind in {"3mf", "gcode.3mf"}:
             tris = _load_3mf_tris(data)
             mesh_cache = _preview_cache(path, entry).with_suffix(".m2")
             if not mesh_cache.is_file():
@@ -1483,8 +1556,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json(404, {"error": "File not found"})
             return
         kind = _kind_for(Path(entry).name if entry else target.name)
-        if kind not in {"stl", "obj", "3mf", "gcode.3mf"}:
-            self._json(400, {"error": "No mesh preview for this file"})
+        if kind not in {"stl", "obj", "3mf", "gcode.3mf", "doc"}:
+            self._json(400, {"error": "No preview for this file"})
             return
         try:
             data = preview_png(target, entry)

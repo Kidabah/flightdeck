@@ -1,5 +1,12 @@
 const $ = (id) => document.getElementById(id);
 
+function extLabel(name) {
+  const base = String(name || "").split(/[/\\]/).pop() || "";
+  const dot = base.lastIndexOf(".");
+  if (dot < 0) return "DOC";
+  return base.slice(dot + 1).toUpperCase().slice(0, 8) || "DOC";
+}
+
 let selected = null;
 let browse = { path: "", name: "" };
 let folderBrowse = null;
@@ -166,7 +173,7 @@ function renderCard(item) {
   img.alt = "";
   const kind = document.createElement("span");
   kind.className = "model-kind";
-  kind.textContent = item.kind.toUpperCase();
+  kind.textContent = item.kind === "doc" ? extLabel(item.name) : item.kind.toUpperCase();
   thumb.appendChild(kind);
   const heart = document.createElement("button");
   heart.type = "button";
@@ -181,7 +188,7 @@ function renderCard(item) {
     img.src = fileUrl(item);
     thumb.appendChild(img);
     kind.remove();
-  } else if (item.kind === "stl" || item.kind === "obj" || item.kind === "3mf" || item.kind === "gcode.3mf") {
+  } else if (item.kind === "stl" || item.kind === "obj" || item.kind === "3mf" || item.kind === "gcode.3mf" || item.kind === "doc") {
     img.src = previewUrl(item);
     thumb.appendChild(img);
     img.addEventListener("load", () => kind.remove());
@@ -192,7 +199,7 @@ function renderCard(item) {
   tags.className = "model-tags";
   const pill = document.createElement("span");
   pill.className = "kind-pill";
-  pill.textContent = item.kind.toUpperCase();
+  pill.textContent = item.kind === "doc" ? extLabel(item.name) : item.kind.toUpperCase();
   tags.appendChild(pill);
   const zip = zipName(item);
   if (zip) {
@@ -969,10 +976,8 @@ function showCardMenu(x, y, item, card) {
   menuCard = card;
   const menu = $("cardMenu");
   const fav = favourites.has(favKey(item));
-  const actions = [
-    ["open", "Open"],
-    ["slicer", "Open in slicer"],
-  ];
+  const actions = [["open", "Open"]];
+  if (item.kind !== "doc") actions.push(["slicer", "Open in slicer"]);
   if (item.kind === "stl" || item.kind === "obj" || item.kind === "3mf") {
     actions.push(["painter", "Send to STL Painter"]);
   }
