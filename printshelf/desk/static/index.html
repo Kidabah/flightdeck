@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MeshFinder</title>
-  <link rel="stylesheet" href="/static/style.css?v=18">
+  <link rel="stylesheet" href="/static/style.css?v=19">
   <script type="importmap">
   {
     "imports": {
@@ -30,10 +30,17 @@
       <div id="pins" class="tree-pins"></div>
       <div id="tree" class="tree"></div>
     </aside>
+    <div id="split" class="split" title="Drag to resize the folders"></div>
     <main class="stage">
+      <nav id="pathbar" class="pathbar" aria-label="Folder path">
+        <button type="button" id="pathHome" class="path-home" title="Top of this folder">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 4.2 3.5 11h2.2v8.2h4.6v-5.1h3.4v5.1h4.6V11h2.2L12 4.2z"/></svg>
+        </button>
+        <div id="pathsegs" class="path-segs"></div>
+        <div id="crumb" class="path-meta">Pick a folder</div>
+      </nav>
       <header class="stage-bar">
         <button type="button" id="backBtn" class="text-btn" hidden>Library</button>
-        <div id="crumb" class="crumb">Pick a folder</div>
         <input id="search" class="search" type="search" placeholder="Search files" autocomplete="off" spellcheck="false">
         <label class="switch" title="Show every model at once, including everything in subfolders">
           <input type="checkbox" id="showAll">
@@ -88,6 +95,6 @@
     </form>
   </div>
   <script type="module" src="/static/viewer.js?v=11"></script>
-  <script src="/static/app.js?v=24"></script>
+  <script src="/static/app.js?v=25"></script>
 </body>
 </html>

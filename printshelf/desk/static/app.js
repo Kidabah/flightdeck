@@ -10,6 +10,9 @@ function extLabel(name) {
 let selected = null;
 let browse = { path: "", name: "" };
 let folderBrowse = null;
+let libraryRoots = [];
+let pathFile = "";
+let pathStatus = "Pick a folder";
 let addingTo = "";
 let printableWas = null;
 let pickAnchor = null;
@@ -252,8 +255,149 @@ function renderCard(item) {
   return card;
 }
 
+function splitLibraryPath(full) {
+  const norm = String(full || "").replaceAll("/", "\\").replace(/\\+$/, "");
+  let best = "";
+  for (const root of libraryRoots) {
+    const candidate = String(root).replaceAll("/", "\\").replace(/\\+$/, "");
+    const low = norm.toLowerCase();
+    const rootLow = candidate.toLowerCase();
+    if ((low === rootLow || low.startsWith(`${rootLow}\\`)) && candidate.length > best.length) best = candidate;
+  }
+  if (!best) {
+    const name = baseName(norm);
+    return name ? [{ name, path: norm }] : [];
+  }
+  const rest = norm.slice(best.length).replace(/^\\+/, "");
+  const parts = [{ name: baseName(best) || best, path: best }];
+  let acc = best;
+  for (const bit of rest.split("\\")) {
+    if (!bit) continue;
+    acc = `${acc}\\${bit}`;
+    parts.push({ name: bit, path: acc });
+  }
+  return parts;
+}
+
+function pathSep() {
+  const span = document.createElement("span");
+  span.className = "path-sep";
+  span.setAttribute("aria-hidden", "true");
+  span.textContent = "›";
+  return span;
+}
+
+function renderPath(status) {
+  if (typeof status === "string") pathStatus = status;
+  const segs = $("pathsegs");
+  if (!segs) return;
+  segs.innerHTML = "";
+  const titles = { favourites: "Favourites", search: "Search", collections: browse.name || "Collections" };
+  if (!browse.path || titles[browse.path]) {
+    const label = document.createElement("span");
+    label.className = "path-current";
+    label.textContent = titles[browse.path] || "Library";
+    segs.appendChild(label);
+  } else {
+    const parts = splitLibraryPath(browse.path);
+    parts.forEach((part, index) => {
+      if (index) segs.appendChild(pathSep());
+      const last = index === parts.length - 1 && !pathFile;
+      if (last) {
+        const current = document.createElement("span");
+        current.className = "path-current";
+        current.textContent = part.name;
+        segs.appendChild(current);
+        return;
+      }
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "path-seg";
+      button.textContent = part.name;
+      button.addEventListener("click", () => {
+        openCrumb(part.path, part.name).catch((err) => showEmpty(err.message || String(err)));
+      });
+      segs.appendChild(button);
+    });
+    if (pathFile) {
+      segs.appendChild(pathSep());
+      const current = document.createElement("span");
+      current.className = "path-current";
+      current.textContent = pathFile;
+      segs.appendChild(current);
+    }
+  }
+  $("crumb").textContent = pathFile ? "" : pathStatus;
+}
+
+async function openCrumb(path, name) {
+  pathFile = "";
+  selected = null;
+  $("search").value = "";
+  searchQuery = "";
+  searchToken += 1;
+  try {
+    await expandTo(path);
+  } catch {
+    /* the gallery still opens if the tree cannot walk that far */
+  }
+  await loadGallery(path, name || baseName(path));
+}
+
+async function goPathHome() {
+  pathFile = "";
+  if (browse.path && !["favourites", "search", "collections"].includes(browse.path)) {
+    const top = splitLibraryPath(browse.path)[0];
+    if (top) {
+      await openCrumb(top.path, top.name);
+      return;
+    }
+  }
+  if (folderBrowse?.path && !["favourites", "search", "collections"].includes(folderBrowse.path)) {
+    await openCrumb(folderBrowse.path, folderBrowse.name);
+    return;
+  }
+  if (libraryRoots[0]) await openCrumb(libraryRoots[0], baseName(libraryRoots[0]));
+}
+
+function mountSplit() {
+  const split = $("split");
+  if (!split) return;
+  const saved = Number(localStorage.getItem("meshfinder.treeWidth"));
+  if (saved >= 180 && saved <= 640) document.documentElement.style.setProperty("--tree-width", `${saved}px`);
+  let drag = null;
+  const widthAt = (clientX) => {
+    const next = drag.width + (clientX - drag.x);
+    return Math.min(640, Math.max(180, next));
+  };
+  split.addEventListener("pointerdown", (event) => {
+    drag = { x: event.clientX, width: $("tree").parentElement.getBoundingClientRect().width };
+    split.classList.add("dragging");
+    split.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  });
+  split.addEventListener("pointermove", (event) => {
+    if (!drag) return;
+    document.documentElement.style.setProperty("--tree-width", `${widthAt(event.clientX)}px`);
+  });
+  const finish = (event) => {
+    if (!drag) return;
+    const width = widthAt(event.clientX);
+    drag = null;
+    split.classList.remove("dragging");
+    localStorage.setItem("meshfinder.treeWidth", String(Math.round(width)));
+  };
+  split.addEventListener("pointerup", finish);
+  split.addEventListener("pointercancel", finish);
+  split.addEventListener("dblclick", () => {
+    document.documentElement.style.setProperty("--tree-width", "240px");
+    localStorage.setItem("meshfinder.treeWidth", "240");
+  });
+}
+
 async function loadGallery(path, name, { append = false } = {}) {
   if (!append) {
+    pathFile = "";
     browse = { path, name: name || path };
     galleryOffset = 0;
     thumbQueue.length = 0;
@@ -279,7 +423,7 @@ async function loadGallery(path, name, { append = false } = {}) {
   galleryOffset += items.length;
   const shown = galleryOffset;
   const more = data.truncated ? " · more below" : "";
-    $("crumb").textContent = `${browse.name || "Library"} · ${shown} shown${more}`;
+  renderPath(`${browse.name || "Library"} · ${shown} shown${more}`);
   if (data.truncated) {
     const moreBtn = document.createElement("button");
     moreBtn.type = "button";
@@ -311,6 +455,7 @@ async function loadSearch(query, { append = false } = {}) {
   searchQuery = query;
   if (browse.path !== "search") libraryBrowse = { path: browse.path, name: browse.name };
   if (!append) {
+    pathFile = "";
     browse = { path: "search", name: "Search" };
     galleryOffset = 0;
     thumbQueue.length = 0;
@@ -341,7 +486,7 @@ async function loadSearch(query, { append = false } = {}) {
   galleryOffset += items.length;
   const more = data.truncated ? " · more below" : "";
   const pending = data.indexing ? " · still reading zip files" : "";
-  $("crumb").textContent = `Search “${query}” · ${galleryOffset} shown${more}${pending}`;
+  renderPath(`Search “${query}” · ${galleryOffset} shown${more}${pending}`);
   if (data.indexing && token === searchToken) {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => {
@@ -368,7 +513,8 @@ async function selectFile(item, card) {
   card?.classList.add("active");
   $("openFile").disabled = false;
   $("backBtn").hidden = false;
-  $("crumb").textContent = item.entry ? `${item.name}` : item.path;
+  pathFile = item.name;
+  renderPath();
   const url = fileUrl(item);
   if (item.kind === "stl" || item.kind === "obj" || item.kind === "3mf" || item.kind === "gcode.3mf") {
     hideStage();
@@ -518,7 +664,8 @@ async function showCollections() {
   for (const group of groups) list.appendChild(collectionCard(group));
   page.appendChild(list);
   host.appendChild(page);
-  $("crumb").textContent = `Collections · ${groups.length}`;
+  pathFile = "";
+  renderPath(`Collections · ${groups.length}`);
 }
 
 function collectionCard(group) {
@@ -568,7 +715,8 @@ async function showCollection(group) {
     host.innerHTML = `<div class="note">Nothing in ${group.name} yet.</div>`;
   }
   for (const item of items) host.appendChild(renderCard(item));
-  $("crumb").textContent = `${group.name} · ${items.length}`;
+  pathFile = "";
+  renderPath(`${group.name} · ${items.length}`);
 }
 
 let dialogSubmit = null;
@@ -781,6 +929,7 @@ async function loadTree({ openPath = "", openName = "" } = {}) {
     $("showAll").checked = !!session.showAll;
   }
   const data = await api("/api/list");
+  libraryRoots = data.roots || (data.folders || []).map((folder) => folder.path);
   const pins = $("pins");
   pins.innerHTML = "";
   pins.appendChild(favouritesRow());
@@ -826,7 +975,8 @@ async function showFavourites() {
     host.innerHTML = `<div class="note">No favourites yet. Use the heart on a card.</div>`;
   }
   for (const item of items) host.appendChild(renderCard(item));
-  $("crumb").textContent = `Favourites · ${items.length}`;
+  pathFile = "";
+  renderPath(`Favourites · ${items.length}`);
 }
 
 function favouritesRow() {
@@ -1045,7 +1195,8 @@ async function runMenuAction(act) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ path: item.path, entry: item.entry || "" }),
     });
-    $("crumb").textContent = `${item.name} · opened in the Flightdeck app`;
+    pathFile = "";
+    renderPath(`${item.name} · opened in the Flightdeck app`);
     return;
   }
   if (act === "slicer") {
@@ -1152,7 +1303,7 @@ $("pickAdd").addEventListener("click", () => {
     pickAnchor = null;
     document.querySelectorAll(".model-card.picked").forEach((el) => el.classList.remove("picked"));
     updatePickBar();
-    $("crumb").textContent = `Added ${items.length} to "${addingTo}"`;
+    renderPath(`Added ${items.length} to "${addingTo}"`);
   }).catch((err) => showEmpty(err.message || String(err)));
 });
 
@@ -1180,8 +1331,9 @@ $("viewSwitch").addEventListener("click", (event) => {
 
 $("backBtn").addEventListener("click", () => {
   selected = null;
+  pathFile = "";
   showGallery();
-  $("crumb").textContent = browse.name || "Library";
+  renderPath();
 });
 
 $("addFolder").addEventListener("click", async () => {
@@ -1220,3 +1372,7 @@ $("openFile").addEventListener("click", async () => {
 });
 
 loadTree().catch((err) => showEmpty(err.message || String(err)));
+mountSplit();
+$("pathHome").addEventListener("click", () => {
+  goPathHome().catch((err) => showEmpty(err.message || String(err)));
+});
