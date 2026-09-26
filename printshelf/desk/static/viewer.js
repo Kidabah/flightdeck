@@ -158,18 +158,16 @@ function faceRegion(geometry, start) {
   const seed = graph.tris[start];
   if (!seed) return [];
   const n = seed.normal;
-  const origin = seed.a;
-  const tmp = new THREE.Vector3();
-  const onPlane = (point) => Math.abs(tmp.copy(point).sub(origin).dot(n)) <= graph.planeTol;
+  // About 40 degrees from the clicked spot. Flat sides stay whole.
+  // A smooth nose grows into a patch and stops at a sharp crease.
+  const sameWay = Math.cos(40 * Math.PI / 180);
   const seen = new Set([start]);
   const stack = [start];
   while (stack.length) {
     const tri = stack.pop();
     for (const next of graph.neighbors[tri]) {
       if (seen.has(next)) continue;
-      const other = graph.tris[next];
-      if (other.normal.dot(n) < 0.999) continue;
-      if (!onPlane(other.a) || !onPlane(other.b) || !onPlane(other.c)) continue;
+      if (graph.tris[next].normal.dot(n) < sameWay) continue;
       seen.add(next);
       stack.push(next);
     }
@@ -281,9 +279,16 @@ export async function mountViewer(container, { url, kind } = {}) {
   }
 
   function facingNormal(hit) {
-    const normal = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
+    const graph = hit.object.geometry.userData.faceGraph;
+    const region = graph && hit.faceIndex != null ? faceRegion(hit.object.geometry, hit.faceIndex) : null;
+    const normal = new THREE.Vector3();
+    if (region?.length && graph) {
+      for (const index of region) normal.add(graph.tris[index].normal);
+    } else if (hit.face) {
+      normal.copy(hit.face.normal);
+    }
     if (normal.lengthSq() < 1e-8) return null;
-    normal.normalize();
+    normal.normalize().transformDirection(hit.object.matrixWorld);
     if (normal.dot(raycaster.ray.direction) > 0) normal.negate();
     return normal;
   }
