@@ -579,6 +579,10 @@ function folderRow(item, depth) {
   const children = document.createElement("div");
   children.className = "tree-children";
   children.hidden = true;
+  row.addEventListener("pointerdown", (event) => {
+    row.dataset.button = String(event.button);
+    if (event.button !== 0) event.preventDefault();
+  });
   row.addEventListener("contextmenu", (event) => {
     if (item.kind === "zipdir") return;
     event.preventDefault();
@@ -586,6 +590,10 @@ function folderRow(item, depth) {
     showTreeMenu(event.clientX, event.clientY, item);
   });
   row.addEventListener("click", async () => {
+    if (row.dataset.button && row.dataset.button !== "0") {
+      row.dataset.button = "0";
+      return;
+    }
     const open = children.childElementCount > 0 && !children.hidden;
     document.querySelectorAll(".tree-row").forEach((el) => el.classList.remove("active"));
     row.classList.add("active");
@@ -1327,26 +1335,20 @@ async function runTreeAction(act) {
     return;
   }
   if (act === "exclude") {
+    const tree = $("tree");
+    const scroll = tree.scrollTop;
     await api("/api/exclude", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ path: item.path }),
     });
     const row = document.querySelector(`.tree-row[data-path="${CSS.escape(item.path)}"]`);
-    row?.parentElement?.remove();
-    const hidden = item.path.toLowerCase();
-    const here = String(browse.path || "").toLowerCase();
-    if (here === hidden || here.startsWith(`${hidden}\\`)) {
-      const parent = parentFolder(item);
-      const parentRow = parent
-        ? document.querySelector(`.tree-row[data-path="${CSS.escape(parent)}"]`)
-        : null;
-      document.querySelectorAll(".tree-row").forEach((el) => el.classList.remove("active"));
-      if (parentRow) {
-        parentRow.classList.add("active");
-        await loadGallery(parent, baseName(parent));
-      }
-    }
+    const wrap = row?.parentElement;
+    if (document.activeElement && wrap?.contains(document.activeElement)) document.activeElement.blur();
+    wrap?.remove();
+    const keep = () => { tree.scrollTop = scroll; };
+    keep();
+    requestAnimationFrame(keep);
     saveSession();
     return;
   }
