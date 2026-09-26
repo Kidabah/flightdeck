@@ -1,3 +1,12 @@
+## 2026-09-26 Session update (solid shaded cards)
+
+Latest commit: `53ddb8a` — card pictures are shaded models, not a dotted sketch.
+
+- The dotted cards looked rough. A card now draws the real surface, shaded, so a dog or a figure reads as the model. The first pass through a folder takes a few seconds per new file, then the picture is saved.
+- Files: `printshelf/desk/server.py`. Local window reopened. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (solid mesh cards)
 
 Latest commit: `65ef2d7` — card pictures are filled in instead of a dotted shell.
