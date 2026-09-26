@@ -31,12 +31,14 @@ body {
 
 .topbar {
   position: relative;
+  z-index: 5;
   display: flex;
   align-items: center;
   min-height: 4.4rem;
   padding: 0.8rem 1.25rem;
   border-bottom: 1px solid var(--line);
   flex: 0 0 auto;
+  background: var(--bg);
 }
 
 .wordmark {
@@ -88,6 +90,7 @@ button, input { font: inherit; color: inherit; }
   border-right: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.015);
   color: var(--sidebar-text);
+  overflow: hidden;
 }
 .files-pane { border-left: 1px solid var(--line); }
 
@@ -98,6 +101,10 @@ button, input { font: inherit; color: inherit; }
   gap: 8px;
   padding: 12px 14px;
   border-bottom: 1px solid var(--line);
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 2;
+  background: #101018;
 }
 
 .pane-head strong {
@@ -123,6 +130,7 @@ button, input { font: inherit; color: inherit; }
   overflow: auto;
   padding: 8px;
   min-height: 0;
+  flex: 1 1 auto;
 }
 
 .tree-row, .file-row {
@@ -172,6 +180,10 @@ button, input { font: inherit; color: inherit; }
   gap: 10px;
   padding: 10px 14px;
   border-bottom: 1px solid var(--line);
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 2;
+  background: var(--bg);
 }
 
 .switch {
