@@ -781,10 +781,12 @@ async function loadTree({ openPath = "", openName = "" } = {}) {
     $("showAll").checked = !!session.showAll;
   }
   const data = await api("/api/list");
+  const pins = $("pins");
+  pins.innerHTML = "";
+  pins.appendChild(favouritesRow());
+  pins.appendChild(collectionsRow());
   const host = $("tree");
   host.innerHTML = "";
-  host.appendChild(favouritesRow());
-  host.appendChild(collectionsRow());
   const folders = data.folders || [];
   for (const folder of folders) host.appendChild(folderRow(folder, 0));
   if (openPath) {

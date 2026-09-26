@@ -126,6 +126,15 @@ button, input { font: inherit; color: inherit; }
 
 .open-btn:disabled { opacity: 0.4; cursor: default; }
 
+.tree-pins {
+  flex: 0 0 auto;
+  padding: 8px 8px 4px;
+  background: #101018;
+  border-bottom: 1px solid var(--line);
+  position: relative;
+  z-index: 2;
+}
+
 .tree, .files {
   overflow: auto;
   padding: 8px;
