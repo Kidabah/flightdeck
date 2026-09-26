@@ -1,3 +1,14 @@
+## 2026-09-26 Session update (MeshFinder local window, stage 1)
+
+Latest commit: `c85a656` — a local MeshFinder window on this PC.
+
+- Stage 1 only. Folders on the left, the open file in the middle, files on the right. Downloads is the starting folder. STL and OBJ orbit. Pictures, PDF, and text open in the middle. A zip opens like a folder. Open in slicer hands the file to Windows.
+- The taskbar icon still opens the Pi library. This window is separate.
+- Files: `printshelf/desk/server.py`, `printshelf/desk/launch.py`, `printshelf/desk/static/`.
+- Runs on the PC. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (MeshFinder scan stays usable)
 
 Latest commit: `b2834fd` — MeshFinder lists files while a scan runs.
