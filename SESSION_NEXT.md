@@ -1,3 +1,12 @@
+## 2026-09-26 Session update (cards came back)
+
+Latest commit: `1592e3e` — the 5-across view had flattened every card into a line. The picture area takes its height from the card width again, so 3, 4, and 5 all show the model.
+
+- Files: `printshelf/desk/static/style.css`, `app.js`, `index.html`. Cache: `style.css?v=14`, `app.js?v=22`.
+- Local window reopened. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (3, 4, 5 cards)
 
 Latest commit: `c857f4f` — the grid is 3, 4, or 5 across, and the card grows and shrinks with that so the model stays whole.
