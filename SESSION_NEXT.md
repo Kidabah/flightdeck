@@ -1,3 +1,13 @@
+## 2026-09-26 Session update (empty folder note)
+
+Latest commit: `b95bb8e` — a folder of only subfolders no longer looks like a failed scan.
+
+- DONE FILES 1 has 19 folders and no files of its own. With All off, the grid stays empty until a subfolder is opened.
+- Files: `printshelf/desk/static/app.js`, `index.html`. Cache: `app.js?v=13`.
+- Local window reopened. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (MeshFinder matches the app)
 
 Latest commit: `589ab3b` — MeshFinder uses the Flightdeck window style.
