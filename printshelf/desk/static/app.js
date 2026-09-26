@@ -433,15 +433,20 @@ function folderRow(item, depth) {
     searchQuery = "";
     searchToken += 1;
     await loadGallery(item.path, item.name);
-    children.hidden = false;
-    if (!children.childElementCount) {
+    if (!children.dataset.loaded) {
+      children.dataset.loaded = "1";
       const q = new URLSearchParams({ path: item.path });
       if (item.prefix) q.set("prefix", item.prefix);
       const data = await api(`/api/list?${q}`);
       const folders = (data.folders || []).slice(0, 400);
-      if (!folders.length) children.innerHTML = `<div class="note">No folders inside.</div>`;
+      if (!folders.length) {
+        children.hidden = true;
+        saveSession();
+        return;
+      }
       for (const folder of folders) children.appendChild(folderRow(folder, depth + 1));
     }
+    if (children.childElementCount) children.hidden = false;
     saveSession();
   });
   wrap.appendChild(row);

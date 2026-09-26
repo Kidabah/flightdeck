@@ -308,9 +308,8 @@ def list_folder(folder: Path) -> dict:
                     "entry": "",
                 }
                 if kind == "zip":
-                    folders.append({"name": child.name, "path": str(child), "kind": "zip"})
-                else:
-                    files.append(item)
+                    continue
+                files.append(item)
         except OSError:
             continue
     folders.sort(key=lambda item: (item["kind"] != "folder", item["name"].lower()))
@@ -350,44 +349,52 @@ def _iter_zip_cards(zip_path: Path, printable: bool = True):
         return
 
 
+def _iter_loose_and_zips(folder: Path, printable: bool):
+    """Loose files in this folder, then a mix of every zip sitting beside them.
+
+    One zip used to fill the whole first page, so a directory of zips felt like
+    you had to open each one. Taking a turn from each zip shows the folder.
+    """
+    try:
+        children = sorted(folder.iterdir(), key=lambda item: item.name.lower())
+    except OSError:
+        return
+    zips = []
+    for child in children:
+        if _skip_name(child.name) or not child.is_file() or _is_excluded(child):
+            continue
+        if child.suffix.lower() == ".zip":
+            zips.append(child)
+            continue
+        try:
+            size = child.stat().st_size
+        except OSError:
+            continue
+        card = _card_from_name(child, child.name, size, printable=printable)
+        if card:
+            yield card
+    streams = [_iter_zip_cards(path, printable) for path in zips]
+    while streams:
+        alive = []
+        for stream in streams:
+            try:
+                yield next(stream)
+            except StopIteration:
+                continue
+            alive.append(stream)
+        streams = alive
+
+
 def _iter_dir_cards(folder: Path, recursive: bool, printable: bool = True):
     if not recursive:
-        try:
-            children = sorted(folder.iterdir(), key=lambda item: item.name.lower())
-        except OSError:
-            return
-        for child in children:
-            if _skip_name(child.name) or not child.is_file() or _is_excluded(child):
-                continue
-            if child.suffix.lower() == ".zip":
-                yield from _iter_zip_cards(child, printable)
-                continue
-            try:
-                size = child.stat().st_size
-            except OSError:
-                continue
-            card = _card_from_name(child, child.name, size, printable=printable)
-            if card:
-                yield card
+        yield from _iter_loose_and_zips(folder, printable)
         return
-    for dirpath, dirnames, filenames in os.walk(folder):
-        dirnames[:] = sorted((name for name in dirnames if not _skip_name(name) and not _is_excluded(Path(dirpath) / name)), key=str.lower)
-        for name in sorted(filenames, key=str.lower):
-            if _skip_name(name):
-                continue
-            path = Path(dirpath) / name
-            if _is_excluded(path):
-                continue
-            if path.suffix.lower() == ".zip":
-                yield from _iter_zip_cards(path, printable)
-                continue
-            try:
-                size = path.stat().st_size
-            except OSError:
-                continue
-            card = _card_from_name(path, name, size, printable=printable)
-            if card:
-                yield card
+    for dirpath, dirnames, _filenames in os.walk(folder):
+        dirnames[:] = sorted(
+            (name for name in dirnames if not _skip_name(name) and not _is_excluded(Path(dirpath) / name)),
+            key=str.lower,
+        )
+        yield from _iter_loose_and_zips(Path(dirpath), printable)
 
 
 def _search_hit(needle: str, card: dict) -> bool:
