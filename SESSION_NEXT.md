@@ -1,3 +1,13 @@
+## 2026-09-26 Session update (saved library map)
+
+Latest commit: `eb270fb` — MeshFinder reopens on the tree you had open and the folder you were in.
+
+- Expanded folders and the last place are saved. The file list from the last scan is used straight away, and a fresh walk happens in the background only when that list is a few hours old.
+- Files: `printshelf/desk/server.py`, `printshelf/desk/static/app.js`, `index.html`. Cache: `app.js?v=18`.
+- Local window reopened. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (shift-select)
 
 Latest commit: `ce04d1a` — shift-click selects a run of cards while adding to a collection.
