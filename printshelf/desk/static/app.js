@@ -1281,6 +1281,7 @@ function showTreeMenu(x, y, item) {
   const actions = [
     ["explorer", "Show in Explorer"],
     ["rename", "Rename..."],
+    ["exclude", "Exclude from library"],
     ["collection", "Add to collection"],
   ];
   menu.innerHTML = "";
@@ -1323,6 +1324,30 @@ async function runTreeAction(act) {
         await loadTree({ openPath: saved.path, openName: saved.name });
       },
     });
+    return;
+  }
+  if (act === "exclude") {
+    await api("/api/exclude", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: item.path }),
+    });
+    const row = document.querySelector(`.tree-row[data-path="${CSS.escape(item.path)}"]`);
+    row?.parentElement?.remove();
+    const hidden = item.path.toLowerCase();
+    const here = String(browse.path || "").toLowerCase();
+    if (here === hidden || here.startsWith(`${hidden}\\`)) {
+      const parent = parentFolder(item);
+      const parentRow = parent
+        ? document.querySelector(`.tree-row[data-path="${CSS.escape(parent)}"]`)
+        : null;
+      document.querySelectorAll(".tree-row").forEach((el) => el.classList.remove("active"));
+      if (parentRow) {
+        parentRow.classList.add("active");
+        await loadGallery(parent, baseName(parent));
+      }
+    }
+    saveSession();
     return;
   }
   if (act === "collection") {
