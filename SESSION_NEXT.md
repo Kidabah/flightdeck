@@ -1,3 +1,21 @@
+## 2026-09-26 Session update (click a folder to close it)
+
+Latest commit: `e7646ff` — click an open directory again and it folds shut. The little mark shows › when closed and ⌄ when open. Hard refresh if the tree still only grows.
+
+- Files: `printshelf/desk/static/app.js`, `style.css`, `index.html`. Cache: `app.js?v=23`, `style.css?v=17`.
+- Local window reopened. No Pi service restart.
+
+---
+
+## 2026-09-26 Session update (folder list scrolls under the heading)
+
+Latest commit: `d3204f5` — Folders and Add stay put. The directory list scrolls underneath them. The top bar stays above that.
+
+- Files: `printshelf/desk/static/style.css`, `index.html`. Cache: `style.css?v=16`.
+- Local window reopened. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (cards back in frame)
 
 Latest commit: `49fe6e6` — a card takes its height from how wide the column is, so 3, 4, and 5 keep the model in the picture instead of stretching to the window.
