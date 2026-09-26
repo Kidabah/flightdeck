@@ -1,3 +1,14 @@
+## 2026-09-26 Session update (cards are pictures of the mesh)
+
+Latest commit: `40bd747` — STL and OBJ cards get a picture from the server.
+
+- The window never painted the 3D preview onto the card, so they stayed as the word STL. The server now draws a small picture of the mesh, including models inside a zip, and the card shows that picture the same way it shows a photo.
+- Desktop shortcut: `MeshFinder.lnk` opens the local library. The taskbar icon still opens the Pi library.
+- Files: `printshelf/desk/server.py`, `printshelf/desk/static/app.js`, `index.html`. Cache: `app.js?v=6`.
+- Local window reopened. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (STL cards show the model)
 
 Latest commit: `3a27ae5` — library cards draw a picture of the mesh, including models packed in a zip.
