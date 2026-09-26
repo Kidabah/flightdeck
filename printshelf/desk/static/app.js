@@ -113,7 +113,7 @@ function renderCard(item) {
     img.src = fileUrl(item);
     thumb.appendChild(img);
     kind.remove();
-  } else if (item.kind === "stl" || item.kind === "obj") {
+  } else if (item.kind === "stl" || item.kind === "obj" || item.kind === "3mf" || item.kind === "gcode.3mf") {
     img.src = previewUrl(item);
     thumb.appendChild(img);
     img.addEventListener("load", () => kind.remove());
@@ -181,7 +181,7 @@ async function selectFile(item, card) {
   $("backBtn").hidden = false;
   $("crumb").textContent = item.entry ? `${item.name}` : item.path;
   const url = fileUrl(item);
-  if (item.kind === "stl" || item.kind === "obj") {
+  if (item.kind === "stl" || item.kind === "obj" || item.kind === "3mf" || item.kind === "gcode.3mf") {
     hideStage();
     $("backBtn").hidden = false;
     $("viewer").hidden = false;

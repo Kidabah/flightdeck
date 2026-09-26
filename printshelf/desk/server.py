@@ -570,6 +570,197 @@ def _shade_png(tris, up: str) -> bytes:
     return buf.getvalue()
 
 
+def _xf_matrix(text: str):
+    import numpy as np
+
+    eye = np.eye(4)
+    parts = (text or "").split()
+    if len(parts) != 12:
+        return eye
+    try:
+        n = [float(part) for part in parts]
+    except ValueError:
+        return eye
+    eye = np.eye(4)
+    eye[0, :3] = n[0:3]
+    eye[1, :3] = n[3:6]
+    eye[2, :3] = n[6:9]
+    eye[0, 3], eye[1, 3], eye[2, 3] = n[9], n[10], n[11]
+    return eye
+
+
+def _xml_local(tag: str) -> str:
+    return tag.rsplit("}", 1)[-1].lower()
+
+
+def _load_3mf_tris(data: bytes):
+    """Triangles from a 3MF package, in the build layout, Z-up millimetres."""
+    import io
+
+    import numpy as np
+    from xml.etree import ElementTree as ET
+
+    archive = zipfile.ZipFile(io.BytesIO(data))
+    names = {item.replace("\\", "/").lstrip("/"): item for item in archive.namelist()}
+    parsed: dict = {}
+
+    def parse_model(zip_name: str):
+        if zip_name in parsed:
+            return parsed[zip_name]
+        root = ET.fromstring(archive.read(zip_name))
+        objects: dict = {}
+        for node in root.iter():
+            if _xml_local(node.tag) != "object":
+                continue
+            oid = node.attrib.get("id")
+            if not oid:
+                continue
+            verts: list[tuple[float, float, float]] = []
+            faces: list[tuple[int, int, int]] = []
+            comps: list[dict] = []
+            for child in list(node):
+                tag = _xml_local(child.tag)
+                if tag == "mesh":
+                    for part in list(child):
+                        part_tag = _xml_local(part.tag)
+                        if part_tag == "vertices":
+                            for vert in list(part):
+                                if _xml_local(vert.tag) != "vertex":
+                                    continue
+                                try:
+                                    verts.append((
+                                        float(vert.attrib.get("x", 0)),
+                                        float(vert.attrib.get("y", 0)),
+                                        float(vert.attrib.get("z", 0)),
+                                    ))
+                                except ValueError:
+                                    continue
+                        elif part_tag == "triangles":
+                            for tri in list(part):
+                                if _xml_local(tri.tag) != "triangle":
+                                    continue
+                                try:
+                                    faces.append((
+                                        int(tri.attrib.get("v1", -1)),
+                                        int(tri.attrib.get("v2", -1)),
+                                        int(tri.attrib.get("v3", -1)),
+                                    ))
+                                except ValueError:
+                                    continue
+                elif tag == "components":
+                    for comp in list(child):
+                        if _xml_local(comp.tag) == "component":
+                            comps.append(comp.attrib)
+            objects[oid] = (verts, faces, comps)
+        parsed[zip_name] = root
+        parsed[zip_name + "\0objects"] = objects
+        return root, objects
+
+    def objects_of(zip_name: str):
+        parse_model(zip_name)
+        return parsed[zip_name + "\0objects"]
+
+    def resolve_name(path: str, fallback: str) -> str:
+        key = (path or "").replace("\\", "/").lstrip("/")
+        return names.get(key, fallback)
+
+    def component_fields(attrib: dict) -> tuple[str, str, str]:
+        path = ""
+        oid = ""
+        transform = ""
+        for key, value in attrib.items():
+            local = _xml_local(key)
+            if local == "path":
+                path = value
+            elif local == "objectid":
+                oid = value
+            elif local == "transform":
+                transform = value
+        return path, oid, transform
+
+    chunks = []
+
+    def collect(zip_name: str, oid: str, transform, stack: set):
+        key = (zip_name, oid)
+        if key in stack:
+            return
+        stack.add(key)
+        try:
+            verts, faces, comps = objects_of(zip_name).get(oid, ([], [], []))
+            if verts and faces:
+                points = np.asarray(verts, np.float64)
+                index = np.asarray(faces, np.int32)
+                ok = (index >= 0).all(axis=1) & (index < len(points)).all(axis=1)
+                index = index[ok]
+                if len(index):
+                    xyz = np.c_[points, np.ones(len(points))]
+                    world = (transform @ xyz.T).T[:, :3]
+                    chunks.append(world[index].astype(np.float32))
+            for attrib in comps:
+                path, child_id, raw = component_fields(attrib)
+                if not child_id:
+                    continue
+                child_name = resolve_name(path, zip_name)
+                collect(child_name, child_id, transform @ _xf_matrix(raw), stack)
+        finally:
+            stack.discard(key)
+
+    root_name = names.get("3D/3dmodel.model") or names.get("3d/3dmodel.model")
+    if root_name is None:
+        models = [real for key, real in names.items() if key.lower().endswith(".model")]
+        root_name = models[0] if models else ""
+    if not root_name:
+        raise ValueError("No mesh in this 3MF")
+    root, _objects = parse_model(root_name)
+    for node in root.iter():
+        if _xml_local(node.tag) != "item":
+            continue
+        oid = node.attrib.get("objectid")
+        if oid:
+            collect(root_name, oid, _xf_matrix(node.attrib.get("transform", "")), set())
+    if not chunks:
+        for key, real in names.items():
+            if not key.lower().endswith(".model"):
+                continue
+            for oid in objects_of(real):
+                collect(real, oid, np.eye(4), set())
+    if not chunks:
+        raise ValueError("No mesh in this 3MF")
+    return np.concatenate(chunks, axis=0)
+
+
+def _cap_tris(tris, limit: int = 180000):
+    import numpy as np
+
+    count = len(tris)
+    if count <= limit:
+        return tris
+    step = int(np.ceil(count / limit))
+    return tris[::step]
+
+
+def _pack_mesh(tris) -> bytes:
+    import numpy as np
+
+    flat = np.ascontiguousarray(tris.reshape(-1), dtype=np.float32)
+    return struct.pack("<I", len(tris)) + flat.tobytes()
+
+
+def mesh_preview(path: Path, entry: str = "") -> bytes:
+    cache = _preview_cache(path, entry).with_suffix(".mesh")
+    if cache.is_file() and cache.stat().st_size > 16:
+        return cache.read_bytes()
+    with _preview_lock:
+        if cache.is_file() and cache.stat().st_size > 16:
+            return cache.read_bytes()
+        data = _mesh_bytes(path, entry)
+        packed = _pack_mesh(_cap_tris(_load_3mf_tris(data)))
+        tmp = cache.with_suffix(".tmp")
+        tmp.write_bytes(packed)
+        tmp.replace(cache)
+        return packed
+
+
 def _mesh_bytes(path: Path, entry: str) -> bytes:
     if not entry:
         return path.read_bytes()
@@ -587,7 +778,16 @@ def preview_png(path: Path, entry: str = "") -> bytes:
             return cache.read_bytes()
         kind = _kind_for(Path(entry).name if entry else path.name)
         data = _mesh_bytes(path, entry)
-        if kind == "obj":
+        if kind in {"3mf", "gcode.3mf"}:
+            tris = _load_3mf_tris(data)
+            mesh_cache = _preview_cache(path, entry).with_suffix(".mesh")
+            if not mesh_cache.is_file():
+                packed = _pack_mesh(_cap_tris(tris))
+                tmp_mesh = mesh_cache.with_suffix(".tmp")
+                tmp_mesh.write_bytes(packed)
+                tmp_mesh.replace(mesh_cache)
+            png = _shade_png(_cluster_tris(tris), "z")
+        elif kind == "obj":
             tris = _cluster_tris(_load_obj_tris(data))
             png = _shade_png(tris, "y")
         else:
@@ -712,6 +912,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/preview":
             self._preview(query)
             return
+        if path == "/api/mesh":
+            self._mesh(query)
+            return
         self._json(404, {"error": "Not found"})
 
     def do_POST(self) -> None:  # noqa: N802
@@ -829,7 +1032,7 @@ class Handler(BaseHTTPRequestHandler):
             self._json(404, {"error": "File not found"})
             return
         kind = _kind_for(Path(entry).name if entry else target.name)
-        if kind not in {"stl", "obj"}:
+        if kind not in {"stl", "obj", "3mf", "gcode.3mf"}:
             self._json(400, {"error": "No mesh preview for this file"})
             return
         try:
@@ -838,6 +1041,28 @@ class Handler(BaseHTTPRequestHandler):
             self._json(404, {"error": str(exc)})
             return
         self._send(200, data, "image/png")
+
+    def _mesh(self, query: dict) -> None:
+        raw = (query.get("path") or [""])[0]
+        entry = (query.get("entry") or [""])[0]
+        try:
+            target = Path(raw).resolve()
+        except Exception:
+            self._json(400, {"error": "Bad path"})
+            return
+        if not target.is_file() or not self._allowed(target):
+            self._json(404, {"error": "File not found"})
+            return
+        kind = _kind_for(Path(entry).name if entry else target.name)
+        if kind not in {"3mf", "gcode.3mf"}:
+            self._json(400, {"error": "No mesh for this file"})
+            return
+        try:
+            data = mesh_preview(target, entry)
+        except (OSError, zipfile.BadZipFile, ValueError, FileNotFoundError, KeyError, ImportError) as exc:
+            self._json(404, {"error": str(exc)})
+            return
+        self._send(200, data, "application/octet-stream")
 
     def _file_bytes(self, query: dict) -> None:
         raw = (query.get("path") or [""])[0]

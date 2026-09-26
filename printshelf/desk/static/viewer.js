@@ -379,6 +379,13 @@ export async function mountViewer(container, { url, kind } = {}) {
   tick();
 
   try {
+    let sphere;
+    if (kind === "3mf" || kind === "gcode.3mf") {
+      const meshUrl = url.replace("/api/file?", "/api/mesh?");
+      const meshRes = await fetch(meshUrl);
+      if (!meshRes.ok) throw new Error("This 3MF has no model to show");
+      sphere = addMesh(model, previewGeometry(await meshRes.arrayBuffer()));
+    } else {
     const res = await fetch(url);
     if (!res.ok) {
       let detail = "";
@@ -396,7 +403,6 @@ export async function mountViewer(container, { url, kind } = {}) {
     }
     const objectUrl = URL.createObjectURL(new Blob([buf]));
     active.objectUrl = objectUrl;
-    let sphere;
     if (kind === "obj") {
       const group = await new OBJLoader().loadAsync(objectUrl);
       model.add(group);
@@ -404,6 +410,7 @@ export async function mountViewer(container, { url, kind } = {}) {
     } else {
       const geometry = await new STLLoader().loadAsync(objectUrl);
       sphere = addMesh(model, geometry);
+    }
     }
     const radius = fitCamera(camera, controls, sphere);
     const span = Math.max(radius * 2.4, 1);
