@@ -1,3 +1,13 @@
+## 2026-09-26 Session update (model grid before the viewer)
+
+Latest commit: `8bcf96a` — the local library opens as a grid of models.
+
+- Four across is the default. 2, 6, and list are on the same bar. All shows every model in the folder and its subfolders, including models inside zips. Click a card to open the viewer. Library brings the grid back.
+- Files: `printshelf/desk/server.py`, `printshelf/desk/static/`. Cache: `app.js?v=3`, `style.css?v=3`, `viewer.js?v=5`.
+- Local window reopened. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (OBJ stands, STL stays Z-up)
 
 Latest commit: `e475325` — OBJ models keep their own up axis so they are not rolled onto the plate.
