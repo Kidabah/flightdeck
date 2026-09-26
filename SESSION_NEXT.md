@@ -1,3 +1,13 @@
+## 2026-09-26 Session update (painter opens in the app)
+
+Latest commit: `80dd2b9` — Send to STL Painter opens the Flightdeck app, not the browser.
+
+- The handoff still uploads the model to the Pi. The desktop window then switches to STL Painter. The first send may reopen the app if that window is an older copy.
+- Files: `desktop/launch.py`, `printshelf/desk/server.py`, `printshelf/desk/static/`. Cache: `app.js?v=12`.
+- Local window reopened. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (send to STL Painter)
 
 Latest commit: `23b04e4` — right-click a model and it opens in STL Painter on the Pi.
