@@ -13,6 +13,7 @@ import random
 import struct
 import subprocess
 import threading
+import time
 import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -263,6 +264,137 @@ def _iter_dir_cards(folder: Path, recursive: bool, printable: bool = True):
             card = _card_from_name(path, name, size, printable=printable)
             if card:
                 yield card
+
+
+def _search_hit(needle: str, card: dict) -> bool:
+    if needle in card["name"].casefold():
+        return True
+    if card.get("entry") and needle in Path(card["path"]).name.casefold():
+        return True
+    return False
+
+
+def _search_page(matches: list[dict], *, needle: str, offset: int, limit: int, indexing: bool) -> dict:
+    matches.sort(key=lambda item: item["name"].casefold())
+    page = matches[offset:offset + limit]
+    return {
+        "items": page,
+        "offset": offset,
+        "limit": limit,
+        "truncated": offset + len(page) < len(matches),
+        "capped": False,
+        "query": needle,
+        "indexing": indexing,
+    }
+
+
+_index_lock = threading.Lock()
+_index_cache: dict | None = None
+_index_building = False
+
+
+def _index_path() -> Path:
+    return config_path().parent / "search-index.json"
+
+
+def _row_hit(needle: str, row: list) -> bool:
+    if needle in str(row[0]).casefold():
+        return True
+    if row[4] and needle in Path(str(row[1])).name.casefold():
+        return True
+    return False
+
+
+def _local_root(root: str) -> bool:
+    return not root.startswith("\\\\") and not root.startswith("//")
+
+
+def _search_loose(needle: str, *, printable: bool, offset: int, limit: int) -> dict:
+    """File names on this PC only. Zip members and network folders wait for the index."""
+    matches = []
+    for root in load_roots():
+        if not _local_root(root):
+            continue
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = sorted((name for name in dirnames if not _skip_name(name)), key=str.lower)
+            for name in filenames:
+                if _skip_name(name) or name.lower().endswith(".zip"):
+                    continue
+                if needle not in name.casefold():
+                    continue
+                path = Path(dirpath) / name
+                try:
+                    size = path.stat().st_size
+                except OSError:
+                    continue
+                card = _card_from_name(path, name, size, printable=printable)
+                if card:
+                    matches.append(card)
+    return _search_page(matches, needle=needle, offset=offset, limit=limit, indexing=True)
+
+
+def _refresh_index() -> None:
+    global _index_cache, _index_building
+    roots = load_roots()
+    path = _index_path()
+    if path.is_file():
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            fresh = data.get("roots") == roots and time.time() - float(data.get("built") or 0) < 6 * 3600
+            if fresh and isinstance(data.get("items"), list):
+                with _index_lock:
+                    _index_cache = data
+                    _index_building = False
+                return
+        except Exception:
+            pass
+    items = []
+    for root in roots:
+        for card in _iter_dir_cards(Path(root), True, False):
+            items.append([card["name"], card["path"], card["kind"], card["size"], card["entry"]])
+    data = {"roots": roots, "built": time.time(), "items": items}
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data), encoding="utf-8")
+    except OSError:
+        pass
+    with _index_lock:
+        _index_cache = data
+        _index_building = False
+
+
+def _start_index() -> None:
+    global _index_building
+    with _index_lock:
+        if _index_building or _index_cache is not None:
+            return
+        _index_building = True
+    threading.Thread(target=_refresh_index, name="meshfinder-index", daemon=True).start()
+
+
+def search_library(needle: str, *, printable: bool, offset: int, limit: int) -> dict:
+    needle = needle.strip().casefold()
+    if len(needle) < 2:
+        return _search_page([], needle=needle, offset=0, limit=limit, indexing=False)
+    with _index_lock:
+        index = _index_cache
+    roots = load_roots()
+    if index and index.get("roots") == roots and isinstance(index.get("items"), list):
+        allowed = PRINTABLE_KINDS if printable else LIBRARY_KINDS
+        matches = []
+        for row in index["items"]:
+            if row[2] not in allowed or not _row_hit(needle, row):
+                continue
+            matches.append({
+                "name": row[0],
+                "path": row[1],
+                "kind": row[2],
+                "size": row[3],
+                "entry": row[4],
+            })
+        return _search_page(matches, needle=needle, offset=offset, limit=limit, indexing=False)
+    _start_index()
+    return _search_loose(needle, printable=printable, offset=offset, limit=limit)
 
 
 def gallery_page(folder: Path, *, recursive: bool, offset: int, limit: int, printable: bool = True) -> dict:
@@ -960,6 +1092,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/gallery":
             self._gallery(query)
             return
+        if path == "/api/search":
+            self._search(query)
+            return
         if path == "/api/file":
             self._file_bytes(query)
             return
@@ -1101,6 +1236,17 @@ class Handler(BaseHTTPRequestHandler):
         payload = gallery_page(target, recursive=recursive, offset=offset, limit=limit, printable=printable)
         payload["path"] = str(target)
         self._json(200, payload)
+
+    def _search(self, query: dict) -> None:
+        needle = (query.get("q") or [""])[0]
+        printable = (query.get("printable") or ["1"])[0] not in {"0", "false", "no"}
+        try:
+            offset = max(0, int((query.get("offset") or ["0"])[0]))
+            limit = int((query.get("limit") or ["120"])[0])
+        except ValueError:
+            offset, limit = 0, 120
+        limit = min(240, max(1, limit))
+        self._json(200, search_library(needle, printable=printable, offset=offset, limit=limit))
 
     def _list(self, query: dict) -> None:
         raw = (query.get("path") or [""])[0]
@@ -1250,6 +1396,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def serve(port: int = PORT) -> ThreadingHTTPServer:
+    _start_index()
     httpd = ThreadingHTTPServer((HOST, port), Handler)
     httpd.serve_forever()
     return httpd

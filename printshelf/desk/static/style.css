@@ -126,6 +126,16 @@ button, input { font: inherit; color: inherit; }
 }
 .switch input { accent-color: #e07a2f; }
 
+.search {
+  flex: 1;
+  min-width: 140px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+.search:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+
 .view-switch { display: flex; gap: 4px; }
 .view-switch button {
   background: transparent;

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MeshFinder</title>
-  <link rel="stylesheet" href="/static/style.css?v=7">
+  <link rel="stylesheet" href="/static/style.css?v=8">
   <script type="importmap">
   {
     "imports": {
@@ -27,6 +27,7 @@
       <header class="stage-bar">
         <button type="button" id="backBtn" class="text-btn" hidden>Library</button>
         <div id="crumb" class="crumb">Pick a folder</div>
+        <input id="search" class="search" type="search" placeholder="Search files" autocomplete="off" spellcheck="false">
         <label class="switch" title="Show every model at once, including everything in subfolders">
           <input type="checkbox" id="showAll">
           <span>All</span>
@@ -54,6 +55,6 @@
   </div>
   <div id="cardMenu" class="card-menu" hidden></div>
   <script type="module" src="/static/viewer.js?v=10"></script>
-  <script src="/static/app.js?v=9"></script>
+  <script src="/static/app.js?v=10"></script>
 </body>
 </html>

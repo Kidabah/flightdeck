@@ -2,6 +2,10 @@ const $ = (id) => document.getElementById(id);
 
 let selected = null;
 let browse = { path: "", name: "" };
+let libraryBrowse = null;
+let searchQuery = "";
+let searchToken = 0;
+let searchTimer = 0;
 let galleryOffset = 0;
 let cols = "4";
 const favourites = new Set();
@@ -253,6 +257,75 @@ async function loadGallery(path, name, { append = false } = {}) {
   }
 }
 
+function leaveSearch() {
+  searchToken += 1;
+  searchQuery = "";
+  const back = libraryBrowse;
+  if (!back?.path || back.path === "search") return;
+  if (back.path === "favourites") {
+    showFavourites().catch((err) => showEmpty(err.message || String(err)));
+    return;
+  }
+  loadGallery(back.path, back.name).catch((err) => showEmpty(err.message || String(err)));
+}
+
+async function loadSearch(query, { append = false } = {}) {
+  const token = ++searchToken;
+  const sameQuery = searchQuery === query && browse.path === "search";
+  searchQuery = query;
+  if (browse.path !== "search") libraryBrowse = { path: browse.path, name: browse.name };
+  if (!append) {
+    browse = { path: "search", name: "Search" };
+    galleryOffset = 0;
+    thumbQueue.length = 0;
+    if (!sameQuery) $("gallery").innerHTML = `<div class="note">Searching…</div>`;
+    showGallery();
+  }
+  const q = new URLSearchParams({
+    q: query,
+    printable: $("printable").checked ? "1" : "0",
+    offset: String(galleryOffset),
+    limit: "120",
+  });
+  const data = await api(`/api/search?${q}`);
+  if (token !== searchToken) return;
+  const host = $("gallery");
+  if (!append) host.innerHTML = "";
+  host.querySelector(".more-row")?.remove();
+  const items = data.items || [];
+  if (!items.length && !append) {
+    const hint = data.indexing
+      ? "Searching file names…"
+      : ($("printable").checked
+        ? "Nothing matched. Turn Printable off to include pictures, SVGs, and documents."
+        : "Nothing matched.");
+    host.innerHTML = `<div class="note">${hint}</div>`;
+  }
+  for (const item of items) host.appendChild(renderCard(item));
+  galleryOffset += items.length;
+  const more = data.truncated ? " · more below" : "";
+  const pending = data.indexing ? " · still reading zip files" : "";
+  $("crumb").textContent = `Search “${query}” · ${galleryOffset} shown${more}${pending}`;
+  if (data.indexing && token === searchToken) {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      if (searchQuery === query) {
+        loadSearch(query).catch((err) => showEmpty(err.message || String(err)));
+      }
+    }, 2000);
+  }
+  if (data.truncated) {
+    const moreBtn = document.createElement("button");
+    moreBtn.type = "button";
+    moreBtn.className = "text-btn more-row";
+    moreBtn.textContent = "Show more";
+    moreBtn.addEventListener("click", () => {
+      loadSearch(searchQuery, { append: true }).catch((err) => showEmpty(err.message || String(err)));
+    });
+    host.appendChild(moreBtn);
+  }
+}
+
 async function selectFile(item, card) {
   selected = item;
   document.querySelectorAll(".model-card").forEach((el) => el.classList.remove("active"));
@@ -323,6 +396,9 @@ function folderRow(item, depth) {
   row.addEventListener("click", async () => {
     document.querySelectorAll(".tree-row").forEach((el) => el.classList.remove("active"));
     row.classList.add("active");
+    $("search").value = "";
+    searchQuery = "";
+    searchToken += 1;
     await loadGallery(item.path, item.name);
     children.hidden = false;
     if (children.childElementCount) return;
@@ -380,6 +456,9 @@ function favouritesRow() {
   row.addEventListener("click", async () => {
     document.querySelectorAll(".tree-row").forEach((el) => el.classList.remove("active"));
     row.classList.add("active");
+    $("search").value = "";
+    searchQuery = "";
+    searchToken += 1;
     await showFavourites();
   });
   wrap.appendChild(row);
@@ -520,15 +599,46 @@ $("cardMenu").addEventListener("click", (event) => {
 });
 document.addEventListener("click", () => hideCardMenu());
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") hideCardMenu();
+  if (event.key === "Escape") {
+    if (!$("cardMenu").hidden) {
+      hideCardMenu();
+      return;
+    }
+    if (searchQuery || document.activeElement === $("search")) {
+      $("search").value = "";
+      leaveSearch();
+    }
+    return;
+  }
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
+    event.preventDefault();
+    $("search").focus();
+    $("search").select();
+  }
+});
+
+$("search").addEventListener("input", () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    const query = $("search").value.trim();
+    if (query.length < 2) {
+      if (searchQuery) leaveSearch();
+      return;
+    }
+    loadSearch(query).catch((err) => showEmpty(err.message || String(err)));
+  }, 280);
 });
 
 $("showAll").addEventListener("change", () => {
-  if (!browse.path || browse.path === "favourites") return;
+  if (!browse.path || browse.path === "favourites" || browse.path === "search") return;
   loadGallery(browse.path, browse.name).catch((err) => showEmpty(err.message || String(err)));
 });
 
 $("printable").addEventListener("change", () => {
+  if (browse.path === "search" && searchQuery) {
+    loadSearch(searchQuery).catch((err) => showEmpty(err.message || String(err)));
+    return;
+  }
   if (!browse.path || browse.path === "favourites") return;
   loadGallery(browse.path, browse.name).catch((err) => showEmpty(err.message || String(err)));
 });
