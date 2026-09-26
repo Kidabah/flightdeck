@@ -18,6 +18,7 @@ import tempfile
 import time
 import urllib.parse
 import urllib.request
+import uuid
 import zipfile
 from html import escape as html_escape
 from contextlib import asynccontextmanager
@@ -5902,6 +5903,39 @@ async def makerworld_thumbnail(url: str):
     except makerworld.MakerWorldError as exc:
         raise HTTPException(status_code=exc.status, detail=str(exc))
     return Response(content=data, media_type=content_type)
+
+
+@app.post("/api/painter/inbox", status_code=201)
+async def painter_inbox(file: UploadFile = File(...)):
+    raw_name = _safe_basename(file.filename, "model.stl")
+    lower = raw_name.lower()
+    if lower.endswith(".gcode.3mf"):
+        raise HTTPException(status_code=422, detail="STL Painter takes the model, not a sliced plate")
+    ext = _queue_file_extension(raw_name)
+    if ext not in {".stl", ".obj", ".3mf"}:
+        raise HTTPException(status_code=422, detail="STL Painter takes an STL, OBJ, or 3MF")
+    data = await _read_upload_bytes(file, label="STL Painter")
+    token = uuid.uuid4().hex
+    folder = (DATA_DIR / "painter-inbox" / token)
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / raw_name).write_bytes(data)
+    return {
+        "ok": True,
+        "token": token,
+        "name": raw_name,
+        "url": f"/api/painter/inbox/{token}",
+    }
+
+
+@app.get("/api/painter/inbox/{token}")
+async def painter_inbox_file(token: str):
+    if not re.fullmatch(r"[0-9a-f]{32}", token):
+        raise HTTPException(status_code=404, detail="Not found")
+    folder = _safe_join_under(DATA_DIR / "painter-inbox", token)
+    chosen = next((path for path in folder.iterdir() if path.is_file()), None)
+    if chosen is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    return FileResponse(chosen, filename=chosen.name)
 
 
 @app.post("/api/makerdeck/exports", status_code=201)

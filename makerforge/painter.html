@@ -330,12 +330,12 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
     <a class="logo" href="index.html" title="MakerDeck home">Maker<span>Deck</span> · STL Painter</a>
     <nav class="tool-nav" aria-label="MakerDeck tools">
       <a href="index.html">Container</a>
-      <a href="painter.html?v=629" class="active" aria-current="page">STL Painter</a>
+      <a href="painter.html?v=630" class="active" aria-current="page">STL Painter</a>
       <a href="paper3d.html">Paper3D</a>
       <a href="meshprep.html">Mesh Prep</a>
       <a href="chop.html">Chop</a>
     </nav>
-    <div class="build">b629</div>
+    <div class="build">b630</div>
   </header>
 
   <!-- Left Sidebar (tabbed) -->
@@ -707,7 +707,7 @@ select{background:var(--panel-2);color:var(--text);border:1px solid var(--border
       <span class="status-dot idle" id="statusDot"></span>
       <span id="statusText">Ready — load an STL or OBJ to begin</span>
     </div>
-    <span>MakerDeck · STL Painter b629</span>
+    <span>MakerDeck · STL Painter b630</span>
   </footer>
 </div>
 
@@ -4652,6 +4652,19 @@ window.addEventListener('keydown', (e) => {
     case 'r': if (S.mesh) screenPickColour(); e.preventDefault(); break;
   }
 });
+
+async function loadPainterHandoff() {
+  const params = new URLSearchParams(location.search);
+  const src = params.get('src');
+  if (!src || !src.startsWith('/api/painter/inbox/')) return;
+  const name = params.get('name') || 'model.stl';
+  setStatus(`Opening ${name}…`, 'working');
+  const res = await fetch(src);
+  if (!res.ok) throw new Error('STL Painter could not fetch that file');
+  const blob = await res.blob();
+  loadFile(new File([blob], name, { type: blob.type || 'application/octet-stream' }));
+}
+loadPainterHandoff().catch(err => setStatus(err?.message || 'Open failed', 'error'));
 </script>
 </body>
 </html>

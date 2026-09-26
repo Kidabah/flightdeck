@@ -14,13 +14,16 @@ import struct
 import subprocess
 import threading
 import time
+import urllib.request
+import webbrowser
 import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 HOST = "127.0.0.1"
 PORT = 8111
+FLIGHTDECK_URL = "https://flightdeck.tail7de73e.ts.net"
 STATIC = Path(__file__).resolve().parent / "static"
 
 MESH = {".stl", ".obj"}
@@ -1134,6 +1137,9 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/api/reveal":
             self._reveal()
             return
+        if parsed.path == "/api/painter":
+            self._send_painter()
+            return
         if parsed.path == "/api/favourites":
             self._add_favourite()
             return
@@ -1393,6 +1399,63 @@ class Handler(BaseHTTPRequestHandler):
             return
         subprocess.Popen(["explorer", f"/select,{target}"])
         self._json(200, {"ok": True, "revealed": str(target)})
+
+    def _send_painter(self) -> None:
+        body = self._read_json()
+        raw = str(body.get("path") or "")
+        entry = str(body.get("entry") or "")
+        try:
+            target = Path(raw).resolve()
+        except Exception:
+            self._json(400, {"error": "Bad path"})
+            return
+        if not target.is_file() or not self._allowed(target):
+            self._json(404, {"error": "File not found"})
+            return
+        try:
+            if entry:
+                data = read_zip_entry(target, entry)
+                name = Path(entry).name
+            else:
+                data = target.read_bytes()
+                name = target.name
+        except (OSError, zipfile.BadZipFile, ValueError, FileNotFoundError) as exc:
+            self._json(404, {"error": str(exc)})
+            return
+        lower = name.lower()
+        if not lower.endswith((".stl", ".obj", ".3mf")) or lower.endswith(".gcode.3mf"):
+            self._json(400, {"error": "STL Painter takes an STL, OBJ, or 3MF"})
+            return
+        safe = Path(name).name.replace('"', "")
+        boundary = "----MeshFinderPainter"
+        head = (
+            f"--{boundary}\r\n"
+            f'Content-Disposition: form-data; name="file"; filename="{safe}"\r\n'
+            f"Content-Type: application/octet-stream\r\n\r\n"
+        ).encode("utf-8")
+        payload = head + data + f"\r\n--{boundary}--\r\n".encode("utf-8")
+        req = urllib.request.Request(
+            f"{FLIGHTDECK_URL}/api/painter/inbox",
+            data=payload,
+            method="POST",
+            headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=180) as resp:
+                sent = json.loads(resp.read().decode("utf-8"))
+        except Exception as exc:
+            self._json(502, {"error": f"Flightdeck did not take the file: {exc}"})
+            return
+        token = str(sent.get("token") or "")
+        if not token:
+            self._json(502, {"error": "Flightdeck did not take the file"})
+            return
+        url = (
+            f"{FLIGHTDECK_URL}/#/painter?src={quote(f'/api/painter/inbox/{token}', safe='/')}"
+            f"&name={quote(safe)}"
+        )
+        webbrowser.open(url)
+        self._json(200, {"ok": True, "opened": url, "name": safe})
 
 
 def serve(port: int = PORT) -> ThreadingHTTPServer:

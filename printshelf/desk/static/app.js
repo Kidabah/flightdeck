@@ -538,10 +538,15 @@ function showCardMenu(x, y, item, card) {
   const actions = [
     ["open", "Open"],
     ["slicer", "Open in slicer"],
+  ];
+  if (item.kind === "stl" || item.kind === "obj" || item.kind === "3mf") {
+    actions.push(["painter", "Send to STL Painter"]);
+  }
+  actions.push(
     ["explorer", "Show in Explorer"],
     ["locate", "Go to location"],
     ["fav", fav ? "Remove from favourites" : "Add to favourites"],
-  ];
+  );
   menu.innerHTML = "";
   for (const [act, label] of actions) {
     const button = document.createElement("button");
@@ -564,6 +569,15 @@ async function runMenuAction(act) {
   if (!item) return;
   if (act === "open") {
     await selectFile(item, card);
+    return;
+  }
+  if (act === "painter") {
+    await api("/api/painter", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: item.path, entry: item.entry || "" }),
+    });
+    $("crumb").textContent = `${item.name} · opened in STL Painter`;
     return;
   }
   if (act === "slicer") {

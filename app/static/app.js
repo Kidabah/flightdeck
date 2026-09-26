@@ -4095,7 +4095,7 @@ function parseRoute() {
   if (hash === '#/makerworld') return { view: 'makerworld' };
   if (hash === '#/makerdeck') return { view: 'makerdeck' };
   if (hash === '#/meshprep') return { view: 'meshprep' };
-  if (hash === '#/painter') return { view: 'painter' };
+  if (hash === '#/painter' || hash.startsWith('#/painter?')) return { view: 'painter' };
   if (hash === '#/chop') return { view: 'chop' };
   if (hash === '#/manual') return { view: 'manual' };
   if (hash === '#/about') return { view: 'about' };
@@ -4137,9 +4137,15 @@ function _ensureMeshPrepFrame() {
 
 function _ensurePainterFrame() {
   const frame = document.getElementById('painter-frame');
-  if (!frame || frame.dataset.loaded === '1') return;
-  frame.src = '/makerdeck/painter.html?v=629';
-  frame.dataset.loaded = '1';
+  if (!frame) return;
+  const file = _routeParams('#/painter').get('src') || '';
+  const name = _routeParams('#/painter').get('name') || '';
+  let next = '/makerdeck/painter.html?v=630';
+  if (file) next += `&src=${encodeURIComponent(file)}`;
+  if (name) next += `&name=${encodeURIComponent(name)}`;
+  if (frame.dataset.src === next) return;
+  frame.src = next;
+  frame.dataset.src = next;
 }
 
 function _ensureChopFrame() {
