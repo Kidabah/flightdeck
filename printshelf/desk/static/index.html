@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MeshFinder</title>
+  <link rel="stylesheet" href="/static/style.css?v=1">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div class="app">
+    <aside class="tree-pane">
+      <div class="pane-head">
+        <strong>Folders</strong>
+        <button type="button" id="addFolder" class="text-btn">Add</button>
+      </div>
+      <div id="tree" class="tree"></div>
+    </aside>
+    <main class="stage">
+      <header class="stage-bar">
+        <div id="crumb" class="crumb">Pick a file</div>
+        <button type="button" id="openFile" class="open-btn" disabled>Open in slicer</button>
+      </header>
+      <div id="stage" class="stage-body">
+        <div id="viewer" class="viewer" hidden></div>
+        <div id="picture" class="picture" hidden></div>
+        <pre id="doc" class="doc" hidden></pre>
+        <div id="empty" class="empty">Pick a model, picture, or note.</div>
+      </div>
+    </main>
+    <aside class="files-pane">
+      <div class="pane-head"><strong id="filesTitle">Files</strong></div>
+      <div id="files" class="files"></div>
+    </aside>
+  </div>
+  <script type="module" src="/static/viewer.js?v=1"></script>
+  <script src="/static/app.js?v=1"></script>
+</body>
+</html>
