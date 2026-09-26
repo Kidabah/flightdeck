@@ -238,7 +238,7 @@ async function loadGallery(path, name, { append = false } = {}) {
   host.querySelector(".more-row")?.remove();
   const items = data.items || [];
   if (!items.length && !append) {
-    host.innerHTML = `<div class="note">No models or pictures here.</div>`;
+    host.innerHTML = `<div class="note">Nothing in this folder. Open one on the left, or turn on All to include subfolders.</div>`;
   }
   for (const item of items) host.appendChild(renderCard(item));
   galleryOffset += items.length;
