@@ -1759,10 +1759,12 @@ class Handler(BaseHTTPRequestHandler):
             self._rename_collection()
             return
         if parsed.path == "/api/duplicates/analyze":
+            self._read_json()
             start_duplicate_scan()
             self._json(200, duplicates_status())
             return
         if parsed.path == "/api/duplicates/stop":
+            self._read_json()
             self._json(200, stop_duplicate_scan())
             return
         if parsed.path == "/api/duplicates/delete":

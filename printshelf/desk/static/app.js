@@ -1118,7 +1118,13 @@ function renderDuplicates(data) {
     const path = data.running ? "/api/duplicates/stop" : "/api/duplicates/analyze";
     api(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })
       .then(() => refreshDuplicates())
-      .catch((err) => showEmpty(err.message || String(err)));
+      .catch((err) => {
+        if (lastDup && browse.path === "duplicates") {
+          renderDuplicates({ ...lastDup, running: false, error: err.message || String(err) });
+          return;
+        }
+        showEmpty(err.message || String(err));
+      });
   });
   head.append(title, action);
   page.appendChild(head);
@@ -1161,7 +1167,13 @@ async function refreshDuplicates() {
   clearTimeout(dupTimer);
   if (data.running) {
     dupTimer = setTimeout(() => {
-      refreshDuplicates().catch((err) => showEmpty(err.message || String(err)));
+      refreshDuplicates().catch((err) => {
+        if (browse.path !== "duplicates") return;
+        dupTimer = setTimeout(() => {
+          refreshDuplicates().catch(() => {});
+        }, 2000);
+        if (lastDup) renderDuplicates({ ...lastDup, error: err.message || String(err) });
+      });
     }, 1500);
   }
 }
