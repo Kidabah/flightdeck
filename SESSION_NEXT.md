@@ -1,3 +1,13 @@
+## 2026-09-26 Session update (MeshFinder matches the app)
+
+Latest commit: `589ab3b` — MeshFinder uses the Flightdeck window style.
+
+- Header, colours, and sidebar now follow the other desktop apps. Opening it again brings the same window forward.
+- Files: `printshelf/desk/launch.py`, `printshelf/desk/static/`. Cache: `style.css?v=9`.
+- Local window reopened. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (painter opens in the app)
 
 Latest commit: `80dd2b9` — Send to STL Painter opens the Flightdeck app, not the browser.
