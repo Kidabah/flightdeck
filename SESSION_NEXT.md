@@ -1,3 +1,13 @@
+## 2026-09-26 Session update (face highlight covers a patch)
+
+Latest commit: `c92b9b3` — hovering a smooth model lights a patch, not one triangle.
+
+- A curved nose was one tiny triangle because only perfectly flat neighbours joined. The highlight now grows across triangles facing the same way and stops at a sharp edge. Clicking lays that patch on the bed.
+- Files: `printshelf/desk/static/viewer.js`, `index.html`. Cache: `viewer.js?v=8`.
+- Local window reopened. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (grid cards and whole-face highlight)
 
 Latest commit: `c4f082a` — library cards keep their height, and a click highlights the whole flat face.
