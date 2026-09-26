@@ -1,10 +1,24 @@
 const $ = (id) => document.getElementById(id);
 
 let selected = null;
+let browse = { path: "", name: "" };
+let galleryOffset = 0;
+let cols = "4";
+const thumbCache = new Map();
+const thumbQueue = [];
+let thumbBusy = false;
+const THUMB_LIMIT = 8 * 1024 * 1024;
 
 function fileUrl(item) {
   const q = new URLSearchParams({ path: item.path, entry: item.entry || "" });
   return `/api/file?${q}`;
+}
+
+function fmtBytes(n) {
+  n = Number(n) || 0;
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(n < 10240 ? 1 : 0)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(n < 10 * 1024 * 1024 ? 1 : 0)} MB`;
 }
 
 function hideStage() {
@@ -12,6 +26,7 @@ function hideStage() {
   $("picture").hidden = true;
   $("doc").hidden = true;
   $("empty").hidden = true;
+  $("gallery").hidden = true;
   window.MeshFinderViewer?.unmountViewer?.();
 }
 
@@ -19,6 +34,14 @@ function showEmpty(text) {
   hideStage();
   $("empty").hidden = false;
   $("empty").textContent = text;
+  $("backBtn").hidden = !browse.path;
+}
+
+function showGallery() {
+  hideStage();
+  $("gallery").hidden = false;
+  $("backBtn").hidden = true;
+  $("openFile").disabled = true;
 }
 
 async function api(url, options) {
@@ -28,53 +51,125 @@ async function api(url, options) {
   return data;
 }
 
-function crumbFor(path, prefix) {
-  if (!path) return "Library";
-  const tail = prefix ? `${path} / ${prefix}` : path;
-  return tail;
+function pumpThumbs() {
+  if (thumbBusy) return;
+  const job = thumbQueue.shift();
+  if (!job) return;
+  if (!job.img.isConnected) {
+    pumpThumbs();
+    return;
+  }
+  thumbBusy = true;
+  window.MeshFinderViewer.renderThumb(fileUrl(job.item), job.item.kind)
+    .then((url) => {
+      thumbCache.set(job.key, url);
+      if (job.img.isConnected) job.img.src = url;
+    })
+    .catch(() => {})
+    .finally(() => {
+      thumbBusy = false;
+      pumpThumbs();
+    });
 }
 
-async function loadFiles(path, prefix, title) {
-  const q = new URLSearchParams();
-  if (path) q.set("path", path);
-  if (prefix) q.set("prefix", prefix);
-  const data = await api(`/api/list?${q}`);
-  $("filesTitle").textContent = title || "Files";
-  $("crumb").textContent = crumbFor(data.path, data.prefix);
-  const host = $("files");
-  host.innerHTML = "";
-  const files = data.files || [];
-  const shown = files.slice(0, 500);
-  if (!shown.length) {
-    host.innerHTML = `<div class="note">No models or pictures in this folder.</div>`;
+function queueThumb(item, img) {
+  const key = `${item.path}\n${item.entry || ""}`;
+  if (thumbCache.has(key)) {
+    img.src = thumbCache.get(key);
+    return;
   }
-  for (const item of shown) {
-    const row = document.createElement("button");
-    row.type = "button";
-    row.className = "file-row";
-    row.innerHTML = `<span class="kind">${item.kind}</span><span class="name"></span>`;
-    row.querySelector(".name").textContent = item.name;
-    row.addEventListener("click", () => selectFile(item, row));
-    host.appendChild(row);
-  }
-  if (files.length > shown.length) {
-    const note = document.createElement("div");
-    note.className = "note";
-    note.textContent = `Showing ${shown.length} of ${files.length}.`;
-    host.appendChild(note);
-  }
-  return data;
+  if ((item.size || 0) > THUMB_LIMIT) return;
+  thumbQueue.push({ item, img, key });
+  pumpThumbs();
 }
 
-async function selectFile(item, row) {
+function renderCard(item) {
+  const card = document.createElement("button");
+  card.type = "button";
+  card.className = "model-card";
+  const thumb = document.createElement("div");
+  thumb.className = "model-thumb";
+  const img = document.createElement("img");
+  img.alt = "";
+  const kind = document.createElement("span");
+  kind.className = "model-kind";
+  kind.textContent = item.kind.toUpperCase();
+  thumb.appendChild(kind);
+  if (item.kind === "image") {
+    img.src = fileUrl(item);
+    thumb.appendChild(img);
+    kind.remove();
+  } else if (item.kind === "stl" || item.kind === "obj") {
+    thumb.appendChild(img);
+    queueThumb(item, img);
+    img.addEventListener("load", () => kind.remove());
+  }
+  const body = document.createElement("div");
+  body.className = "model-body";
+  const name = document.createElement("div");
+  name.className = "model-name";
+  name.textContent = item.name;
+  const meta = document.createElement("div");
+  meta.className = "model-meta";
+  meta.textContent = `${item.kind.toUpperCase()} · ${fmtBytes(item.size)}`;
+  body.appendChild(name);
+  body.appendChild(meta);
+  card.appendChild(thumb);
+  card.appendChild(body);
+  card.addEventListener("click", () => selectFile(item, card));
+  return card;
+}
+
+async function loadGallery(path, name, { append = false } = {}) {
+  if (!append) {
+    browse = { path, name: name || path };
+    galleryOffset = 0;
+    thumbQueue.length = 0;
+    $("gallery").innerHTML = `<div class="note">Gathering models…</div>`;
+    showGallery();
+  }
+  const q = new URLSearchParams({
+    path,
+    recursive: $("showAll").checked ? "1" : "0",
+    offset: String(galleryOffset),
+    limit: "120",
+  });
+  const data = await api(`/api/gallery?${q}`);
+  const host = $("gallery");
+  if (!append) host.innerHTML = "";
+  host.querySelector(".more-row")?.remove();
+  const items = data.items || [];
+  if (!items.length && !append) {
+    host.innerHTML = `<div class="note">No models or pictures here.</div>`;
+  }
+  for (const item of items) host.appendChild(renderCard(item));
+  galleryOffset += items.length;
+  const shown = galleryOffset;
+  const more = data.truncated ? " · more below" : "";
+  $("crumb").textContent = `${browse.name || "Library"} · ${shown} shown${more}`;
+  if (data.truncated) {
+    const moreBtn = document.createElement("button");
+    moreBtn.type = "button";
+    moreBtn.className = "text-btn more-row";
+    moreBtn.textContent = "Show more";
+    moreBtn.addEventListener("click", () => {
+      loadGallery(browse.path, browse.name, { append: true }).catch((err) => showEmpty(err.message || String(err)));
+    });
+    host.appendChild(moreBtn);
+  }
+}
+
+async function selectFile(item, card) {
   selected = item;
-  document.querySelectorAll(".file-row").forEach((el) => el.classList.remove("active"));
-  row.classList.add("active");
+  document.querySelectorAll(".model-card").forEach((el) => el.classList.remove("active"));
+  card?.classList.add("active");
   $("openFile").disabled = false;
-  $("crumb").textContent = item.entry ? `${item.path} / ${item.entry}` : item.path;
+  $("backBtn").hidden = false;
+  $("crumb").textContent = item.entry ? `${item.name}` : item.path;
   const url = fileUrl(item);
   if (item.kind === "stl" || item.kind === "obj") {
     hideStage();
+    $("backBtn").hidden = false;
     $("viewer").hidden = false;
     if (!window.MeshFinderViewer?.mountViewer) {
       showEmpty("The 3D viewer did not start.");
@@ -89,6 +184,7 @@ async function selectFile(item, row) {
   }
   if (item.kind === "image") {
     hideStage();
+    $("backBtn").hidden = false;
     $("picture").hidden = false;
     $("picture").innerHTML = "";
     const img = document.createElement("img");
@@ -99,6 +195,7 @@ async function selectFile(item, row) {
   }
   if (item.kind === "doc") {
     hideStage();
+    $("backBtn").hidden = false;
     $("doc").hidden = false;
     $("doc").innerHTML = "";
     if (item.name.toLowerCase().endsWith(".pdf")) {
@@ -111,7 +208,8 @@ async function selectFile(item, row) {
     $("doc").textContent = await res.text();
     return;
   }
-  showEmpty("This stage opens STL, OBJ, pictures, PDF, and text. Use Open in slicer for the rest.");
+  showEmpty("This one opens with Open in slicer.");
+  $("backBtn").hidden = false;
 }
 
 function folderRow(item, depth) {
@@ -129,12 +227,11 @@ function folderRow(item, depth) {
   row.addEventListener("click", async () => {
     document.querySelectorAll(".tree-row").forEach((el) => el.classList.remove("active"));
     row.classList.add("active");
-    const prefix = item.prefix || "";
-    await loadFiles(item.path, prefix, item.name);
+    await loadGallery(item.path, item.name);
     children.hidden = false;
     if (children.childElementCount) return;
     const q = new URLSearchParams({ path: item.path });
-    if (prefix) q.set("prefix", prefix);
+    if (item.prefix) q.set("prefix", item.prefix);
     const data = await api(`/api/list?${q}`);
     const folders = (data.folders || []).slice(0, 400);
     if (!folders.length) {
@@ -152,11 +249,33 @@ async function loadTree() {
   const data = await api("/api/list");
   const host = $("tree");
   host.innerHTML = "";
-  for (const folder of data.folders || []) host.appendChild(folderRow(folder, 0));
-  if (!(data.folders || []).length) {
+  const folders = data.folders || [];
+  for (const folder of folders) host.appendChild(folderRow(folder, 0));
+  if (!folders.length) {
     host.innerHTML = `<div class="note">Add a folder to start.</div>`;
+    return;
   }
+  await loadGallery(folders[0].path, folders[0].name);
 }
+
+$("showAll").addEventListener("change", () => {
+  if (!browse.path) return;
+  loadGallery(browse.path, browse.name).catch((err) => showEmpty(err.message || String(err)));
+});
+
+$("viewSwitch").addEventListener("click", (event) => {
+  const button = event.target.closest("button");
+  if (!button) return;
+  cols = button.dataset.cols || "4";
+  $("gallery").className = `gallery cols-${cols}`;
+  $("viewSwitch").querySelectorAll("button").forEach((el) => el.classList.toggle("on", el === button));
+});
+
+$("backBtn").addEventListener("click", () => {
+  selected = null;
+  showGallery();
+  $("crumb").textContent = browse.name || "Library";
+});
 
 $("addFolder").addEventListener("click", async () => {
   let path = "";

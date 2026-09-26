@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MeshFinder</title>
-  <link rel="stylesheet" href="/static/style.css?v=2">
+  <link rel="stylesheet" href="/static/style.css?v=3">
   <script type="importmap">
   {
     "imports": {
@@ -25,22 +25,30 @@
     </aside>
     <main class="stage">
       <header class="stage-bar">
-        <div id="crumb" class="crumb">Pick a file</div>
+        <button type="button" id="backBtn" class="text-btn" hidden>Library</button>
+        <div id="crumb" class="crumb">Pick a folder</div>
+        <label class="switch" title="Show every model at once, including everything in subfolders">
+          <input type="checkbox" id="showAll">
+          <span>All</span>
+        </label>
+        <div class="view-switch" id="viewSwitch">
+          <button type="button" data-cols="2" title="Large cards">2</button>
+          <button type="button" data-cols="4" class="on" title="4 across">4</button>
+          <button type="button" data-cols="6" title="Small cards">6</button>
+          <button type="button" data-cols="list" title="List">List</button>
+        </div>
         <button type="button" id="openFile" class="open-btn" disabled>Open in slicer</button>
       </header>
       <div id="stage" class="stage-body">
+        <div id="gallery" class="gallery cols-4"></div>
         <div id="viewer" class="viewer" hidden></div>
         <div id="picture" class="picture" hidden></div>
         <pre id="doc" class="doc" hidden></pre>
-        <div id="empty" class="empty">Pick a model, picture, or note.</div>
+        <div id="empty" class="empty" hidden>Pick a folder.</div>
       </div>
     </main>
-    <aside class="files-pane">
-      <div class="pane-head"><strong id="filesTitle">Files</strong></div>
-      <div id="files" class="files"></div>
-    </aside>
   </div>
-  <script type="module" src="/static/viewer.js?v=4"></script>
-  <script src="/static/app.js?v=2"></script>
+  <script type="module" src="/static/viewer.js?v=5"></script>
+  <script src="/static/app.js?v=3"></script>
 </body>
 </html>

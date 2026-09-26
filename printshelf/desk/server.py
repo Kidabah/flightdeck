@@ -143,6 +143,90 @@ def list_folder(folder: Path) -> dict:
     return {"folders": folders, "files": files}
 
 
+CARD_KINDS = {"stl", "obj", "image", "doc", "3mf", "gcode.3mf"}
+
+
+def _card_from_name(path: Path, name: str, size: int, entry: str = "") -> dict | None:
+    kind = _kind_for(Path(name).name)
+    if kind not in CARD_KINDS:
+        return None
+    return {
+        "name": Path(name).name,
+        "path": str(path),
+        "kind": kind,
+        "size": int(size or 0),
+        "entry": entry,
+    }
+
+
+def _iter_zip_cards(zip_path: Path):
+    try:
+        with zipfile.ZipFile(zip_path) as zf:
+            for info in zf.infolist():
+                name = info.filename.replace("\\", "/")
+                if not name or name.endswith("/") or _skip_name(name):
+                    continue
+                card = _card_from_name(zip_path, name, int(info.file_size or 0), name)
+                if card:
+                    yield card
+    except (OSError, zipfile.BadZipFile):
+        return
+
+
+def _iter_dir_cards(folder: Path, recursive: bool):
+    if not recursive:
+        try:
+            children = sorted(folder.iterdir(), key=lambda item: item.name.lower())
+        except OSError:
+            return
+        for child in children:
+            if _skip_name(child.name) or not child.is_file():
+                continue
+            if child.suffix.lower() == ".zip":
+                yield from _iter_zip_cards(child)
+                continue
+            try:
+                size = child.stat().st_size
+            except OSError:
+                continue
+            card = _card_from_name(child, child.name, size)
+            if card:
+                yield card
+        return
+    for dirpath, dirnames, filenames in os.walk(folder):
+        dirnames[:] = sorted((name for name in dirnames if not _skip_name(name)), key=str.lower)
+        for name in sorted(filenames, key=str.lower):
+            if _skip_name(name):
+                continue
+            path = Path(dirpath) / name
+            if path.suffix.lower() == ".zip":
+                yield from _iter_zip_cards(path)
+                continue
+            try:
+                size = path.stat().st_size
+            except OSError:
+                continue
+            card = _card_from_name(path, name, size)
+            if card:
+                yield card
+
+
+def gallery_page(folder: Path, *, recursive: bool, offset: int, limit: int) -> dict:
+    items = []
+    skipped = 0
+    truncated = False
+    source = _iter_zip_cards(folder) if folder.is_file() and folder.suffix.lower() == ".zip" else _iter_dir_cards(folder, recursive)
+    for card in source:
+        if skipped < offset:
+            skipped += 1
+            continue
+        if len(items) >= limit:
+            truncated = True
+            break
+        items.append(card)
+    return {"items": items, "offset": offset, "limit": limit, "truncated": truncated}
+
+
 def list_zip(zip_path: Path, prefix: str) -> dict:
     prefix = prefix.replace("\\", "/").lstrip("/")
     if prefix and not prefix.endswith("/"):
@@ -256,6 +340,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/list":
             self._list(query)
             return
+        if path == "/api/gallery":
+            self._gallery(query)
+            return
         if path == "/api/file":
             self._file_bytes(query)
             return
@@ -306,6 +393,30 @@ class Handler(BaseHTTPRequestHandler):
             return
         data = target.read_bytes()
         self._send(200, data, content_type)
+
+    def _gallery(self, query: dict) -> None:
+        raw = (query.get("path") or [""])[0]
+        recursive = (query.get("recursive") or ["0"])[0] in {"1", "true", "yes"}
+        try:
+            offset = max(0, int((query.get("offset") or ["0"])[0]))
+            limit = int((query.get("limit") or ["120"])[0])
+        except ValueError:
+            offset, limit = 0, 120
+        limit = min(240, max(1, limit))
+        if not raw:
+            self._json(400, {"error": "Pick a folder"})
+            return
+        try:
+            target = Path(raw).resolve()
+        except Exception:
+            self._json(400, {"error": "Bad path"})
+            return
+        if not self._allowed(target) or not (target.is_dir() or target.suffix.lower() == ".zip"):
+            self._json(404, {"error": "Folder not found"})
+            return
+        payload = gallery_page(target, recursive=recursive, offset=offset, limit=limit)
+        payload["path"] = str(target)
+        self._json(200, payload)
 
     def _list(self, query: dict) -> None:
         raw = (query.get("path") or [""])[0]

@@ -25,7 +25,7 @@ button, input { font: inherit; color: inherit; }
 
 .app {
   display: grid;
-  grid-template-columns: 260px 1fr 300px;
+  grid-template-columns: 260px 1fr;
   height: 100%;
 }
 
@@ -110,11 +110,80 @@ button, input { font: inherit; color: inherit; }
 .stage-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   padding: 10px 14px;
   border-bottom: 1px solid var(--line);
 }
+
+.switch {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+.switch input { accent-color: #e07a2f; }
+
+.view-switch { display: flex; gap: 4px; }
+.view-switch button {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-width: 36px;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+.view-switch button.on { border-color: var(--accent); color: var(--accent); }
+
+.gallery {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+.gallery.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.gallery.cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.gallery.cols-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.gallery.cols-list { grid-template-columns: 1fr; }
+
+.model-card {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  background: #1c232d;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+  min-width: 0;
+}
+.model-card:hover, .model-card.active { border-color: var(--accent); }
+.model-thumb {
+  aspect-ratio: 4 / 3;
+  background: #2a3038;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.model-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.model-kind { color: var(--muted); font-size: 12px; letter-spacing: 0.04em; }
+.model-body { padding: 10px 12px 12px; min-width: 0; }
+.model-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.model-meta { color: var(--muted); font-size: 12px; margin-top: 4px; }
+.gallery.cols-list .model-card { flex-direction: row; align-items: center; }
+.gallery.cols-list .model-thumb { width: 92px; aspect-ratio: 1; flex: 0 0 auto; }
+.more-row { grid-column: 1 / -1; }
 
 .crumb {
   min-width: 0;

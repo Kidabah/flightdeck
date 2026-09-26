@@ -198,4 +198,53 @@ export function unmountViewer() {
   disposeActive();
 }
 
-window.MeshFinderViewer = { mountViewer, unmountViewer };
+export async function renderThumb(url, kind) {
+  const width = 480;
+  const height = 360;
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+  renderer.setSize(width, height, false);
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x2a3038);
+  const camera = new THREE.PerspectiveCamera(42, width / height, 0.01, 5000);
+  scene.add(new THREE.HemisphereLight(0xfff4e8, 0x243044, 1.2));
+  const key = new THREE.DirectionalLight(0xffffff, 0.9);
+  key.position.set(3, 5, 2);
+  scene.add(key);
+  let objectUrl = "";
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("preview failed");
+    const buf = await res.arrayBuffer();
+    objectUrl = URL.createObjectURL(new Blob([buf]));
+    let sphere;
+    if (kind === "obj") {
+      const group = await new OBJLoader().loadAsync(objectUrl);
+      scene.add(group);
+      sphere = seatGroup(group);
+    } else {
+      const geometry = await new STLLoader().loadAsync(objectUrl);
+      sphere = addMesh(scene, geometry);
+    }
+    const center = sphere?.center || new THREE.Vector3();
+    const radius = Math.max(sphere?.radius || 1, 0.1);
+    camera.position.set(center.x + radius * 1.55, center.y + radius * 0.95, center.z + radius * 1.7);
+    camera.lookAt(center);
+    camera.near = radius / 100;
+    camera.far = radius * 40;
+    camera.updateProjectionMatrix();
+    renderer.render(scene, camera);
+    return renderer.domElement.toDataURL("image/jpeg", 0.8);
+  } finally {
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    scene.traverse((obj) => {
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) {
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        mats.forEach((mat) => mat.dispose());
+      }
+    });
+    renderer.dispose();
+  }
+}
+
+window.MeshFinderViewer = { mountViewer, unmountViewer, renderThumb };
