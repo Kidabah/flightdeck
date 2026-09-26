@@ -1,3 +1,13 @@
+## 2026-09-26 Session update (OBJ stands, STL stays Z-up)
+
+Latest commit: `e475325` — OBJ models keep their own up axis so they are not rolled onto the plate.
+
+- An OBJ dog was treated as Z-up, which laid him on his side. OBJ now sits on its lowest Y. STL still sits on Z, then stands up on the grid.
+- Files: `printshelf/desk/static/viewer.js`, `printshelf/desk/static/index.html` (`viewer.js?v=4`).
+- Local window reopened. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (model sits on the plate)
 
 Latest commit: `41d6dbf` — models stand on the grid instead of through it.
