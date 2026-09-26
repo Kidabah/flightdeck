@@ -1,3 +1,13 @@
+## 2026-09-26 Session update (STL cards show the model)
+
+Latest commit: `3a27ae5` — library cards draw a picture of the mesh, including models packed in a zip.
+
+- Cards only said STL because anything over 8MB was skipped, and almost every mesh in Downloads is that big. A short sample of the file is drawn on the card instead of loading the whole model. STL cards fill in first. A big OBJ takes a few seconds the first time, then it is cached.
+- Files: `printshelf/desk/server.py`, `printshelf/desk/static/`. Cache: `app.js?v=5`, `viewer.js?v=9`.
+- Local window reopened. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (face highlight covers a patch)
 
 Latest commit: `c92b9b3` — hovering a smooth model lights a patch, not one triangle.
