@@ -79,9 +79,12 @@ export async function mountViewer(container, { url, kind } = {}) {
   fill.position.set(-3, 1, -2);
   scene.add(fill);
 
-  const grid = new THREE.GridHelper(10, 10, 0x3d4c63, 0x2a3544);
-  grid.material.transparent = true;
-  grid.material.opacity = 0.55;
+  const grid = new THREE.GridHelper(10, 10, 0x6d8299, 0x3d4c63);
+  const mats = Array.isArray(grid.material) ? grid.material : [grid.material];
+  mats.forEach((mat) => {
+    mat.transparent = true;
+    mat.opacity = 0.85;
+  });
   scene.add(grid);
 
   const resize = () => {
@@ -103,6 +106,7 @@ export async function mountViewer(container, { url, kind } = {}) {
     renderer.render(scene, camera);
   };
   active = { renderer, scene, controls, raf: 0, resizeObs, objectUrl: null };
+  tick();
 
   try {
     const res = await fetch(url);
@@ -145,7 +149,6 @@ export async function mountViewer(container, { url, kind } = {}) {
     grid.scale.setScalar(span / 10);
     fitCamera(camera, controls, radius);
     status.remove();
-    tick();
   } catch (err) {
     status.textContent = `Could not open this model: ${err?.message || err}`;
     status.classList.add("error");

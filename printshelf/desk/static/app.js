@@ -76,7 +76,15 @@ async function selectFile(item, row) {
   if (item.kind === "stl" || item.kind === "obj") {
     hideStage();
     $("viewer").hidden = false;
-    await window.MeshFinderViewer.mountViewer($("viewer"), { url, kind: item.kind });
+    if (!window.MeshFinderViewer?.mountViewer) {
+      showEmpty("The 3D viewer did not start.");
+      return;
+    }
+    try {
+      await window.MeshFinderViewer.mountViewer($("viewer"), { url, kind: item.kind });
+    } catch (err) {
+      showEmpty(err.message || String(err));
+    }
     return;
   }
   if (item.kind === "image") {
