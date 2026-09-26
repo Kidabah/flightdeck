@@ -231,18 +231,18 @@ button, input { font: inherit; color: inherit; }
   overflow: hidden;
   cursor: pointer;
   min-width: 0;
+  height: auto;
+  align-self: start;
   color: var(--text);
 }
 .model-card:hover, .model-card.active { border-color: var(--accent); }
 .model-thumb {
   position: relative;
   width: 100%;
-  aspect-ratio: 1 / 1.15;
-  min-height: 0;
+  height: 0;
+  padding-bottom: 115%;
   flex: 0 0 auto;
   background: #111118;
-  display: grid;
-  place-items: center;
   overflow: hidden;
 }
 .model-thumb img {
@@ -318,8 +318,8 @@ button, input { font: inherit; color: inherit; }
   line-height: 1;
 }
 .fav-btn.on { color: #ef4444; }
-.gallery.cols-list .model-card { flex-direction: row; align-items: center; min-height: 72px; }
-.gallery.cols-list .model-thumb { width: 92px; min-height: 72px; aspect-ratio: 1; flex: 0 0 auto; }
+.gallery.cols-list .model-card { flex-direction: row; align-items: center; align-self: stretch; min-height: 72px; }
+.gallery.cols-list .model-thumb { width: 92px; height: 72px; padding-bottom: 0; flex: 0 0 auto; }
 .more-row { grid-column: 1 / -1; }
 .card-menu {
   position: fixed;

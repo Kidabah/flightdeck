@@ -747,7 +747,7 @@ async function expandTo(target) {
       const data = await api(`/api/list?${new URLSearchParams({ path: row.dataset.path })}`);
       const depth = Number(row.dataset.depth || 0) + 1;
       const folders = (data.folders || []).slice(0, 400);
-      if (!folders.length) children.innerHTML = `<div class="note">No folders inside.</div>`;
+      if (!folders.length) children.hidden = true;
       for (const folder of folders) children.appendChild(folderRow(folder, depth));
     }
     if (next.toLowerCase() === target.toLowerCase()) {
