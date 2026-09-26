@@ -1,3 +1,13 @@
+## 2026-09-26 Session update (click a face to lay it on the bed)
+
+Latest commit: `3e71672` — click a face in the local viewer and that face goes flat on the bed.
+
+- Drag still orbits. A click, without a drag, turns the clicked face down onto the plate. The face under the pointer lights up first.
+- Files: `printshelf/desk/static/viewer.js`, `style.css`, `index.html`. Cache: `viewer.js?v=6`, `style.css?v=4`.
+- Local window reopened. No Pi service restart.
+
+---
+
 ## 2026-09-26 Session update (model grid before the viewer)
 
 Latest commit: `8bcf96a` — the local library opens as a grid of models.
