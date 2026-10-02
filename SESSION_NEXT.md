@@ -1,3 +1,12 @@
+## 2026-10-02 Session update (fleet history on Print Memory)
+
+Latest commit: `28b5744` — Print Memory now opens with a card for each printer: finished print time, filament used, and finished / failed / cancelled counts. The day filter at the top of the list changes that window. Click a card to show only that printer.
+
+- Files: `app/db.py`, `app/static/app.js`, `app/static/style.css`, `app/static/index.html`. Cache: `style.css?v=513`, `app.js?v=742`.
+- Backend change. Hard refresh Print Memory. Pi pull plus `flightdeck.service` restart.
+
+---
+
 ## 2026-10-02 Session update (AMS slot remaining meter)
 
 Latest commit: `d761138` — Each AMS colour slot now shows a small green bar and percent so remaining filament stays visible after the H2D AMS view loads. The full Loaded list was only appearing on restart, before AMS data replaced it.
