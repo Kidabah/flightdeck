@@ -1,3 +1,12 @@
+## 2026-10-02 Session update (AMS slot remaining meter)
+
+Latest commit: `d761138` — Each AMS colour slot now shows a small green bar and percent so remaining filament stays visible after the H2D AMS view loads. The full Loaded list was only appearing on restart, before AMS data replaced it.
+
+- Files: `app/static/app.js`, `app/static/style.css`, `app/static/index.html`. Cache: `style.css?v=512`, `app.js?v=741`.
+- UI only. Hard refresh the printer page. Pi pull is enough; Flightdeck restart is optional.
+
+---
+
 ## 2026-09-27 Session update (jarvis folder is now amy)
 
 Latest commit: `d17508b` — The Amy tree moved from `jarvis/` to `amy/`. The Pi user unit is `amy.service`. Desktop shortcut and the local Amy window were pointed at the new path. Old session notes still say jarvis.
