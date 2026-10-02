@@ -8008,6 +8008,54 @@ button.live-route-node:hover {
   color: #64748b;
 }
 
+.ams-loadout-remain {
+  position: absolute;
+  z-index: 7;
+  left: 8%;
+  right: 8%;
+  top: 1.02rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.16rem;
+  pointer-events: none;
+}
+
+.ams-loadout-remain i {
+  display: block;
+  height: 0.2rem;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.1);
+  overflow: hidden;
+}
+
+.ams-loadout-remain b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #22c55e;
+}
+
+.ams-loadout-remain em {
+  color: #86efac;
+  font-size: 0.5rem;
+  font-style: normal;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-shadow: 0 1px 2px #020617;
+}
+
+.ams-loadout-remain.is-warn b { background: #f59e0b; }
+.ams-loadout-remain.is-warn em { color: #f59e0b; }
+.ams-loadout-remain.is-low b { background: #ff5c6c; }
+.ams-loadout-remain.is-low em { color: #ff5c6c; }
+
+.ams-loadout-slot.has-spool .ams-loadout-spool {
+  inset: 30% 13% auto;
+  height: 56%;
+}
+
 .ams-loadout-spool {
   width: 74%;
   height: 68%;
@@ -13922,6 +13970,22 @@ button.live-route-node:hover {
 .fleet-wall-ams-visual .ams-loadout-unit-ht .ams-loadout-slots {
   grid-template-columns: minmax(var(--fleet-ams-ht-slot-min), 4.2rem);
   padding: 0.32rem;
+}
+
+.fleet-wall-ams-visual .ams-loadout-remain {
+  top: 0.7rem;
+  left: 6%;
+  right: 6%;
+  gap: 0.1rem;
+}
+
+.fleet-wall-ams-visual .ams-loadout-remain em {
+  font-size: 0.42rem;
+}
+
+.fleet-wall-ams-visual .ams-loadout-slot.has-spool .ams-loadout-spool {
+  inset: 34% 10% auto;
+  height: 50%;
 }
 
 .fleet-wall-ams-visual .ams-loadout-lip {

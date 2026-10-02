@@ -4729,12 +4729,19 @@ function _detailLiveAmsLoadoutRows(p) {
         label,
         loadedSpool ? `${_spoolDisplayLabel(loadedSpool)} ${loadedSpool.color_name || ''} ${loadedSpool.material || ''}` : '',
         !slot.empty ? _slotProfileLabel(slot) : '',
+        pct != null ? `${pct}% left` : '',
         mismatch,
       ].filter(Boolean).join(' · ');
+      const remainCls = pct == null ? '' : pct < 20 ? ' is-low' : pct < 50 ? ' is-warn' : '';
+      const remain = pct == null ? '' : `<span class="ams-loadout-remain${remainCls}">
+          <i><b style="width:${Math.max(2, Math.min(100, pct))}%"></b></i>
+          <em>${pct}%</em>
+        </span>`;
       return `<button class="ams-loadout-slot${slot.empty ? ' is-empty' : ''}${loadedSpool ? ' has-spool' : ''}${routeActive ? ' is-feeding' : ''}${mismatch ? ' has-warning' : ''}"
           style="--slot-colour:${colour};--slot-text:${_spoolTextColor(colour)}"
           data-slot-edit data-printer-id="${p.id}" data-slot-index="${flatSlot}" data-slot-label="${esc(label)}"
           title="${esc(title)}">
+        ${remain}
         <span class="ams-loadout-lip">
           <b>${esc(label.split(' · ').pop() || label)}</b>
           <small>${esc(stateLabel)}</small>
