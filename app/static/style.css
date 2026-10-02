@@ -24250,7 +24250,7 @@ select optgroup {
 .detail-body.live-workspace-body { flex: none; min-height: 24rem; overflow: visible; }
 .live-workspace-body .detail-right { overflow: visible; contain: none; }
 .live-workspace-controls {
-  display: grid; grid-template-columns: minmax(220px,.85fr) minmax(0,1.3fr) minmax(260px,1fr);
+  display: grid; grid-template-columns: minmax(260px,300px) minmax(0,1fr); align-items: start;
   gap: .8rem; margin: .8rem 1.25rem 1.25rem;
 }
 .live-workspace-panel {
@@ -24267,10 +24267,22 @@ select optgroup {
 .live-workspace-job-list { padding-left: 1.2rem; margin: .5rem 0; }
 .live-workspace-job-list li { display: flex; gap: .5rem; justify-content: space-between; padding: .45rem 0; }
 .live-workspace-job-list li > span:first-child { min-width: 0; overflow-wrap: anywhere; }
-@media (max-width: 1200px) {
-  .live-workspace-controls { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
-  .live-workspace-controls > :last-child { grid-column: 1 / -1; }
+/* Keep compact machine controls together and give multi-AMS loadouts room. */
+.live-workspace-machine { display: grid; gap: .8rem; min-width: 0; }
+.live-workspace-thermal { padding: .65rem; }
+.live-workspace-thermal .live-op-temp-panel { padding: .35rem; }
+.live-workspace-thermal .detail-panel-title { display: none; }
+.live-workspace-thermal .temp-rows { gap: .25rem; }
+.live-workspace-thermal .temp-ctrl-row { gap: .4rem; }
+.live-workspace-thermal .temp-row-label { width: 3.8rem; font-size: .65rem; }
+.live-workspace-thermal .temp-actual { font-size: .9rem; }
+.live-workspace-thermal .temp-readings { min-height: 1.65rem; padding: .08rem .3rem; }
+.live-workspace-thermal .live-op-fan-row {
+  grid-template-columns: 3.4rem minmax(0,1fr) 2.2rem; align-items: center;
 }
+.live-workspace-thermal .live-op-fan-row .live-op-slider { grid-column: auto; min-height: 1.8rem; }
+.live-workspace-thermal .live-op-preheat-btn { min-height: 2rem; }
+.live-workspace-filament .ams-loadout-units { align-items: flex-start; }
 @media (max-width: 700px) {
   .live-workspace-controls { grid-template-columns: minmax(0,1fr); }
 }

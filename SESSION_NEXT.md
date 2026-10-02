@@ -1,3 +1,16 @@
+## 2026-10-02 — Compact machine controls and wider AMS workspace
+- User requested temperatures/cooling beneath Movement, with a wider right-hand filament panel so AMS 1 and AMS HT can sit alongside each other.
+- Live workspace now uses a narrow left column stacking Movement and compact thermal controls, with Loaded filament occupying the remaining width. Temperature rows and fan controls are compact; all existing IDs, handlers and interlocks retained.
+- AMS units wrap when the available width is insufficient; phone layout stacks both columns. Static cache versions app 746 / CSS 518.
+- Verified in local demo: 1280px and 1440px AMS 1/HT side by side, 1024px wraps units, 390px stacks panels with no document overflow. Six Node control/layout tests pass; app.js syntax check passes; no preview console errors. Publication follows verification; Pi deployment still pending (currently 5925d4d). Windows Git HEAD/index still at prior base; use published 5925d4d as the comparison base when publishing this change. Preserve unrelated local changes.
+
+## 2026-10-02 Publication confirmed
+
+GitHub main was advanced without force to 5925d4d1dedcd7b836c42289dfd1aebf822c6174 and read back to verify it. Commit: https://github.com/Kidabah/flightdeck/commit/5925d4d1dedcd7b836c42289dfd1aebf822c6174. Only the 12 intended rebuild/parser/test/documentation files are included; app/camera.py, Jukebox and PrintShelf edits are excluded. Nine tests passed. The committed handoff contains deployment instructions; this local confirmation records the resulting SHA. Windows local HEAD remains 8daad1b because its Git metadata is not writable here. Do not stage and push the identical code again without reconciling with remote main.
+
+Pi deployment is still pending and unverified. Pull main, restart flightdeck.service, confirm active and static cache app.js 745 / style.css 516, then verify live workspace and cameras. The user is providing the Pi-side SSH actions because this session cannot read its SSH key.
+
+---
 ## 2026-10-02 Publication handoff (workspace rebuild first pass)
 
 Publishing the tested first rebuild pass to main through the GitHub connection because this session cannot write the Windows checkout's Git index. Includes the combined live controls row, upcoming per-printer queue, remaining-time Fleet Wall ordering and persistent drag/keyboard pins; also includes the updater filename parsing fix. Nine focused tests passed (six Node and three Python), JS syntax and diff whitespace checks passed. Earlier browser demo verification is recorded below. Static cache: app.js 745, style.css 516, demo-runtime.js 10. See docs/FLIGHTDECK_REBUILD.md for the accepted roadmap and remaining work.

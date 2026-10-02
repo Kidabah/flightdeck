@@ -9775,16 +9775,18 @@ async function renderPrinterDetail(id, subtab = 'live') {
           </div>
         </div>
         <div class="live-workspace-controls">
+          <div class="live-workspace-machine">
           <section class="live-workspace-panel" aria-label="Movement">
             <h2>Movement</h2><div id="detail-live-ops-body">${_detailLiveOps(p, 'movement') || '<span class="live-strip-empty">No movement controls supported</span>'}</div>
           </section>
-          <section class="live-workspace-panel" aria-label="Loaded filament">
-            <h2>Loaded filament</h2><div class="live-strip" id="detail-live-strip">${_detailLiveStrip(p)}</div>
-          </section>
-          <section class="live-workspace-panel" aria-label="Temperatures and cooling">
+          <section class="live-workspace-panel live-workspace-thermal" aria-label="Temperatures and cooling">
             <h2>Temperatures &amp; cooling</h2>
             <div class="live-op-temp-panel" id="detail-temps">${_detailTempsPanel(p)}</div>
             <div id="detail-thermal-ops">${_detailLiveOps(p, 'thermal')}</div>
+          </section>
+          </div>
+          <section class="live-workspace-panel live-workspace-filament" aria-label="Loaded filament">
+            <h2>Loaded filament</h2><div class="live-strip" id="detail-live-strip">${_detailLiveStrip(p)}</div>
           </section>
         </div>`;
     } catch (err) {
