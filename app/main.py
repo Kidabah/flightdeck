@@ -7139,7 +7139,13 @@ _SAFE_UPDATE_DIRTY_FILENAMES = {
 
 
 def _git_dirty_entries() -> list[str]:
-    raw = _git_text(["status", "--porcelain"], "")
+    # Porcelain columns include a leading space for unstaged changes. The
+    # general Git text helper strips it and truncates the first filename.
+    try:
+        proc = _run_git(["status", "--porcelain"])
+        raw = proc.stdout if proc.returncode == 0 else ""
+    except Exception:
+        raw = ""
     entries: list[str] = []
     for line in raw.splitlines():
         if not line.strip():

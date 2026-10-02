@@ -1,3 +1,5 @@
+import { readPins, orderFleet, moveFleetPin } from './fleet-layout.mjs?v=1';
+
 // ── Settings cache & display helpers ──────────────────────────────────────
 
 let _serverSettings = {};
@@ -2245,7 +2247,7 @@ function _preheatPresets(p) {
     .filter(row => Number.isFinite(row.hotend) && Number.isFinite(row.bed));
 }
 
-function _detailLiveOps(p) {
+function _detailLiveOps(p, section = 'all') {
   const canPreheat = !['offline', 'printing', 'error', 'estop'].includes(p.state || '');
   const isMoonraker = _isMoonrakerFamily(p);
   const isBambu = p.kind === 'bambu';
@@ -2348,7 +2350,8 @@ function _detailLiveOps(p) {
       </div>`
     : '';
   const calibration = isBambu ? _detailCalibrationOps(p) : '';
-  const controls = [preheat, fan, jog, home, calibration, klipper].filter(Boolean).join('');
+  const groups = section === 'movement' ? [jog, home, calibration, klipper] : section === 'thermal' ? [preheat, fan] : [preheat, fan, jog, home, calibration, klipper];
+  const controls = groups.filter(Boolean).join('');
   if (!controls) return '';
   return `<div class="live-op-row" aria-label="Live printer shortcuts">${controls}</div>`;
 }
@@ -2425,7 +2428,7 @@ function _detailLiveHasOps(p) {
 }
 
 function _detailLiveDeckTop(p, printerColor, bannerTextColor) {
-  const toggle = _detailLiveHasOps(p) ? _detailLiveOpsToggle() : '';
+  const toggle = ''; // Controls remain visible in the workspace below the camera.
   return `<div class="live-deck-top">
     ${toggle}
     <div class="live-deck-status-bar" id="detail-live-head">${_detailLiveToolbarHeader(p, printerColor, bannerTextColor)}</div>
@@ -9740,13 +9743,13 @@ async function renderPrinterDetail(id, subtab = 'live') {
 
     try {
       const camSrc = _cameraStreamSrc(id);
-      const opsDrawer = _detailLiveOpsDrawer(p);
+      const opsDrawer = '';
       const hasOps = _detailLiveHasOps(p);
       const printerColor = _printerColor(id);
       const bannerTextColor = p.icon === 'bambu' ? '#22c55e' : p.icon === 'voron' ? '#ef4444' : 'var(--text)';
       el.innerHTML =
         _detailSubTabs(id, 'live') +
-        `<div class="detail-body">
+        `<div class="detail-body live-workspace-body">
           <div class="detail-left">
             <div class="live-main-deck ${hasOps ? 'has-live-ops' : ''}">
               ${_detailLiveDeckTop(p, printerColor, bannerTextColor)}
@@ -9757,14 +9760,32 @@ async function renderPrinterDetail(id, subtab = 'live') {
                 </div>
               </div>
             </div>
-            <div class="live-strip" id="detail-live-strip">${_detailLiveStrip(p)}</div>
+
           </div>
           <div class="detail-right">
             <div class="detail-panels">
               <div class="detail-panel" id="detail-print">${_detailPrintPanel(p)}</div>
             </div>
             <div id="detail-objects"></div>
+            <section class="live-workspace-panel live-workspace-queue" aria-label="Printer queue">
+              <div class="live-workspace-panel-head"><h2>Up next</h2><a href="#/queue">Manage queue</a></div>
+              <div id="detail-queue-preview" aria-live="polite">Loading queue…</div>
+              <a href="#/files">Browse print files</a>
+            </section>
           </div>
+        </div>
+        <div class="live-workspace-controls">
+          <section class="live-workspace-panel" aria-label="Movement">
+            <h2>Movement</h2><div id="detail-live-ops-body">${_detailLiveOps(p, 'movement') || '<span class="live-strip-empty">No movement controls supported</span>'}</div>
+          </section>
+          <section class="live-workspace-panel" aria-label="Loaded filament">
+            <h2>Loaded filament</h2><div class="live-strip" id="detail-live-strip">${_detailLiveStrip(p)}</div>
+          </section>
+          <section class="live-workspace-panel" aria-label="Temperatures and cooling">
+            <h2>Temperatures &amp; cooling</h2>
+            <div class="live-op-temp-panel" id="detail-temps">${_detailTempsPanel(p)}</div>
+            <div id="detail-thermal-ops">${_detailLiveOps(p, 'thermal')}</div>
+          </section>
         </div>`;
     } catch (err) {
       _renderedDetailOk = false;
@@ -9837,11 +9858,13 @@ async function renderPrinterDetail(id, subtab = 'live') {
     _syncTimelapseRecOverlay(heroEl, p);
     const headEl = el.querySelector('#detail-live-head');
     if (headEl) headEl.innerHTML = _detailLiveToolbarHeader(p, printerColor, bannerTextColor);
-    const opsHtml = _detailLiveOps(p);
+    const opsHtml = _detailLiveOps(p, 'movement');
     const deckEl = el.querySelector('.live-main-deck');
     if (deckEl) deckEl.classList.toggle('has-live-ops', _detailLiveHasOps(p));
     const opsEl = el.querySelector('#detail-live-ops-body');
     if (opsEl) opsEl.innerHTML = opsHtml;
+    const thermalEl = el.querySelector('#detail-thermal-ops');
+    if (thermalEl) thermalEl.innerHTML = _detailLiveOps(p, 'thermal');
     const hudEl = el.querySelector('#detail-camera-hud');
     if (hudEl) hudEl.innerHTML = _detailCameraHud(p);
     const stripEl = el.querySelector('#detail-live-strip');
@@ -9855,6 +9878,36 @@ async function renderPrinterDetail(id, subtab = 'live') {
     const tempsEl = el.querySelector('#detail-temps');
     if (tempsEl) tempsEl.innerHTML = _detailTempsPanel(p);
   }
+  _refreshLiveQueuePreview(id);
+}
+
+let _liveQueueFetchedAt = 0;
+let _liveQueueRequest = null;
+let _liveQueueError = false;
+function _liveQueuePreviewHtml(id) {
+  const jobs = _queueLatestJobs.filter(j => j.printer_id === id && ['pending', 'held', 'uploading'].includes(j.status))
+    .sort((a, b) => (a.position ?? 999) - (b.position ?? 999) || a.id - b.id);
+  const notice = _liveQueueError ? '<p class="live-strip-empty">Queue unavailable · showing last fetched list</p>' : '';
+  if (_liveQueueError && !jobs.length) return '<p class="live-strip-empty">Queue unavailable · open Manage queue to retry</p>';
+  return notice + (jobs.length ? `<ol class="live-workspace-job-list">${jobs.slice(0, 4).map(j =>
+    `<li><span>${esc(j.filename || 'Untitled job')}</span>${_queueStatusBadge(j.status)}</li>`).join('')}</ol>${jobs.length > 4 ? `<p>${jobs.length - 4} more in queue</p>` : ''}`
+    : '<p class="live-strip-empty">No upcoming jobs for this printer</p>');
+}
+async function _refreshLiveQueuePreview(id) {
+  const target = document.getElementById('detail-queue-preview');
+  if (!target) return;
+  if (Date.now() - _liveQueueFetchedAt > 15000 && !_liveQueueRequest) {
+    _liveQueueFetchedAt = Date.now();
+    _liveQueueRequest = fetch('/api/queue').then(r => {
+      if (!r.ok) throw new Error('Queue unavailable'); return r.json();
+    }).then(jobs => {
+      if (!Array.isArray(jobs)) throw new Error('Invalid queue');
+      _queueLatestJobs = jobs; _liveQueueError = false;
+    }).catch(() => { _liveQueueError = true; }).finally(() => { _liveQueueRequest = null; });
+  }
+  if (_liveQueueRequest) await _liveQueueRequest;
+  const current = parseRoute(location.hash);
+  if (current.view === 'printer' && current.id === id && target.isConnected) target.innerHTML = _liveQueuePreviewHtml(id);
 }
 
 // ── Print queue ───────────────────────────────────────────────────────────
@@ -13604,6 +13657,7 @@ function _fleetWallHeadHtml(p) {
 
 function _fleetWallCardHtml(p) {
   return `<article class="fleet-wall-card fleet-wall-card-${_fleetWallTone(p)}" data-printer-id="${esc(p.id)}">
+    ${_fleetLayoutTools(p)}
     <a class="fleet-wall-feed" href="#/printer/${esc(p.id)}" data-fleet-feed="${esc(p.id)}" data-fleet-live="${esc(p.id)}">
       <div class="fleet-wall-feed-media">${_fleetWallFeedHtml(p)}</div>
       ${_fleetWallFeedCapHtml(p)}
@@ -13629,13 +13683,82 @@ async function _ensureFleetWallCameraUrls(printers) {
   });
 }
 
+let _fleetLayoutPins;
+try { _fleetLayoutPins = readPins(JSON.parse(localStorage.getItem('fleetWallPins') || '{}')); }
+catch { _fleetLayoutPins = readPins(null); }
+let _fleetLayoutDrag = null;
+function _fleetLayoutOrder() {
+  return orderFleet(_latestPrinters || [], _fleetLayoutPins, (a, b) =>
+    _dashboardStateRank(a) - _dashboardStateRank(b) || _comparePrintersByBench(a, b));
+}
+function _fleetLayoutSave() {
+  try { localStorage.setItem('fleetWallPins', JSON.stringify(_fleetLayoutPins)); }
+  catch { showToast('Layout changed; browser storage is unavailable.'); }
+}
+function _fleetLayoutMove(id, slot) {
+  _fleetLayoutPins = moveFleetPin(_fleetLayoutOrder(), _fleetLayoutPins, id, slot);
+  _fleetLayoutSave();
+  renderFleetWall();
+}
+function _fleetLayoutTools(p) {
+  const pinned = Object.hasOwn(_fleetLayoutPins, p.id);
+  return `<div class="fleet-layout-tools">
+    <button type="button" data-fleet-move="${esc(p.id)}" aria-label="Move ${esc(_printerPrimaryLabel(p))} camera" title="Drag to place; arrow keys move one position">Move</button>
+    <button type="button" data-fleet-pin="${esc(p.id)}" aria-pressed="${pinned}" aria-label="${pinned ? 'Unpin' : 'Pin'} ${esc(_printerPrimaryLabel(p))} camera">${pinned ? 'Unpin' : 'Pin'}</button>
+  </div>`;
+}
+function _attachFleetLayout(el) {
+  if (el.dataset.layoutAttached) return;
+  el.dataset.layoutAttached = '1';
+  el.addEventListener('click', event => {
+    const pin = event.target.closest('[data-fleet-pin]');
+    if (pin) {
+      const id = pin.dataset.fleetPin;
+      if (Object.hasOwn(_fleetLayoutPins, id)) delete _fleetLayoutPins[id];
+      else _fleetLayoutPins[id] = _fleetLayoutOrder().findIndex(p => p.id === id);
+      _fleetLayoutSave(); renderFleetWall();
+    }
+    if (event.target.closest('[data-fleet-layout-reset]')) {
+      _fleetLayoutPins = readPins(null); _fleetLayoutSave(); renderFleetWall();
+    }
+  });
+  el.addEventListener('keydown', event => {
+    const handle = event.target.closest('[data-fleet-move]');
+    if (!handle || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+    event.preventDefault();
+    const id = handle.dataset.fleetMove;
+    const slot = _fleetLayoutOrder().findIndex(p => p.id === id);
+    _fleetLayoutMove(id, slot + (['ArrowLeft', 'ArrowUp'].includes(event.key) ? -1 : 1));
+    el.querySelector(`[data-fleet-move="${CSS.escape(id)}"]`)?.focus();
+  });
+  el.addEventListener('pointerdown', event => {
+    const handle = event.target.closest('[data-fleet-move]');
+    if (!handle || event.button !== 0) return;
+    handle.focus();
+    _fleetLayoutDrag = { id: handle.dataset.fleetMove, pointer: event.pointerId, handle };
+    handle.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  });
+  el.addEventListener('pointerup', event => {
+    if (!_fleetLayoutDrag || event.pointerId !== _fleetLayoutDrag.pointer) return;
+    const drag = _fleetLayoutDrag; _fleetLayoutDrag = null;
+    if (drag.handle.hasPointerCapture(event.pointerId)) drag.handle.releasePointerCapture(event.pointerId);
+    const target = document.elementFromPoint(event.clientX, event.clientY)?.closest('.fleet-wall-card');
+    if (target && el.contains(target)) {
+      const slot = _fleetLayoutOrder().findIndex(p => p.id === target.dataset.printerId);
+      _fleetLayoutMove(drag.id, slot);
+    }
+  });
+  el.addEventListener('pointercancel', () => { _fleetLayoutDrag = null; });
+  el.addEventListener('lostpointercapture', () => { _fleetLayoutDrag = null; });
+}
+
 async function renderFleetWall() {
   const el = document.getElementById('fleet-wall-page');
   _fleetWallMode = _safeFleetWallMode(_fleetWallMode);
-  const printers = [...(_latestPrinters || [])].sort((a, b) =>
-    _dashboardStateRank(a) - _dashboardStateRank(b) ||
-    _comparePrintersByBench(a, b)
-  );
+  if (_fleetLayoutDrag) return;
+  const printers = _fleetLayoutOrder();
+  _attachFleetLayout(el);
   if (!printers.length) {
     el.innerHTML = `<div class="fleet-wall-empty">
       <strong>No printers on the wall yet</strong>
@@ -13647,7 +13770,7 @@ async function renderFleetWall() {
 
   _ensureFleetWallCameraUrls(printers);
 
-  const signature = `${_fleetWallMode}|${printers.map(p => `${p.id}:${_cameraUrlCache[p.id] ? 'cam' : 'nocam'}`).join('|')}`;
+  const signature = `${_fleetWallMode}|${printers.map(p => p.id).sort().join('|')}`;
   if (_fleetWallSignature !== signature || !el.querySelector('.fleet-wall-grid')) {
     el.className = `fleet-wall-page fleet-wall-${_fleetWallMode}`;
     el.innerHTML = `<div class="fleet-wall-hero">
@@ -13656,7 +13779,10 @@ async function renderFleetWall() {
         <h1>Shop floor live</h1>
         <p class="fleet-wall-hero-status">${esc(_fleetWallHeroStatusLine(printers))}</p>
       </div>
-      ${_fleetWallModeControls()}
+      <div class="fleet-layout-options">${_fleetWallModeControls()}
+        <span>Finishing soonest first · move a camera to pin its position</span>
+        <button type="button" data-fleet-layout-reset>Restore automatic order</button>
+      </div>
       <div class="fleet-wall-hero-side">
         <div class="fleet-wall-summary">${_fleetWallSummaryHtml(printers)}</div>
         <div class="fleet-wall-hero-links">
@@ -13697,6 +13823,20 @@ async function renderFleetWall() {
     });
   }
 
+  const grid = el.querySelector('.fleet-wall-grid');
+  printers.forEach((p, slot) => {
+    const card = grid.querySelector(`.fleet-wall-card[data-printer-id="${CSS.escape(p.id)}"]`);
+    if (card && grid.children[slot] !== card) grid.insertBefore(card, grid.children[slot] || null);
+    const pin = card?.querySelector('[data-fleet-pin]');
+    if (pin) {
+      const pinned = Object.hasOwn(_fleetLayoutPins, p.id);
+      pin.textContent = pinned ? 'Unpin' : 'Pin';
+      pin.setAttribute('aria-pressed', String(pinned));
+      pin.setAttribute('aria-label', `${pinned ? 'Unpin' : 'Pin'} ${_printerPrimaryLabel(p)} camera`);
+    }
+  });
+  const reset = el.querySelector('[data-fleet-layout-reset]');
+  if (reset) reset.disabled = !printers.some(p => Object.hasOwn(_fleetLayoutPins, p.id));
   const summary = el.querySelector('.fleet-wall-summary');
   if (summary) {
     summary.innerHTML = _fleetWallSummaryHtml(printers);

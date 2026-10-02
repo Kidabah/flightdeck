@@ -1,3 +1,34 @@
+## 2026-10-02 Publication handoff (workspace rebuild first pass)
+
+Publishing the tested first rebuild pass to main through the GitHub connection because this session cannot write the Windows checkout's Git index. Includes the combined live controls row, upcoming per-printer queue, remaining-time Fleet Wall ordering and persistent drag/keyboard pins; also includes the updater filename parsing fix. Nine focused tests passed (six Node and three Python), JS syntax and diff whitespace checks passed. Earlier browser demo verification is recorded below. Static cache: app.js 745, style.css 516, demo-runtime.js 10. See docs/FLIGHTDECK_REBUILD.md for the accepted roadmap and remaining work.
+
+Pi deployment is pending: pull main, restart flightdeck.service for the backend parser fix, confirm service active and the served static versions, then verify the real camera wall and printer workspace. No physical commands are required for that verification. Local Windows HEAD/index are not advanced by a GitHub publication; do not mistake the resulting local diff for a second unpublished change. Preserve unrelated local edits when reconciling the checkout.
+
+Live troubleshooting outcome: the user stashed the generated Amy graph and the Pi reported dirty=false on 8daad1b. H2D camera port 322 first refused, then timed out while ping remained healthy; it opened after LAN Only Liveview changes. User supplied a screenshot confirming all three camera images returned and said Bambu Studio camera activation may have contributed. The exact trigger remains uncertain. app/camera.py is a pre-existing local edit and is NOT included in this publication.
+
+---
+## 2026-10-02 Session update (updater blockage diagnosis)
+
+The Windows desktop launcher connects to https://flightdeck.tail7de73e.ts.net; its updater checks the Pi checkout, not the Windows source checkout. The screenshot reports a local graph-data.js change. Found and locally fixed a parsing bug: _git_text().strip() removed the first porcelain status column space, so the first unstaged filename lost its first letter. The likely actual path is amy/viewer/graph-data.js, a generated notes index (amy/build.py). Three regression tests and backend AST validation passed. app/main.py and tests/test_update_paths.py remain local/uncommitted; this backend fix requires service restart after deployment.
+
+Live remediation is NOT complete: old LAN IP timed out; Tailscale SSH reached the host, but the existing dedicated SSH key could not be read despite granted filesystem access. No Pi stash, restore, pull or restart was performed. Do not describe this as fixed live. Preserve the generated file with a path-specific stash before clearing the blocker; do not reset the repository or discard the source notes. Recheck the exact live path/diff first. The rebuild is still uncommitted/unpublished, so clearing the local-change blocker alone cannot install it.
+
+---
+## 2026-10-02 Session update (Flightdeck rebuild: first implementation)
+
+Started the WatchTower-inspired rebuild from the agreed design brief. This is a local implementation, not a verified Pi deployment.
+
+- Live printer workspace: camera/current job above, upcoming per-printer queue beside the job, and Movement → Loaded filament → Temperatures & cooling below. Reuses existing control handlers and state interlocks. Queue fetch is shared/throttled to 15 seconds during live updates; failures show an unavailable notice rather than a false empty result.
+- Fleet Wall: active printing machines sort by calibrated remaining time, unknown ETA follows known ETA, and other states retain existing attention/bench ordering. Drag Move to reserve a card position; arrow keys provide placement too. Pin/Unpin and Restore automatic order are available. Preferences save in the viewer's browser. Telemetry reordering moves existing card nodes rather than rebuilding camera elements.
+- Demo repair: filled missing route containers and added the single-printer telemetry response so direct printer links work. Excluded the existing usage endpoint from that matcher.
+- New files: app/static/fleet-layout.mjs; tests/fleet-layout.test.mjs; tests/live-workspace.test.mjs; docs/FLIGHTDECK_REBUILD.md. Updated app.js, style.css, index.html, demo.html, demo-runtime.js. Static cache: app.js 745, style.css 516, demo-runtime.js 10.
+- Verification: six Node tests passed (ETA ordering/calibration, stable pins, collisions/removal/48 devices, movement/thermal interlocks and separate control groups); JS syntax checked. Browser demo verified pointer drag, keyboard placement, reset, reload persistence, H2D/Voron panels, per-printer queue and unavailable AMS on Voron. Camera height/layout checked after fixing collapsed flex layout. Phone page has no document overflow; existing horizontally scrollable sub-tabs extend within the printer container. No errors in the clean workspace browser session. No physical commands issued.
+- Git: commit attempted but .git/index.lock creation was denied even after checkout and Git-directory write grants. Changes remain local and uncommitted. No unrelated files staged.
+- Deployment: not pushed or deployed; Pi commit/service/static versions have NOT been checked. Backend unchanged. After deployment verify actual camera refresh, queue updates and physical-control gating before acceptance; frontend hard refresh required. Do not claim fixture counts prove host camera capacity.
+- Next: finish the compact/all-in-one workspace polish (files/upload currently use Browse print files), scalable fleet-card filters/grouping/density, then real LAN discovery progress/pairing. Shared smart queue, filament remapping/library metadata, AI detection and ejection remain scoped later milestones in docs/FLIGHTDECK_REBUILD.md.
+- Preserved pre-existing edits in app/camera.py, jukebox/docker-compose.yml and PrintShelf scripts; unrelated untracked files were not included.
+
+---
 ## 2026-10-02 Session update (fleet history on Print Memory)
 
 Latest commit: `28b5744` — Print Memory now opens with a card for each printer: finished print time, filament used, and finished / failed / cancelled counts. The day filter at the top of the list changes that window. Click a card to show only that printer.

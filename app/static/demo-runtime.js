@@ -430,6 +430,11 @@
       });
     }
     if (path === '/api/printers') return jsonResponse(clone(demoPrinters));
+    if (path !== '/api/printers/usage' && path.match(/^\/api\/printers\/[^/]+$/)) {
+      const id = decodeURIComponent(path.split('/')[3]);
+      const printer = demoPrinters.find(p => p.id === id);
+      return printer ? jsonResponse(clone(printer)) : textResponse('Printer not found', 404);
+    }
     if (path.match(/^\/api\/printers\/[^/]+\/camera$/)) {
       const id = decodeURIComponent(path.split('/')[3]);
       return jsonResponse({ url: demoCameraAssets[id] || demoImage(`${id.toUpperCase()} camera`, id === 'h2d' ? '#ef4444' : '#3b82f6') });
