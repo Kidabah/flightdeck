@@ -1788,6 +1788,7 @@ def get_print_memory_score(days: Optional[int] = None) -> dict:
                        SUM(CASE WHEN final_state = 'CANCELLED' THEN 1 ELSE 0 END) AS cancelled,
                        COALESCE(SUM(CASE WHEN duration_seconds IS NOT NULL THEN duration_seconds ELSE 0 END), 0) AS seconds,
                        COALESCE(SUM(CASE WHEN final_state = 'FINISHED' THEN duration_seconds ELSE 0 END), 0) AS finished_seconds,
+                       COALESCE(SUM(filament_grams), 0) AS filament_grams,
                        COALESCE(AVG(CASE
                            WHEN final_state = 'FINISHED'
                             AND estimated_duration_seconds IS NOT NULL

@@ -8443,6 +8443,72 @@ function _memoryScoreClass(score) {
   return 'memory-score-review';
 }
 
+function _memoryHistoryHours(seconds) {
+  const n = Number(seconds || 0);
+  if (n <= 0) return '0m';
+  return formatTime(n);
+}
+
+function _memoryHistoryGrams(grams) {
+  const n = Number(grams || 0);
+  if (n <= 0) return '0g';
+  return _fmtGrams(n);
+}
+
+function _memoryHistoryWindow(score) {
+  const days = Number(score?.days || 0);
+  return days > 0 ? `Last ${days} days` : 'All time';
+}
+
+function _memoryHistoryPrinters(score) {
+  const printers = [...(score?.printers || [])];
+  const order = (_latestPrinters || []).map(p => p.id);
+  printers.sort((a, b) => {
+    const ia = order.indexOf(a.printer_id);
+    const ib = order.indexOf(b.printer_id);
+    if (ia === -1 && ib === -1) return String(a.printer_id).localeCompare(String(b.printer_id));
+    if (ia === -1) return 1;
+    if (ib === -1) return -1;
+    return ia - ib;
+  });
+  return printers;
+}
+
+function _renderMemoryHistory(score, selectedPrinter) {
+  const fleet = score?.fleet || {};
+  const printers = _memoryHistoryPrinters(score);
+  const cards = printers.length ? printers.map(p => {
+    const selected = selectedPrinter && selectedPrinter === p.printer_id;
+    const failed = Number(p.failed || 0);
+    return `<button class="memory-history-card${selected ? ' is-selected' : ''}" type="button" data-history-printer="${esc(p.printer_id)}" title="Show this printer in the list">
+      <span class="memory-history-name">${esc(_memoryPrinterLabel(p.printer_id))}</span>
+      <strong class="memory-history-hours">${esc(_memoryHistoryHours(p.finished_seconds))}</strong>
+      <em>print time</em>
+      <span class="memory-history-grams">${esc(_memoryHistoryGrams(p.filament_grams))}</span>
+      <span class="memory-history-counts">
+        <b class="is-good">${Number(p.finished || 0)} finished</b>
+        <b class="${failed ? 'is-bad' : ''}">${failed} failed</b>
+        <b>${Number(p.cancelled || 0)} cancelled</b>
+      </span>
+    </button>`;
+  }).join('') : '<div class="memory-history-empty">No finished history yet.</div>';
+  return `<section class="memory-history" aria-label="Fleet print history">
+    <div class="memory-history-head">
+      <div>
+        <span>Fleet history</span>
+        <strong>${esc(_memoryHistoryWindow(score))}</strong>
+      </div>
+      <div class="memory-history-totals">
+        <span><b>${esc(_memoryHistoryHours(fleet.finished_seconds))}</b> print time</span>
+        <span><b>${esc(_memoryHistoryGrams(fleet.filament_grams))}</b> filament</span>
+        <span><b>${Number(fleet.finished || 0)}</b> finished</span>
+        <span><b>${Number(fleet.failed || 0)}</b> failed</span>
+      </div>
+    </div>
+    <div class="memory-history-grid">${cards}</div>
+  </section>`;
+}
+
 function _memoryScorePanel(score) {
   const fleet = score?.fleet || {};
   const printers = score?.printers || [];
@@ -8685,6 +8751,7 @@ async function renderPrintMemoryView() {
   const rows = (data.items || []).map(_memoryRow).join('');
   page.innerHTML = `<div class="memory-page-stack">
     ${_renderMemoryHero(data.items || [], score)}
+    ${_renderMemoryHistory(score, params.printer_id || '')}
     ${_renderMemoryBriefing(data.items || [], score)}
     <div class="memory-shell">
     <section class="memory-list-panel">
@@ -8703,6 +8770,20 @@ async function renderPrintMemoryView() {
   page.querySelector('.memory-search')?.addEventListener('change', () => _memorySetHash(page));
   page.querySelectorAll('[data-memory-filter]').forEach(el => {
     el.addEventListener('change', () => _memorySetHash(page));
+  });
+  page.querySelectorAll('[data-history-printer]').forEach(card => {
+    card.addEventListener('click', () => {
+      const id = card.dataset.historyPrinter || '';
+      const next = new URLSearchParams();
+      for (const [key, value] of Object.entries(params)) {
+        if (value) next.set(key, value);
+      }
+      if (next.get('printer_id') === id) next.delete('printer_id');
+      else if (id) next.set('printer_id', id);
+      const qs = next.toString();
+      history.replaceState(null, '', qs ? `#/memory?${qs}` : '#/memory');
+      renderPrintMemoryView();
+    });
   });
   page.querySelectorAll('.memory-row').forEach(row => {
     row.addEventListener('click', () => _memoryOpenPassport(row.dataset.printId));
