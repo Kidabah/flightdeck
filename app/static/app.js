@@ -12948,6 +12948,7 @@ function _setCameraImageSrc(img, baseUrl, key = 't') {
   _setCameraSignal(img, 'refreshing');
   img.src = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}${key}=${Date.now()}`;
   img.dataset.streamLoadedAt = String(Date.now());
+  img.dataset.cameraConnectionAt = String(Date.now());
 }
 
 function _cameraSignalText(img, state) {
@@ -13034,6 +13035,7 @@ function _loadCameraUrl(printerId, onResolved) {
 function _attachCameraRetries(root) {
   root.querySelectorAll('img[data-camera-id]').forEach(img => {
     const isFleetStill = img.dataset.fleetStill === '1';
+    img.dataset.cameraConnectionAt ||= String(Date.now());
     const hasLoadedImage = img.complete && img.naturalWidth > 0 && !(isFleetStill && String(img.src || '').startsWith('data:'));
     img.dataset.streamLoadedAt = hasLoadedImage ? (img.dataset.streamLoadedAt || String(Date.now())) : (img.dataset.streamLoadedAt || '');
     _setCameraSignal(img, hasLoadedImage ? 'live' : 'waiting');
@@ -13111,10 +13113,10 @@ function _refreshVisibleCameraStreams(force = false) {
     if (!url || url.startsWith('data:')) return;
     const rect = img.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0 || rect.bottom < 0 || rect.right < 0 || rect.top > window.innerHeight || rect.left > window.innerWidth) return;
-    const loadedAt = Number(img.dataset.streamLoadedAt || 0);
-    const lastFrameAt = Number(img.dataset.cameraFrameAt || 0);
-    const freshness = Math.max(loadedAt, lastFrameAt);
-    if (!force && freshness && (now - freshness) < _CAMERA_STREAM_REFRESH_MS) return;
+    // Server health cannot prove that this browser's MJPEG connection is advancing.
+    // Bound connection lifetime independently of health polls and image load events.
+    const connectedAt = Number(img.dataset.cameraConnectionAt || 0);
+    if (!force && connectedAt && (now - connectedAt) < _CAMERA_STREAM_REFRESH_MS) return;
     _setCameraImageSrc(img, url, 'refresh');
   });
 }
