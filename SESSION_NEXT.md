@@ -1,3 +1,9 @@
+## 2026-10-14 — Amy natural PC-health wording fixed
+Latest commit: `41d1d53` — Hardware identity and resource questions now stay on Amy’s live `system_status` route instead of falling through to general chat.
+- Added “What GPU do I have?”, “What is my processor?”, “How much RAM do I have?”, and “What is my screen resolution?” alongside the existing PC-health and refresh-rate phrases.
+- Files: `amy/server.py`, `amy/test_system_status.py`. Cache bust: none (`app.js?v=` and `style.css?v=` unchanged).
+- Amy backend restart is required; Amy Hands already exposes the readings. No hard refresh is required.
+
 ## 2026-10-14 — Amy gained live desktop health and monitor checks
 Latest commit: `8ac46bd` — Amy now reads the Windows desktop directly through Amy Hands for grounded PC-health answers.
 - Added deterministic voice/chat routes for “How’s my PC?”, CPU/RAM/storage/GPU questions, and monitor resolution or refresh-rate checks. No model-generated hardware readings are used.
