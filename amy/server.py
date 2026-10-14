@@ -2249,7 +2249,11 @@ def try_system_status(question: str) -> dict[str, Any] | None:
             r"(?:cpu|memory|ram) (?:load|usage|status|temperature|temp)|"
             r"(?:gpu|graphics card) (?:load|usage|status|temperature|temp)|"
             r"(?:disk|ssd|storage) (?:space|usage|status|free)|"
-            r"(?:monitor|display|screen) (?:refresh rate|refresh|hz|resolution|status))\b",
+            r"(?:monitor|display|screen) (?:refresh rate|refresh|hz|resolution|status)|"
+            r"(?:what|which) (?:gpu|graphics card|processor|cpu) (?:do i have|is (?:in|on) my (?:pc|computer|desktop))|"
+            r"what(?:'s| is) my (?:gpu|graphics card|processor|cpu)|"
+            r"how much (?:ram|memory|storage|disk space) (?:do i have|is (?:free|available|left))|"
+            r"(?:what(?:'s| is) my|show me my) (?:monitor|display|screen) (?:resolution|refresh rate))\b",
             q,
         )
     )

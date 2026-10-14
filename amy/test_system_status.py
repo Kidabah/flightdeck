@@ -36,6 +36,10 @@ class SystemStatusTests(unittest.TestCase):
                 "how much disk space is free?",
                 "GPU temperature",
                 "monitor refresh rate",
+                "what GPU do I have?",
+                "what is my processor?",
+                "how much RAM do I have?",
+                "what is my screen resolution?",
             ):
                 result = server.try_system_status(phrase)
                 self.assertIsNotNone(result, phrase)
