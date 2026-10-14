@@ -1,3 +1,12 @@
+## 2026-10-14 — Amy gained live desktop health and monitor checks
+Latest commit: `8ac46bd` — Amy now reads the Windows desktop directly through Amy Hands for grounded PC-health answers.
+- Added deterministic voice/chat routes for “How’s my PC?”, CPU/RAM/storage/GPU questions, and monitor resolution or refresh-rate checks. No model-generated hardware readings are used.
+- Amy Hands now reports CPU load, physical memory, system-drive free space, desktop power state, the physical GPU, optional GPU temperature from Libre/Open Hardware Monitor (with NVIDIA fallback), and the active display mode.
+- Chris’s desktop target is configured locally as 3440 × 1440 at 165 Hz. Live verification detected AMD Radeon RX 7900 XT and confirmed 3440 × 1440 at 165 Hz, on target. No compatible GPU-temperature sensor provider was exposed, so temperature was truthfully omitted.
+- Updated the Amy cheat sheet with current notebook, live printer-status, print-inspection and PC-health examples. Added four routing/grounding regressions; all 43 Amy tests pass.
+- Files: `amy/amy-hands/amy_hands.py`, `amy/server.py`, `amy/test_system_status.py`, `amy/notes/workshop/amy-prompts.md`, `amy/viewer/graph-data.js`. Local target: ignored `amy/amy-hands/config.json`.
+- Cache bust: none (`app.js?v=` and `style.css?v=` unchanged). Restart Amy and Amy Hands to load the Python changes; no browser hard refresh is required. Flightdeck service restart is harmless but not functionally required.
+
 ## 2026-10-10 — Bound camera viewing connections independently of server health
 - X1 camera worker was recreated at 17:27:16 AEDT around the reported freeze. Subsequent samples showed approximately 5 changing frames/sec. The precise restart reason remains unconfirmed: service journal access requires a sudo password. Existing eight-minute worker recycling and missing-frame recovery were not changed.
 - A healthy server could continually refresh cameraFrameAt while the desktop MJPEG connection remained stuck. Visible real-camera connections now renew every 25 seconds (plus polling delay), using an independent connection timestamp which health responses, image load events and repeated listener attachment cannot extend. Hidden/offscreen and still/simulated feeds retain their existing behavior. This is bounded recovery, not direct detection of browser-decoded frame progress.
