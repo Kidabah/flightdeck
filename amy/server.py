@@ -2232,6 +2232,111 @@ def try_media_tools(question: str) -> dict[str, Any] | None:
     return None
 
 
+def try_system_status(question: str) -> dict[str, Any] | None:
+    """Answer explicit PC health questions from Amy Hands without model guesses."""
+    q = re.sub(r"[^\w\s']", " ", (question or "").lower())
+    q = re.sub(r"\s+", " ", q).strip()
+    pc_summary = bool(
+        re.search(
+            r"\b(?:how(?:'s| is) (?:my |the )?(?:pc|computer|laptop)|"
+            r"(?:pc|computer|laptop) (?:health|status))\b",
+            q,
+        )
+    )
+    component = bool(
+        re.search(
+            r"\b(?:battery (?:level|status|percentage|percent)|"
+            r"(?:cpu|memory|ram) (?:load|usage|status|temperature|temp)|"
+            r"(?:gpu|graphics card) (?:load|usage|status|temperature|temp)|"
+            r"(?:disk|ssd|storage) (?:space|usage|status|free)|"
+            r"(?:monitor|display|screen) (?:refresh rate|refresh|hz|resolution|status))\b",
+            q,
+        )
+    )
+    if not pc_summary and not component:
+        return None
+    if not hands_configured():
+        return {
+            "answer": "I can't read the PC health right now because Amy Hands isn't configured.",
+            "nodes": [],
+            "move_camera": False,
+            "tool": "system_status",
+            "ok": False,
+        }
+    code, payload = hands_request("/system/status", timeout=15)
+    if code != 200 or not isinstance(payload, dict) or not payload.get("ok"):
+        detail = payload.get("detail") if isinstance(payload, dict) else payload
+        return {
+            "answer": f"I couldn't read the PC health: {detail or 'Amy Hands did not respond'}.",
+            "nodes": [],
+            "move_camera": False,
+            "tool": "system_status",
+            "ok": False,
+        }
+
+    parts: list[str] = []
+    cpu = payload.get("cpu_percent")
+    if isinstance(cpu, (int, float)):
+        parts.append(f"CPU is at {round(cpu)} percent")
+    memory = payload.get("memory")
+    if isinstance(memory, dict) and isinstance(memory.get("used_percent"), (int, float)):
+        text = f"memory is at {round(memory['used_percent'])} percent"
+        if isinstance(memory.get("available_gb"), (int, float)):
+            text += f", with {memory['available_gb']:g} GB available"
+        parts.append(text)
+    disk = payload.get("disk")
+    if isinstance(disk, dict) and isinstance(disk.get("free_gb"), (int, float)):
+        parts.append(f"{disk.get('drive') or 'the system drive'} has {disk['free_gb']:g} GB free")
+    display = payload.get("display")
+    if isinstance(display, dict) and all(
+        isinstance(display.get(key), (int, float)) for key in ("width", "height", "refresh_hz")
+    ):
+        mode = (
+            f"display is {round(display['width'])} by {round(display['height'])} "
+            f"at {round(display['refresh_hz'])} hertz"
+        )
+        target = display.get("target_refresh_hz")
+        target_width = display.get("target_width")
+        target_height = display.get("target_height")
+        if (
+            isinstance(target, (int, float))
+            and isinstance(target_width, (int, float))
+            and isinstance(target_height, (int, float))
+            and round(display["width"]) == round(target_width)
+            and round(display["height"]) == round(target_height)
+        ):
+            mode += ", on target" if round(display["refresh_hz"]) >= round(target) else f", below its {round(target)} hertz target"
+        parts.append(mode)
+    power = payload.get("power")
+    if isinstance(power, dict) and power.get("battery_present"):
+        battery = power.get("battery_percent")
+        if isinstance(battery, (int, float)):
+            charging = " and plugged in" if power.get("plugged_in") else ""
+            parts.append(f"battery is at {round(battery)} percent{charging}")
+    gpu_name = str(payload.get("gpu_name") or "").strip()
+    gpu_temp = payload.get("gpu_temp_c")
+    if gpu_name:
+        gpu = gpu_name
+        if isinstance(gpu_temp, (int, float)):
+            gpu += f" is at {round(gpu_temp)} degrees"
+        parts.append(gpu)
+    if not parts:
+        return {
+            "answer": "Amy Hands is connected, but Windows didn't return any health readings.",
+            "nodes": [],
+            "move_camera": False,
+            "tool": "system_status",
+            "ok": False,
+        }
+    return {
+        "answer": "PC check: " + "; ".join(parts) + ".",
+        "nodes": [],
+        "move_camera": False,
+        "tool": "system_status",
+        "ok": True,
+    }
+
+
 def _clean_place_name(raw: str) -> str:
     p = (raw or "").strip().lower()
     p = re.sub(
@@ -3337,7 +3442,7 @@ def try_tools(question: str) -> dict[str, Any] | None:
     if mode_switch is not None:
         mode_switch.setdefault("talk_mode", RUNTIME.get("talk_mode") or "casual")
         return mode_switch
-    for fn in (try_clock_weather, try_media_tools):
+    for fn in (try_clock_weather, try_system_status, try_media_tools):
         result = fn(question)
         if result is not None:
             result.setdefault("talk_mode", RUNTIME.get("talk_mode") or "casual")

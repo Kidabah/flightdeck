@@ -18,9 +18,13 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
+import subprocess
 import threading
 import time
 import urllib.parse
+import ctypes
+from ctypes import wintypes
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -62,6 +66,128 @@ def reload_config() -> dict[str, Any]:
 
 
 reload_config()
+
+
+def system_status() -> dict[str, Any]:
+    """Read-only Windows health summary for Amy's remote status questions."""
+    result: dict[str, Any] = {"ok": True}
+
+    class MemoryStatus(ctypes.Structure):
+        _fields_ = [
+            ("length", wintypes.DWORD),
+            ("memory_load", wintypes.DWORD),
+            ("total_physical", ctypes.c_ulonglong),
+            ("available_physical", ctypes.c_ulonglong),
+            ("total_page_file", ctypes.c_ulonglong),
+            ("available_page_file", ctypes.c_ulonglong),
+            ("total_virtual", ctypes.c_ulonglong),
+            ("available_virtual", ctypes.c_ulonglong),
+            ("available_extended_virtual", ctypes.c_ulonglong),
+        ]
+
+    memory = MemoryStatus()
+    memory.length = ctypes.sizeof(MemoryStatus)
+    if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(memory)):
+        result["memory"] = {
+            "used_percent": int(memory.memory_load),
+            "total_gb": round(memory.total_physical / (1024 ** 3), 1),
+            "available_gb": round(memory.available_physical / (1024 ** 3), 1),
+        }
+
+    class PowerStatus(ctypes.Structure):
+        _fields_ = [
+            ("ac_line_status", ctypes.c_ubyte),
+            ("battery_flag", ctypes.c_ubyte),
+            ("battery_percent", ctypes.c_ubyte),
+            ("system_status_flag", ctypes.c_ubyte),
+            ("battery_life_seconds", wintypes.DWORD),
+            ("battery_full_life_seconds", wintypes.DWORD),
+        ]
+
+    power = PowerStatus()
+    if ctypes.windll.kernel32.GetSystemPowerStatus(ctypes.byref(power)):
+        present = power.battery_flag != 128
+        result["power"] = {
+            "battery_present": present,
+            "battery_percent": int(power.battery_percent) if present and power.battery_percent <= 100 else None,
+            "plugged_in": power.ac_line_status == 1,
+        }
+
+    drive = Path.home().anchor or "C:\\"
+    try:
+        total, used, free = shutil.disk_usage(drive)
+        result["disk"] = {
+            "drive": drive,
+            "used_percent": round((used / total) * 100) if total else 0,
+            "free_gb": round(free / (1024 ** 3), 1),
+            "total_gb": round(total / (1024 ** 3), 1),
+        }
+    except OSError as exc:
+        result["disk_error"] = str(exc)
+
+    # Fixed, read-only queries only; no user text reaches the process command.
+    ps = (
+        "$cpu=(Get-CimInstance Win32_Processor | Measure-Object LoadPercentage -Average).Average;"
+        "$gpus=@(Get-CimInstance Win32_VideoController);"
+        "$gpu=$gpus|Where-Object {$_.Name -notmatch 'Virtual|Remote|Basic Display'}|Select-Object -First 1;"
+        "if(-not $gpu){$gpu=$gpus|Select-Object -First 1};"
+        "$gpuTemp=$null;"
+        "foreach($ns in @('root/LibreHardwareMonitor','root/OpenHardwareMonitor')){"
+        "try{$sensor=Get-CimInstance -Namespace $ns -ClassName Sensor -ErrorAction Stop|"
+        "Where-Object {$_.SensorType -eq 'Temperature' -and $_.Name -match 'GPU (Core|Temperature|Hot Spot)'}|"
+        "Select-Object -First 1;if($sensor){$gpuTemp=$sensor.Value;break}}catch{}};"
+        "[pscustomobject]@{cpu_percent=$cpu;gpu_name=$gpu.Name;gpu_temp_c=$gpuTemp;"
+        "display_width=$gpu.CurrentHorizontalResolution;display_height=$gpu.CurrentVerticalResolution;"
+        "display_refresh_hz=$gpu.CurrentRefreshRate}|ConvertTo-Json -Compress"
+    )
+    try:
+        completed = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", ps],
+            capture_output=True,
+            text=True,
+            timeout=8,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            check=False,
+        )
+        if completed.returncode == 0 and completed.stdout.strip():
+            hardware = json.loads(completed.stdout)
+            result["cpu_percent"] = int(hardware["cpu_percent"]) if hardware.get("cpu_percent") is not None else None
+            result["gpu_name"] = str(hardware.get("gpu_name") or "").strip() or None
+            if hardware.get("gpu_temp_c") is not None:
+                result["gpu_temp_c"] = round(float(hardware["gpu_temp_c"]))
+            width = hardware.get("display_width")
+            height = hardware.get("display_height")
+            refresh = hardware.get("display_refresh_hz")
+            if all(isinstance(value, (int, float)) and value > 0 for value in (width, height, refresh)):
+                result["display"] = {
+                    "width": int(width),
+                    "height": int(height),
+                    "refresh_hz": int(refresh),
+                }
+                target = CFG.get("monitor_target") or {}
+                if isinstance(target, dict):
+                    result["display"]["target_width"] = int(target.get("width") or 0) or None
+                    result["display"]["target_height"] = int(target.get("height") or 0) or None
+                    result["display"]["target_refresh_hz"] = int(target.get("refresh_hz") or 0) or None
+    except (OSError, subprocess.SubprocessError, ValueError, TypeError, json.JSONDecodeError):
+        pass
+
+    if result.get("gpu_temp_c") is None:
+        try:
+            completed = subprocess.run(
+                ["nvidia-smi.exe", "--query-gpu=temperature.gpu", "--format=csv,noheader,nounits"],
+                capture_output=True,
+                text=True,
+                timeout=4,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                check=False,
+            )
+            if completed.returncode == 0 and completed.stdout.strip():
+                result["gpu_temp_c"] = int(completed.stdout.splitlines()[0].strip())
+        except (OSError, subprocess.SubprocessError, ValueError):
+            pass
+
+    return result
 
 try:
     from desktop_actions import (
@@ -226,6 +352,10 @@ class Handler(BaseHTTPRequestHandler):
                     "roots": CFG.get("roots") or [],
                 },
             )
+            return
+
+        if path == "/system/status":
+            self._json(200, system_status())
             return
 
         if path == "/search":

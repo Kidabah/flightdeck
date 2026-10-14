@@ -54,6 +54,12 @@ Talk to Amy in normal English — this list is just reminders of what she can do
 - “Add Discord to the allow list” (also knows: steam, vlc, firefox, obs, whatsapp)
 - “What’s on your allow list?”
 
+### PC health
+- “**How’s my PC?**” / “computer health” — live CPU, memory, system-drive space, GPU name, display resolution/refresh rate, and GPU temperature when Windows or an installed hardware monitor exposes it
+- “Check CPU usage” / “how much disk space is free?” / “GPU temperature” / “monitor refresh rate”
+- Chris’s main-display target is **3440 × 1440 at 165 Hz**; Amy says whether the reported mode is on target
+- These readings come directly from Windows through Amy Hands; unavailable sensors are left out rather than guessed
+
 ### Files & folders
 - “Open C:” / “Open my Downloads” / “Open that folder on my desktop”
 - When she opens Explorer she **drops always-on-top** so the folder isn’t hiding behind her — say **come back** to float again
@@ -78,9 +84,17 @@ Talk to Amy in normal English — this list is just reminders of what she can do
 - “**Open the queue**” — switches the Flightdeck window to that page. Same for Spools, Fleet Wall, Flight Tower, Projects, a printer (“open BigBoy”), and the other sidebar pages. She does not start a print from that.
 - “**Pause the print on Big Girl**” — same for BigBoy, the X1C, Greyhound, or any printer you name. Resume and stop work the same way. She does not start a print from that.
 - “**Amy can you deploy pi**”, “deploy to the pi”, or “deploy pi again”. She pulls Flightdeck on the Pi and restarts it.
+- “**What is currently printing on BigBoy?**” — live job, progress, layer and time remaining from Flightdeck; Amy does not ask the chat model to guess
+- “**Check BigBoy’s first layer**” / “inspect Little Boy’s camera” — fetches a fresh camera frame for an on-demand visual assessment; it never pauses or changes a print
 - Ask about printers, AMS, MakerDeck, PrintShelf, notes in her galaxy
 - Drop files on her dock for a look
 - “Remember that …” to save a note
+
+## Notebook
+- “Remind me to check the first layer in five minutes” / “set a glue timer for ten minutes”
+- “Work on the Windmill project” / “remember that the axle is 8 mm” / “where did we get to?”
+- Printer state changes can appear as alerts; quiet hours and away mode are available in the NOTEBOOK panel
+- Desktop and Pi notebooks are currently separate and do not sync
 
 ## Music library (Cindy Vinyl — not Spotify Hands)
 
