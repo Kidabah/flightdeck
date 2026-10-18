@@ -1,22 +1,59 @@
 from __future__ import annotations
 import asyncio
+import hashlib
 import logging
+import os
 import time
 from typing import Optional
 
 log = logging.getLogger(__name__)
 
+
+def _bounded_env_int(name: str, default: int, minimum: int, maximum: int) -> int:
+    try:
+        value = int(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        value = default
+    return max(minimum, min(maximum, value))
+
+
 _IDLE_TIMEOUT        = 60   # seconds before killing ffmpeg after last client leaves
 _STALE_TIMEOUT       = 8    # seconds without a new frame before declaring stream dead
-_FROZEN_TIMEOUT      = 10   # seconds with identical frame content before declaring frozen
 _INITIAL_TIMEOUT     = 10   # max seconds to wait for the very first frame after (re)start
 _MAX_SESSION_LIFE    = 480  # 8 min — recycle RTSP before H2D firmware silently freezes
 _RESTART_DELAY       = 1.0  # seconds before reconnecting after a worker kill
 _FRAME_START = b"\xff\xd8"
 _FRAME_END   = b"\xff\xd9"
 _STREAM_WIDTH = "960"
-_STREAM_FPS = "5"
+_STREAM_FPS_VALUE = _bounded_env_int("FLIGHTDECK_CAMERA_FPS", 12, 1, 20)
+_STREAM_FPS = str(_STREAM_FPS_VALUE)
+_STREAM_POLL_INTERVAL = max(0.02, min(0.1, 0.5 / _STREAM_FPS_VALUE))
 _STREAM_QUALITY = "7"
+
+
+def _camera_ffmpeg_args(rtsp_url: str) -> tuple[str, ...]:
+    """Build the RTSP-to-MJPEG command with frame thinning before scaling."""
+    return (
+        "ffmpeg",
+        "-loglevel", "error",
+        "-fflags", "nobuffer",
+        "-flags", "low_delay",
+        "-rtsp_transport", "tcp",
+        "-threads", "1",
+        "-filter_threads", "1",
+        "-i", rtsp_url,
+        # Drop excess source frames before the scaler and JPEG encoder do work.
+        "-vf", f"fps={_STREAM_FPS},scale={_STREAM_WIDTH}:-2",
+        "-f", "image2pipe", "-vcodec", "mjpeg",
+        "-threads", "1",
+        "-q:v", _STREAM_QUALITY,
+        "pipe:1",
+    )
+
+
+def _frame_signature(frame: bytes) -> bytes:
+    """Track real JPEG content changes, including changes away from its headers."""
+    return hashlib.blake2s(frame, digest_size=8).digest()
 
 
 class BambuCameraProxy:
@@ -39,7 +76,7 @@ class BambuCameraProxy:
         self._changed_seq: int = 0
         self._last_frame_at: float = 0.0
         self._last_changed_at: float = 0.0
-        self._last_frame_sig: Optional[tuple[int, int, int]] = None
+        self._last_frame_sig: Optional[bytes] = None
         self._started_at: float = 0.0
         self._clients: int = 0
         self._recorder_holds: int = 0
@@ -97,16 +134,7 @@ class BambuCameraProxy:
             self._last_frame_sig = None
             self._started_at = time.monotonic()
             self._proc = await asyncio.create_subprocess_exec(
-                "ffmpeg",
-                "-loglevel", "error",
-                "-fflags", "nobuffer",
-                "-flags", "low_delay",
-                "-rtsp_transport", "tcp",
-                "-i", self._url,
-                "-vf", f"scale={_STREAM_WIDTH}:-2",
-                "-f", "image2pipe", "-vcodec", "mjpeg",
-                "-r", _STREAM_FPS, "-q:v", _STREAM_QUALITY,
-                "pipe:1",
+                *_camera_ffmpeg_args(self._url),
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.DEVNULL,
             )
@@ -167,9 +195,12 @@ class BambuCameraProxy:
             await self.stop()
 
     async def _watchdog(self) -> None:
-        """Kill ffmpeg if no frames arrive — covers both stale streams and stuck reconnects.
-        Also recycles the RTSP session periodically: H2D firmware silently freezes
-        long-lived connections while continuing to send the same frame."""
+        """Restart dead streams and periodically recycle long-lived RTSP sessions.
+
+        Unchanged content is not itself a failure: a printer camera may legitimately
+        show a steady scene. The max-session recycle still recovers H2D firmware
+        sessions that keep delivering one frozen frame indefinitely.
+        """
         while True:
             await asyncio.sleep(5)
             if not self.has_audience:
@@ -183,9 +214,6 @@ class BambuCameraProxy:
                     await self._restart_worker(f"no initial frame after {_INITIAL_TIMEOUT}s")
             elif (now - self._last_frame_at) > _STALE_TIMEOUT:
                 await self._restart_worker(f"stale {_STALE_TIMEOUT}s no frames")
-            elif (self._last_changed_at > 0
-                  and (now - self._last_changed_at) > _FROZEN_TIMEOUT):
-                await self._restart_worker(f"frozen {_FROZEN_TIMEOUT}s same frame")
             elif (now - self._started_at) > _MAX_SESSION_LIFE:
                 await self._restart_worker(f"session max lifetime {_MAX_SESSION_LIFE}s")
 
@@ -214,7 +242,7 @@ class BambuCameraProxy:
                     self._frame_seq += 1
                     now = time.monotonic()
                     self._last_frame_at = now
-                    sig = (len(frame), frame[32:64], frame[-64:])
+                    sig = _frame_signature(frame)
                     if sig != self._last_frame_sig:
                         self._last_frame_sig = sig
                         self._last_changed_at = now
@@ -238,17 +266,17 @@ class BambuCameraProxy:
             self._idle_task = None
 
         self._clients += 1
-        await self._start()
-
-        for _ in range(50):
-            if self._latest:
-                break
-            if not self._proc or self._proc.returncode is not None:
-                await self._start()
-            await asyncio.sleep(0.1)
-
-        last_seq = -1
         try:
+            # Cancellation during connection/startup must release the viewer too.
+            await self._start()
+            for _ in range(50):
+                if self._latest:
+                    break
+                if not self._proc or self._proc.returncode is not None:
+                    await self._start()
+                await asyncio.sleep(0.1)
+
+            last_seq = -1
             while True:
                 seq = self._frame_seq
                 frame = self._latest
@@ -260,7 +288,8 @@ class BambuCameraProxy:
                         b"Content-Length: " + str(len(frame)).encode() + b"\r\n\r\n"
                         + frame + b"\r\n"
                     )
-                await asyncio.sleep(0.1)   # ~10 fps
+                # Check twice per target frame so the browser does not miss fresh JPEGs.
+                await asyncio.sleep(_STREAM_POLL_INTERVAL)
         finally:
             self._clients = max(0, self._clients - 1)
             if not self.has_audience:
