@@ -9444,7 +9444,7 @@ button.live-route-node:hover {
 .slot-quick-popover {
   position: fixed;
   z-index: 1201;
-  width: min(360px, calc(100vw - 12px));
+  width: min(220px, calc(100vw - 12px));
   padding: 0.45rem 0.5rem 0.5rem;
   border-radius: 0.55rem;
   border: 1px solid var(--border);
@@ -9553,14 +9553,6 @@ button.live-route-node:hover {
 .slot-quick-miss {
   color: #f59e0b;
 }
-
-.slot-quick-results { max-height: 240px; overflow-y: auto; display: grid; gap: 4px; }
-.slot-quick-results[hidden] { display: none; }
-.slot-quick-result { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 6px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--text); cursor: pointer; }
-.slot-quick-result:hover, .slot-quick-result:focus-visible { border-color: #22d3ee; background: rgba(34, 211, 238, .28); box-shadow: inset 4px 0 #22d3ee; outline: 2px solid rgba(34, 211, 238, .75); outline-offset: -2px; }
-.slot-quick-result strong { display: block; font-size: .76rem; }
-.slot-quick-result small { display: block; color: var(--text-muted); font-size: .7rem; }
-.slot-quick-swatch { width: 22px; height: 22px; border: 1px solid var(--border); border-radius: 50%; flex-shrink: 0; }
 
 .ams-slot-doctor {
   position: absolute;
@@ -10322,20 +10314,10 @@ button.live-route-node:hover {
   border-radius: 0.5rem;
 }
 
-/* Turn the whole preview together; keep the square's rotated corners inside the frame. */
-.obj-map-preview-layout .obj-map-image-plane,
-.obj-map-preview-layout .obj-map-plane {
-  transform: rotate(35deg) scale(0.718);
-  transform-origin: center center;
-}
-
-.obj-map-preview-layout .obj-map-preview-image,
-.object-map-modal-stage.obj-map-preview-layout .obj-map-preview-image {
+.obj-map-preview-layout .obj-map-preview-image {
   object-fit: contain;
   opacity: 1;
   filter: none;
-  transform: none;
-  max-height: none;
 }
 
 .obj-map-preview-layout .obj-map-id-dot {
@@ -17615,56 +17597,6 @@ select optgroup {
   border-color: rgba(122,162,216,0.32);
 }
 
-.spool-card-focus-match {
-  border-color: rgba(34,211,238,0.92) !important;
-  box-shadow: 0 0 0 2px rgba(34,211,238,0.35), 0 0 1.6rem rgba(34,211,238,0.28);
-  animation: spool-card-focus-pulse 2.6s ease-out;
-}
-
-.box-stock-view { display: grid; gap: 0.8rem; }
-.box-stock-summary { display: grid; grid-template-columns: repeat(2, minmax(7rem, 0.5fr)) minmax(14rem, 2fr); gap: 0.5rem; }
-.box-stock-stat, .box-stock-materials { border: 1px solid var(--border); border-radius: 0.55rem; background: rgba(15,23,42,0.38); padding: 0.65rem 0.75rem; }
-.box-stock-stat strong, .box-stock-stat span, .box-stock-materials strong, .box-stock-materials span { display: block; }
-.box-stock-stat strong { color: var(--accent); font-size: 1.15rem; }
-.box-stock-stat span, .box-stock-materials span { color: var(--muted); font-size: 0.68rem; }
-.box-stock-materials span { margin-top: 0.28rem; line-height: 1.5; }
-.box-stock-form { display: grid; gap: 0.65rem; padding: 0.8rem; border: 1px solid rgba(96,165,250,0.35); border-radius: 0.65rem; background: rgba(8,17,31,0.5); }
-.box-stock-form-head { display: flex; justify-content: space-between; gap: 0.7rem; align-items: flex-start; }
-.box-stock-form-head p { margin: 0.2rem 0 0; color: var(--muted); font-size: 0.68rem; }
-.box-stock-scan-actions { display: flex; gap: 0.35rem; flex-wrap: wrap; justify-content: flex-end; }
-.box-stock-file-label { position: relative; overflow: hidden; }
-.box-stock-file-label input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-.box-stock-scanner { display: grid; grid-template-columns: minmax(12rem, 20rem) auto 1fr; gap: 0.5rem; align-items: center; }
-.box-stock-scanner video { width: 100%; max-height: 12rem; border-radius: 0.5rem; background: #000; object-fit: cover; }
-.box-stock-scanner span { color: var(--muted); font-size: 0.68rem; }
-.box-stock-form-grid { display: grid; grid-template-columns: repeat(4, minmax(8rem, 1fr)); gap: 0.55rem; }
-.box-stock-form-grid label { display: grid; gap: 0.22rem; color: var(--muted); font-size: 0.65rem; }
-.box-stock-form-grid input { min-width: 0; }
-.box-stock-qr-field { grid-column: span 2; }
-.box-stock-notes { grid-column: span 2; }
-.box-stock-form-actions { display: flex; justify-content: flex-end; }
-.box-stock-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0.65rem; }
-.box-stock-card { overflow: hidden; border: 1px solid var(--border); border-radius: 0.65rem; background: rgba(15,23,42,0.42); }
-.box-stock-card-band { display: flex; justify-content: space-between; gap: 0.5rem; padding: 0.55rem 0.65rem; color: #111827; text-shadow: 0 1px rgba(255,255,255,0.25); }
-.box-stock-card-band span { font-size: 0.68rem; font-weight: 800; }
-.box-stock-card-body { display: grid; gap: 0.28rem; padding: 0.65rem; }
-.box-stock-card-body > span, .box-stock-card-body > small { color: var(--muted); font-size: 0.68rem; }
-.box-stock-card-body .tiny-btn { justify-self: start; margin-top: 0.25rem; }
-@media (max-width: 800px) {
-  .box-stock-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .box-stock-materials { grid-column: 1 / -1; }
-  .box-stock-form-head { flex-direction: column; }
-  .box-stock-scan-actions { justify-content: flex-start; }
-  .box-stock-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .box-stock-qr-field, .box-stock-notes { grid-column: span 2; }
-  .box-stock-scanner { grid-template-columns: 1fr; }
-}
-
-@keyframes spool-card-focus-pulse {
-  0%, 100% { filter: none; }
-  22% { filter: brightness(1.18); }
-}
-
 .spool-group-card .spool-card-band {
   display: block;
   min-height: 62px;
@@ -24354,15 +24286,3 @@ select optgroup {
 @media (max-width: 700px) {
   .live-workspace-controls { grid-template-columns: minmax(0,1fr); }
 }
-
-/* Keep the saved printer address visible even when its connection is offline. */
-.printer-lan-address {
-  display: block;
-  color: #9acbff;
-  font-size: 0.75rem;
-  font-weight: 500;
-  line-height: 1.45;
-  font-family: ui-monospace, Consolas, monospace;
-  overflow-wrap: anywhere;
-}
-.fleet-wall-status-row > .printer-lan-address { margin-left: auto; }
