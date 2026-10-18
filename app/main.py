@@ -153,6 +153,7 @@ async def _gather_all_locked() -> list[dict]:
         d["_last_finished_print_id"] = moonraker._last_finished_print_id.get(id)
         d["_last_timelapse_path"] = None
         parsed = urllib.parse.urlparse(url)
+        d["connection_host"] = parsed.hostname
         d["klipper_ui_url"] = f"{parsed.scheme or 'http'}://{parsed.hostname}" if parsed.hostname else url
         return d
 
@@ -176,6 +177,7 @@ async def _gather_all_locked() -> list[dict]:
                 "last_seen": getattr(p, "_last_seen", None),
                 "updated_at": datetime.utcnow(),
             }
+            d["connection_host"] = p._ip
             d["temperature_presets"] = _presets.get(p.id, {})
             d["health"] = db.get_printer_health(p.id)
             d["_error_print_id"] = p._error_print_id
@@ -186,6 +188,7 @@ async def _gather_all_locked() -> list[dict]:
         status.temperature_presets = _presets.get(p.id, {})
         _update_last_seen(status)
         d = asdict(status)
+        d["connection_host"] = p._ip
         _reconcile_empty_reported_slots(d)
         _reconcile_reported_loaded_slots(d)
         _replay_assigned_bambu_profiles(d)
@@ -9114,6 +9117,30 @@ class IncomingStockRollUpdate(BaseModel):
 class IncomingStockCancel(BaseModel):
     reason: Optional[str] = None
 
+class BoxStockCreate(BaseModel):
+    material: str
+    brand: str
+    subtype: Optional[str] = None
+    color_hex: str = "#808080"
+    color_name: Optional[str] = None
+    unit_weight_g: float = 1000
+    quantity: int = 1
+    location: Optional[str] = None
+    qr_value: Optional[str] = None
+    notes: Optional[str] = None
+
+class BoxStockUpdate(BaseModel):
+    material: Optional[str] = None
+    brand: Optional[str] = None
+    subtype: Optional[str] = None
+    color_hex: Optional[str] = None
+    color_name: Optional[str] = None
+    unit_weight_g: Optional[float] = None
+    quantity: Optional[int] = None
+    location: Optional[str] = None
+    qr_value: Optional[str] = None
+    notes: Optional[str] = None
+
 @app.get("/api/spools/summary")
 async def get_spools_summary():
     return db.get_spools_summary()
@@ -9121,6 +9148,33 @@ async def get_spools_summary():
 @app.get("/api/spools/intelligence")
 async def get_spool_intelligence(days: int = 30):
     return db.get_spool_intelligence(days)
+
+@app.get("/api/box-stock")
+async def get_box_stock():
+    return db.get_box_stock()
+
+@app.post("/api/box-stock")
+async def create_box_stock(body: BoxStockCreate):
+    try:
+        return db.create_box_stock(**body.model_dump())
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+@app.put("/api/box-stock/{item_id}")
+async def update_box_stock(item_id: int, body: BoxStockUpdate):
+    try:
+        item = db.update_box_stock(item_id, body.model_dump(exclude_unset=True))
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not item:
+        raise HTTPException(status_code=404, detail="Box stock item not found")
+    return item
+
+@app.delete("/api/box-stock/{item_id}")
+async def delete_box_stock(item_id: int):
+    if not db.delete_box_stock(item_id):
+        raise HTTPException(status_code=404, detail="Box stock item not found")
+    return {"ok": True}
 
 @app.get("/api/stock-in/orders")
 async def get_incoming_stock_orders(limit: int = 20):

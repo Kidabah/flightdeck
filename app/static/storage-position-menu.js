@@ -66,7 +66,11 @@ async function positionData(locationId) {
 
 function openDetails(spoolId) {
   closeMenu();
-  location.hash = `#/spool/${Number(spoolId)}`;
+  // Open the inventory's Detail tab so the full card grid is visible. The
+  // spool id is intentionally not used here; this is a view switch, not a
+  // jump into one spool's individual page.
+  const detailRoute = `#/spools?view=detail&focus=${encodeURIComponent(String(Number(spoolId)))}`;
+  window.location.assign(detailRoute);
 }
 
 function openAwayAssignment(spoolId) {
@@ -148,7 +152,7 @@ function renderMenu(anchor, data) {
       <button type="button" data-pos-action="away">↗ <span><b>Away</b><small>${atHome ? "Choose where this spool is going" : `Currently ${esc(currentText(spool, locations))}`}</small></span></button>
       <button type="button" data-pos-action="print-spool">🏷 <span><b>Spool label</b><small>Full spool sticker with QR</small></span></button>
       <button type="button" data-pos-action="print-home" ${homeId ? "" : "disabled"}>📍 <span><b>Home location label</b><small>Slot marker for ${esc(slotName)}</small></span></button>
-      <button type="button" data-pos-action="details">● <span><b>Detailed View</b><small>Full spool details, weight confidence and filament moves</small></span></button>
+      <button type="button" data-pos-action="details">● <span><b>Detailed View</b><small>Open this spool’s matching colour in Detail</small></span></button>
     `;
   }
 

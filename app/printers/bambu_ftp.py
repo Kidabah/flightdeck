@@ -76,13 +76,23 @@ def _parse_3mf(
                 image_png = z.read("Metadata/plate_1.png")
             except KeyError:
                 image_png = None
+        top_matches_plate = True
+        pick_image_png = None
         try:
             top_image_png: Optional[bytes] = z.read(f"Metadata/top_{plate_number}.png")
         except KeyError:
+            top_matches_plate = False
             try:
                 top_image_png = z.read("Metadata/top_1.png")
             except KeyError:
                 top_image_png = None
+        if top_matches_plate and top_image_png:
+            try:
+                pick_info = z.getinfo(f"Metadata/pick_{plate_number}.png")
+                if pick_info.file_size <= 5 * 1024 * 1024:
+                    pick_image_png = z.read(pick_info)
+            except KeyError:
+                pass
         try:
             slice_xml = z.read("Metadata/slice_info.config").decode()
         except KeyError:
@@ -236,6 +246,12 @@ def _parse_3mf(
                 **({"bbox": box} if box else {}),
                 **({"shape": gcode_object_shapes[identify_id]} if identify_id in gcode_object_shapes else {}),
             })
+
+    if len(objects) > 1:
+        positions = _extract_pick_object_positions(pick_image_png, top_image_png, [o["id"] for o in objects if o["id"] is not None])
+        for obj in objects:
+            if obj["id"] in positions:
+                obj["preview_position"] = positions[obj["id"]]
 
     if not plate_bounds and object_boxes:
         plate_bounds = _bounds_for_boxes(object_boxes.values())
@@ -499,6 +515,52 @@ def _flip_bbox_y(box: dict, bounds: dict) -> dict:
         **box,
         "y": bounds_y + (bounds_max_y - (float(box["y"]) + float(box["h"]))),
     }
+
+
+def _extract_pick_object_positions(pick_png: Optional[bytes], top_png: Optional[bytes], object_ids: list[int]) -> dict[int, dict]:
+    """Locate skip IDs in the slicer's matching pick image, in preview percentages."""
+    if not pick_png or not top_png or not object_ids:
+        return {}
+    try:
+        from PIL import Image
+        with Image.open(io.BytesIO(pick_png)) as pick, Image.open(io.BytesIO(top_png)) as top:
+            w, h = pick.size
+            if pick.size != top.size or w <= 0 or h <= 0 or w * h > 1024 * 1024:
+                return {}
+            rgba = pick.convert("RGBA")
+            pixels = rgba.load()
+            wanted = set(object_ids)
+            boxes = {}
+            for y in range(h):
+                for x in range(w):
+                    r, g, b, alpha = pixels[x, y]
+                    # Bambu stores identify_id in little-endian RGB; zero alpha is background.
+                    obj_id = r | (g << 8) | (b << 16)
+                    if alpha != 255 or obj_id not in wanted:
+                        continue
+                    box = boxes.setdefault(obj_id, [x, y, x, y, 0])
+                    box[0] = min(box[0], x); box[1] = min(box[1], y)
+                    box[2] = max(box[2], x); box[3] = max(box[3], y); box[4] += 1
+            centers = {i: ((v[0] + v[2]) / 2, (v[1] + v[3]) / 2) for i, v in boxes.items() if v[4] >= 3}
+            nearest = {}
+            for y in range(h):
+                for x in range(w):
+                    r, g, b, alpha = pixels[x, y]
+                    obj_id = r | (g << 8) | (b << 16)
+                    if alpha != 255 or obj_id not in centers:
+                        continue
+                    cx, cy = centers[obj_id]
+                    distance = (x - cx) ** 2 + (y - cy) ** 2
+                    if obj_id not in nearest or distance < nearest[obj_id][0]:
+                        nearest[obj_id] = (distance, x, y)
+            # The UI contains the whole thumbnail in a square; include any letterboxing.
+            side = max(w, h)
+            return {i: {"x": ((side - w) / 2 + x + 0.5) * 100 / side,
+                        "y": ((side - h) / 2 + y + 0.5) * 100 / side}
+                    for i, (_, x, y) in nearest.items()}
+    except Exception:
+        log.debug("Could not read Bambu object pick image", exc_info=True)
+        return {}
 
 
 def _extract_plate_bbox_objects(plate_json) -> tuple[dict[str, list[list[float]]], Optional[list[float]]]:

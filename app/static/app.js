@@ -85,6 +85,11 @@ function _printerModelHtml(p) {
   return label ? `<span class="${cls}" ${attrs} title="${esc(title)}">${esc(label)}</span>` : '';
 }
 
+function _printerAddressHtml(p) {
+  const host = p?.connection_host;
+  return host ? `<span class="printer-lan-address" title="Saved LAN address used by Flightdeck">LAN · ${esc(host)}</span>` : '';
+}
+
 function _printerPrimaryLabel(p) {
   return p?.custom_name || p?.shop_name || p?.model_name || p?.id || 'Printer';
 }
@@ -362,7 +367,7 @@ const _CAMERA_STREAM_REFRESH_MS = 25000;
 const _CAMERA_SIGNAL_STALE_MS = 12000;
 const _CAMERA_HEALTH_POLL_MS = 5000;
 const _CAMERA_HEALTH_STALE_MS = 12000;
-const _cameraHealthCache = {};   // printer_id → { changed_seq, checked_at }
+const _cameraHealthCache = {};   // printer_id → { frame_seq, changed_seq, checked_at }
 let _renderedDetailId = null;
 let _renderedDetailSubtab = null;
 let _renderedDetailOk = false;
@@ -2043,6 +2048,7 @@ function renderCard(p) {
           <div class="printer-names">
             <span class="printer-custom">${esc(_printerPrimaryLabel(p))}</span>
             ${_printerModelHtml(p)}
+            ${_printerAddressHtml(p)}
           </div>
         </div>
         <div class="card-badges">
@@ -4487,6 +4493,7 @@ function _detailLiveToolbarHeader(p, printerColor, bannerTextColor) {
     <div class="live-toolbar-primary">
       <span class="live-toolbar-name" style="color:${bannerTextColor}">${esc(primary)}</span>
       ${secondary ? `<span class="live-toolbar-model">${esc(secondary)}</span>` : ''}
+      ${_printerAddressHtml(p)}
       <span class="live-toolbar-sep" aria-hidden="true">·</span>
       <span class="live-toolbar-job" title="${esc(job?.filename || jobName)}">${esc(jobName)}</span>
       ${statusMeta ? `<span class="live-toolbar-meta">${esc(statusMeta)}</span>` : ''}
@@ -6423,7 +6430,10 @@ function _detailObjectsUnavailablePanel(data) {
 }
 
 function _objectMapUsesPreviewLayout(data) {
-  return _objectMapIsTopDown(data) && Array.isArray(data?.bbox_all) && data.bbox_all.length >= 4;
+  const hasPickPositions = (data?.objects || []).some(obj => obj.preview_position);
+  if (data?.mode === 'bambu_skip_objects') return _objectMapIsTopDown(data) && hasPickPositions;
+  return _objectMapIsTopDown(data) && (hasPickPositions
+    || (Array.isArray(data?.bbox_all) && data.bbox_all.length >= 4));
 }
 
 function _objectMapHasBedGeometry(obj, topDown) {
@@ -6435,12 +6445,20 @@ function _objectMapHasBedGeometry(obj, topDown) {
 }
 
 function _objectMapHasMarker(obj, topDown, data) {
+  if (data?.mode === 'bambu_skip_objects') return Boolean(obj?.preview_position);
   if (!topDown) return Boolean(obj?.bbox);
-  if (_objectMapUsesPreviewLayout(data)) return true;
+  if (_objectMapUsesPreviewLayout(data)) {
+    const hasPickPositions = (data?.objects || []).some(o => o.preview_position);
+    return hasPickPositions ? Boolean(obj?.preview_position) : _objectMapHasPoint(obj);
+  }
   return _objectMapHasBedGeometry(obj, topDown);
 }
 
 function _objectMapPreviewMarkerPosition(obj, data) {
+  const preview = obj?.preview_position;
+  if (preview && Number.isFinite(preview.x) && Number.isFinite(preview.y)) {
+    return { x: preview.x, y: preview.y };
+  }
   const padding = 8;
   const contentArea = 100 - (padding * 2);
   const bboxAll = data?.bbox_all;
@@ -6493,7 +6511,7 @@ function _objectMapHtml(id, data) {
     : (bounds && bounds.w > 0 && bounds.h > 0 && objects.some(o => _objectMapHasMarker(o, topDown, data)));
   const availableObjects = objects.filter(o => o.state !== 'excluded');
   const mappedAvailableObjects = hasGeometry
-    ? (previewLayout ? availableObjects : availableObjects.filter(o => _objectMapHasMarker(o, topDown, data)))
+    ? availableObjects.filter(o => _objectMapHasMarker(o, topDown, data))
     : availableObjects;
   const mapButtons = objects.map((obj, idx) => {
     const isExcluded = obj.state === 'excluded';
@@ -6772,7 +6790,7 @@ function _largeObjectMapHtml(id, data) {
     : (bounds && bounds.w > 0 && bounds.h > 0 && objects.some(o => _objectMapHasMarker(o, topDown, data)));
   const availableObjects = objects.filter(o => o.state !== 'excluded');
   const mappedAvailableObjects = hasGeometry
-    ? (previewLayout ? availableObjects : availableObjects.filter(o => _objectMapHasMarker(o, topDown, data)))
+    ? availableObjects.filter(o => _objectMapHasMarker(o, topDown, data))
     : availableObjects;
   const imageVersion = objects.map(o => `${o.id ?? ''}:${o.state ?? ''}`).join('-') || 'current';
   const plateImageUrl = _objectMapPlateImageUrl(data, topDown);
@@ -12937,6 +12955,12 @@ function _fleetWallPlaceholderSrc(cameraId, label) {
 
 function _fleetWallCameraFeedHtml(cameraId, label) {
   const meta = _cameraMetaCache[cameraId] || {};
+  // Real cameras share the existing proxy; snapshots make motion visibly jump.
+  if (meta.type === 'mjpeg') {
+    const liveSrc = _cameraStreamSrc(cameraId);
+    if (!liveSrc) return '';
+    return `<img class="fleet-wall-camera-live" src="${esc(liveSrc)}" alt="${esc(label || 'Live camera')}" data-camera-id="${esc(cameraId)}" loading="eager">`;
+  }
   const stillSrc = _fleetWallCameraSrc(cameraId);
   if (!stillSrc) return '';
   const refreshMs = Math.max(1000, Math.min(20000, Number(meta.fleet_refresh_ms || 3500)));
@@ -13139,10 +13163,12 @@ async function _pollCameraHealth() {
       const r = await fetch(`/api/camera/${encodeURIComponent(cameraId)}/health`);
       if (!r.ok) return;
       const body = await r.json();
+      const frameSeq = Number(body?.frame_seq || 0);
       const changedSeq = Number(body?.changed_seq || 0);
       const prev = _cameraHealthCache[cameraId];
-      _cameraHealthCache[cameraId] = { changed_seq: changedSeq, checked_at: now };
-      if (prev && changedSeq > prev.changed_seq) {
+      _cameraHealthCache[cameraId] = { frame_seq: frameSeq, changed_seq: changedSeq, checked_at: now };
+      // A steady scene is still a healthy stream when fresh frames arrive.
+      if (body?.alive && prev && frameSeq > prev.frame_seq) {
         img.dataset.cameraFrameAt = String(now);
         img.dataset.cameraChangedSeq = String(changedSeq);
         _setCameraSignal(img, 'live');
@@ -13617,6 +13643,7 @@ function _fleetWallCardBody(p) {
     <div class="fleet-wall-card-main">
       <div class="fleet-wall-status-row">
         <span class="fleet-wall-state fleet-wall-state-${tone}">${esc(_printerDisplayStateLabel(p))}</span>
+        ${_printerAddressHtml(p)}
       </div>
       ${_fleetWallMode === 'large' ? _fleetWallBoard(p) : ''}
       ${_fleetWallJob(p)}
@@ -19159,8 +19186,9 @@ const _COLOR_SCHEMES = [
 function _normaliseSpoolViewMode(view) {
   const mode = String(view || '').trim().toLowerCase();
   if (mode === 'cards') return 'detail';
+  if (mode === 'boxes' || mode === 'boxstock' || mode === 'box_stock') return 'box-stock';
   if (mode === 'color' || mode === 'colour-match' || mode === 'colormatch') return 'colour';
-  return ['swatch', 'detail', 'table', 'cabinet', 'rack', 'incoming', 'catalogue', 'colour'].includes(mode) ? mode : 'swatch';
+  return ['swatch', 'detail', 'table', 'cabinet', 'rack', 'incoming', 'box-stock', 'catalogue', 'colour'].includes(mode) ? mode : 'swatch';
 }
 
 let _colourMatchState = {
@@ -20496,6 +20524,16 @@ async function _assignSpoolToAmsSlot(printerId, slotIndex, spoolId, { syncAms = 
   return r.json();
 }
 
+function _slotQuickSpoolMatches(raw, spools) {
+  const normalize = value => String(value || '').toLowerCase().replace(/gray/g, 'grey');
+  const words = normalize(raw).replace(/^#/, '').trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+  return spools.filter(s => !s.archived_at && words.every(word =>
+    normalize([_spoolDisplayId(s), s.color_name, s.material, s.subtype, s.brand].filter(Boolean).join(' ')).includes(word)
+  )).sort((a,b) => (String(_spoolDisplayId(b)) === words.join(' ') ? 1 : 0) -
+    (String(_spoolDisplayId(a)) === words.join(' ') ? 1 : 0) || _spoolDisplayId(a) - _spoolDisplayId(b));
+}
+
 async function _openSlotQuickAssign(printerId, slotIndex, slotLabel, anchorEl = null) {
   document.querySelector('.slot-quick-popover-overlay')?.remove();
 
@@ -20510,10 +20548,11 @@ async function _openSlotQuickAssign(printerId, slotIndex, slotLabel, anchorEl = 
         <button type="button" class="slot-quick-popover-close" aria-label="Close">✕</button>
       </div>
       <div class="slot-quick-popover-row">
-        <label class="slot-quick-label" for="slot-quick-number">#</label>
-        <input id="slot-quick-number" class="spool-form-input slot-quick-input" type="number" min="1" step="1" inputmode="numeric" placeholder="93" autofocus>
-        <button type="button" class="slot-quick-go" data-slot-quick-go>Load</button>
+        <label class="slot-quick-label" for="slot-quick-number">Find</label>
+        <input id="slot-quick-number" class="spool-form-input slot-quick-input" type="text" autocomplete="off" placeholder="# or colour, material, brand" aria-label="Search spools" aria-controls="slot-quick-results" aria-expanded="false" autofocus>
+        <button type="button" class="slot-quick-go" data-slot-quick-go disabled>Load</button>
       </div>
+      <div id="slot-quick-results" class="slot-quick-results" aria-label="Matching spools" hidden></div>
       <div class="slot-quick-preview" data-slot-quick-preview>…</div>
       <div class="slot-quick-memory" data-slot-quick-memory hidden></div>
       <button type="button" class="slot-quick-doctor-link" data-slot-quick-doctor>Profile doctor</button>
@@ -20523,7 +20562,9 @@ async function _openSlotQuickAssign(printerId, slotIndex, slotLabel, anchorEl = 
   const popover = overlay.querySelector('.slot-quick-popover');
   const reposition = () => _positionSlotQuickPopover(popover, anchor);
   reposition();
-  const onViewportChange = () => reposition();
+  const onViewportChange = event => {
+    if (!popover.contains(event.target)) reposition();
+  };
   window.addEventListener('resize', onViewportChange);
   window.addEventListener('scroll', onViewportChange, true);
 
@@ -20544,6 +20585,10 @@ async function _openSlotQuickAssign(printerId, slotIndex, slotLabel, anchorEl = 
   const input = overlay.querySelector('#slot-quick-number');
   const preview = overlay.querySelector('[data-slot-quick-preview]');
   const memoryEl = overlay.querySelector('[data-slot-quick-memory]');
+  const resultsEl = overlay.querySelector('#slot-quick-results');
+  const loadBtn = overlay.querySelector('[data-slot-quick-go]');
+  let selectedSpool = null;
+  let choosing = false;
   // Popover is interactive (autofocus) before the awaits below resolve -- if the
   // user types a new spool number while those are in flight, don't let the
   // current-spool prefill further down stomp their typed value back to the old one.
@@ -20554,6 +20599,10 @@ async function _openSlotQuickAssign(printerId, slotIndex, slotLabel, anchorEl = 
     spools = await fetch('/api/spools').then(r => r.json()).catch(() => []);
     _allSpools = spools;
   }
+  if (!_spoolLocations.length) {
+    const locations = await fetch('/api/spool-locations').then(r => r.ok ? r.json() : []).catch(() => []);
+    if (Array.isArray(locations)) _spoolLocations = locations;
+  }
   const current = spools.find(s =>
     s.location_printer_id === printerId && Number(s.location_slot) === Number(slotIndex) && !s.archived_at
   );
@@ -20562,42 +20611,84 @@ async function _openSlotQuickAssign(printerId, slotIndex, slotLabel, anchorEl = 
   const memorySpool = slotMemory?.spool && !slotMemory.spool.archived_at ? slotMemory.spool : null;
 
   const renderPreview = () => {
-    const spool = _findSpoolByEnteredNumberSync(input.value, spools);
+    const raw = input.value.trim();
+    const spool = selectedSpool || (/^#?\d+$/.test(raw) ? _findSpoolByEnteredNumberSync(raw, spools) : null);
+    loadBtn.disabled = !spool;
+    const matches = choosing ? _slotQuickSpoolMatches(raw, spools) : [];
+    resultsEl.hidden = !choosing || !raw;
+    input.setAttribute('aria-expanded', String(!resultsEl.hidden));
+    resultsEl.innerHTML = matches.length ? matches.slice(0,30).map(s => `<button type="button" class="slot-quick-result" data-quick-spool="${esc(s.id)}">
+      <span class="slot-quick-swatch" style="background:${esc(_normHex(s.color_hex) || '#808080')}"></span>
+      <span><strong>${esc(_spoolDisplayLabel(s))} · ${esc(s.color_name || 'Unnamed colour')}</strong>
+      <small>${esc([s.material, s.subtype, s.brand].filter(Boolean).join(' · '))}</small>
+      <small>${esc(_spoolLocationText(s))} · ${Math.round(s.remaining_g || 0)}g</small></span></button>`).join('') +
+      (matches.length > 30 ? '<div class="slot-quick-preview">Type more to narrow these results.</div>' : '') : '<div class="slot-quick-preview">No matching active spools.</div>';
     if (!input.value.trim()) {
       preview.innerHTML = current
         ? `Current: ${_spoolDisplayLabel(current)} ${esc(current.color_name || current.material || '')}`
-        : 'Rack label spool #';
+        : 'Search by spool number, colour, material or brand';
       return;
     }
     if (!spool) {
-      preview.innerHTML = `<span class="slot-quick-miss">No spool #${esc(input.value.trim())}</span>`;
+      preview.textContent = matches.length ? 'Choose a spool, then press Load.' : 'No spool selected.';
       return;
     }
     preview.textContent = `${_spoolDisplayLabel(spool)} ${spool.color_name || spool.material || ''} · ${Math.round(spool.remaining_g || 0)}g`;
   };
 
+  const chooseSpool = spool => {
+    selectedSpool = spool;
+    choosing = false;
+    input.value = String(_spoolDisplayId(spool));
+    renderPreview();
+    reposition();
+    input.focus({ preventScroll: true });
+  };
+  resultsEl.addEventListener('click', e => {
+    const button = e.target.closest('[data-quick-spool]');
+    const spool = button && spools.find(s => String(s.id) === button.dataset.quickSpool && !s.archived_at);
+    if (spool) chooseSpool(spool);
+  });
+
   if (memorySpool && (!current || String(current.id) !== String(memorySpool.id))) {
     memoryEl.hidden = false;
     memoryEl.innerHTML = `<button type="button" class="slot-quick-memory-btn" data-slot-quick-memory="${memorySpool.id}">Last: ${_spoolDisplayLabel(memorySpool)}</button>`;
     memoryEl.querySelector('[data-slot-quick-memory]')?.addEventListener('click', () => {
-      input.value = String(_spoolDisplayId(memorySpool));
-      renderPreview();
-      input.focus();
+      chooseSpool(memorySpool);
     });
   }
 
   if (current && !userEdited) input.value = String(_spoolDisplayId(current));
+  choosing = userEdited;
   renderPreview();
-  input.addEventListener('input', renderPreview);
+  input.addEventListener('input', () => {
+    selectedSpool = null;
+    choosing = true;
+    renderPreview();
+    reposition();
+  });
   input.addEventListener('keydown', e => {
-    if (e.key === 'Enter') overlay.querySelector('[data-slot-quick-go]')?.click();
+    if (e.key === 'ArrowDown' && !resultsEl.hidden) {
+      e.preventDefault();
+      resultsEl.querySelector('button')?.focus({ preventScroll: true });
+    }
+    if (e.key === 'Enter') e.preventDefault();
+  });
+  resultsEl.addEventListener('keydown', e => {
+    if (!['ArrowDown','ArrowUp'].includes(e.key)) return;
+    e.preventDefault();
+    const buttons = [...resultsEl.querySelectorAll('button')];
+    const index = buttons.indexOf(document.activeElement);
+    const next = index + (e.key === 'ArrowDown' ? 1 : -1);
+    if (next < 0) input.focus({ preventScroll: true }); else buttons[Math.min(next,buttons.length-1)]?.focus({ preventScroll: true });
   });
 
   const runLoad = async btn => {
-    const spool = await _findSpoolByEnteredNumber(input.value);
+    const raw = input.value.trim();
+    const spool = selectedSpool || (/^#?\d+$/.test(raw) ? await _findSpoolByEnteredNumber(raw) : null);
     if (!spool) {
       showToast('Spool not found', `No active spool matches #${input.value.trim() || '?'}.`, 'error');
-      input.focus();
+      input.focus({ preventScroll: true });
       return;
     }
     if (current && String(current.id) === String(spool.id)) {
@@ -20645,7 +20736,7 @@ async function _openSlotQuickAssign(printerId, slotIndex, slotLabel, anchorEl = 
   });
   requestAnimationFrame(() => {
     reposition();
-    input.focus();
+    input.focus({ preventScroll: true });
     input.select();
   });
 }
@@ -20661,12 +20752,23 @@ function _positionSlotQuickPopover(popover, anchorEl) {
     popover.style.left = `${Math.round(vw / 2 - popover.offsetWidth / 2)}px`;
     return;
   }
-  const rect = anchor.getBoundingClientRect();
-  const pw = popover.offsetWidth || 220;
+  // Live printer refreshes replace the clicked slot node. Keep its last
+  // visible rectangle instead of positioning against a detached zero-sized node.
+  const liveRect = anchor.isConnected ? anchor.getBoundingClientRect() : null;
+  if (liveRect && (liveRect.width || liveRect.height)) popover._slotAnchorRect = liveRect;
+  const rect = popover._slotAnchorRect;
+  if (!rect) return;
+  const pw = popover.offsetWidth || 360;
+  // Choose a side from available space, not the changing result count.
+  // Scroll the results within that space so typing does not flip the panel.
+  const below = vh - rect.bottom - margin * 2;
+  const above = rect.top - margin * 2;
+  const openBelow = below >= 200 || below >= above;
+  const results = popover.querySelector('.slot-quick-results');
+  if (results) results.style.maxHeight = `${Math.max(40, Math.min(220, (openBelow ? below : above) - 140))}px`;
   const ph = popover.offsetHeight || 120;
-  let top = rect.bottom + margin;
+  let top = openBelow ? rect.bottom + margin : rect.top - ph - margin;
   let left = rect.left + rect.width / 2 - pw / 2;
-  if (top + ph > vh - margin) top = rect.top - ph - margin;
   left = Math.max(margin, Math.min(left, vw - pw - margin));
   top = Math.max(margin, Math.min(top, vh - ph - margin));
   popover.style.top = `${Math.round(top)}px`;
@@ -22099,6 +22201,202 @@ function _stockInRenumberLines(form) {
   });
 }
 
+function _boxStockFormHtml() {
+  return `<form class="box-stock-form" data-box-stock-form>
+    <div class="box-stock-form-head">
+      <div>
+        <div class="settings-section-title">Add unopened box / refill</div>
+        <p>Scan the box QR, confirm the details, then save it to Box Stock.</p>
+      </div>
+      <div class="box-stock-scan-actions">
+        <button type="button" class="button" data-box-scan-start>Scan QR with phone camera</button>
+        <label class="button box-stock-file-label">Scan image<input type="file" accept="image/*" capture="environment" data-box-scan-file hidden></label>
+      </div>
+    </div>
+    <div class="box-stock-scanner" data-box-scanner hidden>
+      <video data-box-scan-video playsinline muted></video>
+      <button type="button" class="button" data-box-scan-stop>Stop camera</button>
+      <span data-box-scan-status>Point the camera at the box QR code.</span>
+    </div>
+    <div class="box-stock-form-grid">
+      <label>Material <input name="material" value="PLA" required></label>
+      <label>Brand <input name="brand" value="Bambu Lab" required></label>
+      <label>Type <input name="subtype" placeholder="Basic, Matte, Silk"></label>
+      <label>Colour name <input name="color_name" placeholder="Black"></label>
+      <label>Colour <input name="color_hex" type="color" value="#808080"></label>
+      <label>Boxes <input name="quantity" type="number" min="1" max="1000" value="1" required></label>
+      <label>Weight each (g) <input name="unit_weight_g" type="number" min="1" step="1" value="1000" required></label>
+      <label>Box location <input name="location" placeholder="Shelf, cupboard, room"></label>
+      <label class="box-stock-qr-field">QR / barcode value <input name="qr_value" data-box-qr placeholder="Filled by scan or paste"></label>
+      <label class="box-stock-notes">Notes <input name="notes" placeholder="Optional notes"></label>
+    </div>
+    <div class="box-stock-form-actions"><button type="submit" class="button primary">Add to Box Stock</button></div>
+  </form>`;
+}
+
+function _boxStockSummaryHtml(items) {
+  const totalBoxes = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+  const totalWeight = items.reduce((sum, item) => sum + Number(item.total_weight_g || 0), 0);
+  const byMaterial = new Map();
+  items.forEach(item => {
+    const key = item.material || 'Unknown';
+    const row = byMaterial.get(key) || { boxes: 0, grams: 0 };
+    row.boxes += Number(item.quantity || 0);
+    row.grams += Number(item.total_weight_g || 0);
+    byMaterial.set(key, row);
+  });
+  const materialLine = [...byMaterial.entries()]
+    .map(([material, row]) => `${esc(material)} ${row.boxes} box${row.boxes === 1 ? '' : 'es'} · ${(row.grams / 1000).toFixed(2)}kg`)
+    .join(' · ') || 'No unopened boxes recorded yet';
+  return `<div class="box-stock-summary">
+    <div class="box-stock-stat"><strong>${totalBoxes}</strong><span>boxes</span></div>
+    <div class="box-stock-stat"><strong>${(totalWeight / 1000).toFixed(2)}kg</strong><span>available unopened</span></div>
+    <div class="box-stock-materials"><strong>By material</strong><span>${materialLine}</span></div>
+  </div>`;
+}
+
+async function _renderBoxStockView(listEl) {
+  listEl._boxStockStop?.();
+  listEl._boxStockStop = null;
+  const items = await fetch('/api/box-stock', { cache: 'no-store' }).then(r => r.ok ? r.json() : []).catch(() => []);
+  const rows = items.length ? items.map(item => `
+    <article class="box-stock-card" data-box-stock-id="${item.id}">
+      <div class="box-stock-card-band" style="background:${esc(_normHex(item.color_hex) || '#808080')}">
+        <strong>${esc(item.color_name || 'Unnamed colour')}</strong>
+        <span>${Number(item.quantity || 0)} box${Number(item.quantity || 0) === 1 ? '' : 'es'}</span>
+      </div>
+      <div class="box-stock-card-body">
+        <strong>${esc(item.material || 'Unknown material')}${item.subtype ? ` ${esc(item.subtype)}` : ''}</strong>
+        <span>${esc(item.brand || 'Unknown brand')} · ${Math.round(Number(item.unit_weight_g || 0))}g each</span>
+        <span>${esc(item.location || 'Location not set')} · ${(Number(item.total_weight_g || 0) / 1000).toFixed(2)}kg total</span>
+        ${item.qr_value ? `<small title="${esc(item.qr_value)}">QR saved · ${esc(item.qr_value).slice(0, 48)}${String(item.qr_value).length > 48 ? '…' : ''}</small>` : '<small>No QR value saved</small>'}
+        <button type="button" class="tiny-btn danger" data-box-stock-delete="${item.id}">Remove</button>
+      </div>
+    </article>`).join('') : '<div class="filament-empty">No box stock recorded yet. Scan your first refill box above.</div>';
+
+  listEl.innerHTML = `${_boxStockSummaryHtml(items)}${_boxStockFormHtml()}<section class="box-stock-list"><div class="settings-section-title">Unopened box stock</div><div class="box-stock-grid">${rows}</div></section>`;
+
+  const form = listEl.querySelector('[data-box-stock-form]');
+  const scanner = listEl.querySelector('[data-box-scanner]');
+  const video = listEl.querySelector('[data-box-scan-video]');
+  const qrInput = form?.querySelector('[data-box-qr]');
+  const status = listEl.querySelector('[data-box-scan-status]');
+  let stream = null;
+  let scanning = false;
+  let detector = null;
+
+  const stopScan = () => {
+    scanning = false;
+    if (stream) stream.getTracks().forEach(track => track.stop());
+    stream = null;
+    if (video) {
+      video.pause();
+      video.srcObject = null;
+    }
+    if (scanner) scanner.hidden = true;
+  };
+  listEl._boxStockStop = stopScan;
+
+  const getDetector = async () => {
+    if (detector) return detector;
+    if (!('BarcodeDetector' in window)) return null;
+    try {
+      const supported = await window.BarcodeDetector.getSupportedFormats?.() || ['qr_code'];
+      const formats = supported.includes('qr_code') ? ['qr_code'] : supported;
+      detector = new window.BarcodeDetector({ formats });
+    } catch {
+      try { detector = new window.BarcodeDetector(); } catch { detector = null; }
+    }
+    return detector;
+  };
+
+  const acceptCode = code => {
+    if (!code) return;
+    if (qrInput) qrInput.value = code;
+    if (status) status.textContent = 'QR captured. Confirm the material, colour and quantity, then save.';
+    stopScan();
+  };
+
+  listEl.querySelector('[data-box-scan-start]')?.addEventListener('click', async () => {
+    const scanDetector = await getDetector();
+    if (!scanDetector || !navigator.mediaDevices?.getUserMedia) {
+      if (status) status.textContent = 'Camera QR scanning is unavailable here. Use Scan image or paste the code.';
+      if (scanner) scanner.hidden = false;
+      return;
+    }
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+      video.srcObject = stream;
+      scanner.hidden = false;
+      await video.play();
+      scanning = true;
+      const tick = async () => {
+        if (!scanning) return;
+        try {
+          const codes = await scanDetector.detect(video);
+          if (codes?.[0]?.rawValue) return acceptCode(codes[0].rawValue);
+        } catch {}
+        window.requestAnimationFrame(tick);
+      };
+      tick();
+    } catch (error) {
+      stopScan();
+      if (status) status.textContent = `Camera could not start: ${error.message || 'permission denied'}. Use Scan image or paste the code.`;
+    }
+  });
+  listEl.querySelector('[data-box-scan-stop]')?.addEventListener('click', stopScan);
+  listEl.querySelector('[data-box-scan-file]')?.addEventListener('change', async event => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const scanDetector = await getDetector();
+    if (!scanDetector) {
+      if (status) status.textContent = 'This browser cannot decode QR images. Paste the code instead.';
+      return;
+    }
+    try {
+      const bitmap = await createImageBitmap(file);
+      const codes = await scanDetector.detect(bitmap);
+      bitmap.close?.();
+      if (codes?.[0]?.rawValue) acceptCode(codes[0].rawValue);
+      else if (status) status.textContent = 'No QR code found in that image.';
+    } catch {
+      if (status) status.textContent = 'That image could not be scanned. Paste the code instead.';
+    }
+    event.target.value = '';
+  });
+
+  form?.addEventListener('submit', async event => {
+    event.preventDefault();
+    const fd = new FormData(form);
+    const body = {
+      material: String(fd.get('material') || '').trim(),
+      brand: String(fd.get('brand') || '').trim(),
+      subtype: String(fd.get('subtype') || '').trim() || null,
+      color_name: String(fd.get('color_name') || '').trim() || null,
+      color_hex: String(fd.get('color_hex') || '#808080'),
+      quantity: Number(fd.get('quantity') || 1),
+      unit_weight_g: Number(fd.get('unit_weight_g') || 1000),
+      location: String(fd.get('location') || '').trim() || null,
+      qr_value: String(fd.get('qr_value') || '').trim() || null,
+      notes: String(fd.get('notes') || '').trim() || null,
+    };
+    if (!body.material || !body.brand) return showToast('Box Stock needs details', 'Enter material and brand first.', 'warn');
+    const response = await fetch('/api/box-stock', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
+    if (!response.ok) return showToast('Box Stock failed', (await response.json().catch(() => ({}))).detail || 'Could not save box stock', 'error');
+    showToast('Box Stock added', `${body.quantity} box${body.quantity === 1 ? '' : 'es'} saved`, 'success');
+    await _renderBoxStockView(listEl);
+  });
+
+  listEl.querySelectorAll('[data-box-stock-delete]').forEach(button => {
+    button.addEventListener('click', async () => {
+      if (!await _confirmModal('Remove this Box Stock entry?')) return;
+      const response = await fetch(`/api/box-stock/${button.dataset.boxStockDelete}`, { method: 'DELETE' });
+      if (!response.ok) return showToast('Box Stock failed', 'Could not remove that entry.', 'error');
+      await _renderBoxStockView(listEl);
+    });
+  });
+}
+
 async function _renderStockInView(listEl) {
   const params = _routeParams('#/spools');
   const scanToken = params.get('token') || '';
@@ -22490,6 +22788,11 @@ async function _renderSpoolList(el) {
   if (!listEl) return;
   const colourMode = _spoolsViewMode === 'colour';
   el.classList.toggle('spool-page-colour-mode', colourMode);
+  if (_spoolsViewMode === 'box-stock') {
+    listEl.className = 'box-stock-view';
+    await _renderBoxStockView(listEl);
+    return;
+  }
   if (_spoolsViewMode === 'incoming') {
     listEl.className = 'stock-in-view';
     listEl.innerHTML = `<div class="detail-placeholder" style="min-height:8rem">Loading stock-in…</div>`;
@@ -22611,6 +22914,7 @@ function _spoolsCategoryHtml(spools, summary, costs, intelligence = {}) {
           <button class="spool-view-btn${_spoolsViewMode==='cabinet'?' active':''}" data-view="cabinet">Cabinet</button>
           <button class="spool-view-btn${_spoolsViewMode==='rack'?' active':''}" data-view="rack">Rack</button>
           <button class="spool-view-btn${_spoolsViewMode==='incoming'?' active':''}" data-view="incoming">Stock In</button>
+          <button class="spool-view-btn${_spoolsViewMode==='box-stock'?' active':''}" data-view="box-stock">Box Stock</button>
           <button class="spool-view-btn${_spoolsViewMode==='catalogue'?' active':''}" data-view="catalogue">Filament catalogue</button>
           <button class="spool-view-btn${_spoolsViewMode==='colour'?' active':''}" data-view="colour">Colour match</button>
         </div>
@@ -22681,7 +22985,45 @@ function _paintSpoolList(el, listEl, spools) {
   _attachSpoolListEvents(el, listEl);
 }
 
+function _focusSpoolDetailCard(listEl, spoolId) {
+  if (!listEl || !/^\d+$/.test(String(spoolId || '').trim())) return;
+  const id = String(Number(spoolId));
+  const tab = listEl.querySelector(`[data-spool-group-tab][data-spool-id="${CSS.escape(id)}"]`);
+  const card = tab?.closest('.spool-group-card')
+    || listEl.querySelector(`.spool-card[data-spool-id="${CSS.escape(id)}"]`);
+  if (!card) return;
+
+  if (tab) {
+    card.querySelectorAll('[data-spool-group-tab]').forEach(btn => {
+      btn.classList.toggle('active', btn === tab);
+    });
+    card.querySelectorAll('[data-spool-group-panel]').forEach(panel => {
+      panel.classList.toggle('active', panel.dataset.spoolId === id);
+    });
+  }
+
+  card.classList.add('spool-card-focus-match');
+  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  window.setTimeout(() => {
+    card.classList.remove('spool-card-focus-match');
+  }, 2600);
+}
+
+function _attachSpoolActionHoverMenus(listEl) {
+  listEl.querySelectorAll('.spool-action-menu').forEach(menu => {
+    if (menu.dataset.hoverBound === '1') return;
+    menu.dataset.hoverBound = '1';
+    menu.addEventListener('pointerenter', event => {
+      if (event.pointerType === 'mouse') menu.open = true;
+    });
+    menu.addEventListener('pointerleave', event => {
+      if (event.pointerType === 'mouse') menu.open = false;
+    });
+  });
+}
+
 function _attachSpoolListEvents(el, listEl, refresh = _refreshSpoolsSurface) {
+  _attachSpoolActionHoverMenus(listEl);
   listEl.addEventListener('click', e => {
     const rackJump = e.target.closest('[data-rack-jump]');
     if (rackJump && listEl.contains(rackJump)) {
@@ -25373,6 +25715,10 @@ async function _renderSpoolsContent(el) {
   _emptySpoolProfiles = emptyProfiles;
   el.innerHTML = _spoolsCategoryHtml(spools, summary, costs, intelligence);
   _attachSpoolsEvents(el, costs);
+  const focusSpool = params.get('focus');
+  if (_spoolsViewMode === 'detail' && focusSpool) {
+    requestAnimationFrame(() => _focusSpoolDetailCard(el.querySelector('#spool-list'), focusSpool));
+  }
 }
 
 async function renderSpoolsView() {

@@ -550,6 +550,25 @@ def init() -> None:
             CREATE INDEX IF NOT EXISTS idx_spools_location
                 ON spools(location_printer_id, location_slot) WHERE archived_at IS NULL;
 
+            CREATE TABLE IF NOT EXISTS box_stock (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                material        TEXT NOT NULL,
+                brand           TEXT NOT NULL,
+                subtype         TEXT,
+                color_hex       TEXT NOT NULL DEFAULT '#808080',
+                color_name      TEXT,
+                unit_weight_g   REAL NOT NULL DEFAULT 1000,
+                quantity        INTEGER NOT NULL DEFAULT 1,
+                location        TEXT,
+                qr_value        TEXT,
+                notes           TEXT,
+                added_at        TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_box_stock_colour
+                ON box_stock(material, brand, color_name);
+
             CREATE TABLE IF NOT EXISTS filament_catalog (
                 id                   INTEGER PRIMARY KEY AUTOINCREMENT,
                 source               TEXT NOT NULL DEFAULT 'open_filament_database',
@@ -3698,6 +3717,119 @@ def get_spool_by_display_id(display_id: int, include_archived: bool = True) -> O
             (display_id,),
         ).fetchone()
     return get_spool(int(row["id"])) if row else None
+
+
+def _box_stock_from_row(row) -> dict:
+    item = dict(row)
+    item["unit_weight_g"] = float(item.get("unit_weight_g") or 0)
+    item["quantity"] = max(0, int(item.get("quantity") or 0))
+    item["total_weight_g"] = round(item["unit_weight_g"] * item["quantity"], 1)
+    return item
+
+
+def get_box_stock() -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT id, material, brand, subtype, color_hex, color_name,
+                      unit_weight_g, quantity, location, qr_value, notes,
+                      added_at, updated_at
+               FROM box_stock
+               WHERE quantity > 0
+               ORDER BY material, brand, color_name, id"""
+        ).fetchall()
+    return [_box_stock_from_row(row) for row in rows]
+
+
+def get_box_stock_item(item_id: int) -> Optional[dict]:
+    with _conn() as conn:
+        row = conn.execute(
+            """SELECT id, material, brand, subtype, color_hex, color_name,
+                      unit_weight_g, quantity, location, qr_value, notes,
+                      added_at, updated_at
+               FROM box_stock WHERE id = ?""",
+            (item_id,),
+        ).fetchone()
+    return _box_stock_from_row(row) if row else None
+
+
+def create_box_stock(**fields) -> dict:
+    material = str(fields.get("material") or "").strip()
+    brand = _canonical_brand(fields.get("brand") or "")
+    if not material:
+        raise ValueError("Material required")
+    if not brand:
+        raise ValueError("Brand required")
+    unit_weight_g = max(1.0, float(fields.get("unit_weight_g") or 1000))
+    quantity = max(1, min(int(fields.get("quantity") or 1), 1000))
+    color_hex = str(fields.get("color_hex") or "#808080").strip() or "#808080"
+    with _conn() as conn:
+        cursor = conn.execute(
+            """INSERT INTO box_stock
+               (material, brand, subtype, color_hex, color_name, unit_weight_g,
+                quantity, location, qr_value, notes)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                material,
+                brand,
+                fields.get("subtype"),
+                color_hex,
+                fields.get("color_name"),
+                unit_weight_g,
+                quantity,
+                fields.get("location"),
+                fields.get("qr_value"),
+                fields.get("notes"),
+            ),
+        )
+        item_id = int(cursor.lastrowid)
+    log_decision("system", "box_stock_added", f"Box stock item #{item_id} added")
+    return get_box_stock_item(item_id) or {"id": item_id}
+
+
+def update_box_stock(item_id: int, fields: dict) -> Optional[dict]:
+    current = get_box_stock_item(item_id)
+    if not current:
+        return None
+    allowed = {
+        "material", "brand", "subtype", "color_hex", "color_name",
+        "unit_weight_g", "quantity", "location", "qr_value", "notes",
+    }
+    updates = {}
+    for key, value in fields.items():
+        if key not in allowed:
+            continue
+        if key == "material":
+            value = str(value or "").strip()
+            if not value:
+                raise ValueError("Material required")
+        elif key == "brand":
+            value = _canonical_brand(value or "")
+            if not value:
+                raise ValueError("Brand required")
+        elif key == "unit_weight_g":
+            value = max(1.0, float(value or 1000))
+        elif key == "quantity":
+            value = max(0, min(int(value or 0), 1000))
+        updates[key] = value
+    if not updates:
+        return current
+    assignments = ", ".join(f"{key} = ?" for key in updates)
+    with _conn() as conn:
+        conn.execute(
+            f"UPDATE box_stock SET {assignments}, updated_at = datetime('now') WHERE id = ?",
+            [*updates.values(), item_id],
+        )
+    log_decision("system", "box_stock_updated", f"Box stock item #{item_id} updated")
+    return get_box_stock_item(item_id)
+
+
+def delete_box_stock(item_id: int) -> bool:
+    with _conn() as conn:
+        cursor = conn.execute("DELETE FROM box_stock WHERE id = ?", (item_id,))
+    if cursor.rowcount:
+        log_decision("system", "box_stock_removed", f"Box stock item #{item_id} removed")
+        return True
+    return False
 
 
 def _incoming_roll_from_row(row) -> dict:

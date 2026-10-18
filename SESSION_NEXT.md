@@ -1,3 +1,8 @@
+## 2026-10-18 — Flightdeck mixed-frontend recovery isolated and verified
+- Audited reverted commit `8160d82` against the pre-filament baseline. Its `app.js` and `style.css` changes are the legitimate old-card-era printer LAN address, AMS quick-search, object-map alignment, Box Stock and detail-focus work; the rejected compact filament-card redesign was not present in that commit.
+- Combined those recovered frontend files with their surviving backend changes, safe queue-file loader and focused tests in an isolated Pi tree. JavaScript syntax, Python compile/import and 13 camera/lifecycle/Box Stock/queue-load tests passed. The live Pi was not changed during this validation.
+- The bounded recovery commit/deploy remains pending at this entry. No printer command was issued.
+
 ## 2026-10-18 — Amy source recovered after Pi cleanup
 - Reverted the misleading mixed frontend commit with normal revert `8c81fdb`; the Pi therefore remains on the original filament-card frontend rather than deploying the bundled unrelated changes from `8160d82`.
 - Versioned the complete Amy companion, history, inspection, layout, printer-status, coding and usage source in `e1b1c82`. The isolated recovery tree and deployed live tree both passed all 58 focused tests; Amy restarted successfully, HTTP responded, the new companion database passed SQLite integrity/schema checks, and all three printers remained online and idle. No printer command was issued.
