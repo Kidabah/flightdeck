@@ -1,3 +1,9 @@
+## 2026-10-18 — Amy source recovered after Pi cleanup
+- Reverted the misleading mixed frontend commit with normal revert `8c81fdb`; the Pi therefore remains on the original filament-card frontend rather than deploying the bundled unrelated changes from `8160d82`.
+- Versioned the complete Amy companion, history, inspection, layout, printer-status, coding and usage source in `e1b1c82`. The isolated recovery tree and deployed live tree both passed all 58 focused tests; Amy restarted successfully, HTTP responded, the new companion database passed SQLite integrity/schema checks, and all three printers remained online and idle. No printer command was issued.
+- The previous companion database was already a zero-byte file and no non-empty backup candidate survived, so old companion history, timers, notes and settings could not be recovered. Amy initialized a fresh valid database.
+- Restarting Amy exposed `amy/viewer/graph-data.js` as generated runtime state. It is now ignored and removed from Git tracking so normal note-index regeneration cannot dirty the Pi checkout again.
+
 ## 2026-10-18 — Amy recovery preserved and validated before restoration
 - A third-party cleanup removed Amy's untracked Pi source files and left `amy/companion.sqlite3` as an empty zero-byte file. The current Pi repository and its newest stash were preserved outside the checkout at `/home/flightdeck/amy-recovery-20261018-222423` before any restoration work.
 - The complete Amy source still present in the Windows checkout was packaged without live configs, uploads, caches or the database and tested in an isolated Pi folder. Python compilation succeeded and all 58 focused Amy tests passed.
