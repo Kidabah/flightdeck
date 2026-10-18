@@ -25,6 +25,12 @@ services:
       ND_IGNOREFILERULES: "(\\.tmp|\\.part|Thumbs\\.db|desktop\\.ini|\\.DS_Store)"
       # Drop DB rows for ignored/missing recycle junk after full scans.
       ND_SCANNER_PURGEMISSING: "full"
+      # Default only matches cover.*/folder.*/front.* — this library has years of
+      # scraped downloads with oddly-named folder images (e.g. "hitzone28.jpg").
+      # Trailing wildcard picks up whatever single image is actually in the folder
+      # when no standard name matches, instead of silently falling back to
+      # Navidrome's generic placeholder.
+      ND_COVERARTPRIORITY: "embedded, cover.*, folder.*, front.*, *.jpg, *.jpeg, *.png, *.webp"
     volumes:
       # Real Cindy mount so absolute symlinks in the library view resolve.
       # rslave is important: MUSIC/CHECKED/JAMAL are separate CIFS mounts created

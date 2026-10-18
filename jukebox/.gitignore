@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+
+# Local diagnostics and generated media probes.
+scripts/_diag_*
+scripts/_find_*
+scripts/_smoke_*
+scripts/_restart_vinyl.sh
+static/_in_*.jpg
+static/_out_*.jpg
+static/_loop_probe/

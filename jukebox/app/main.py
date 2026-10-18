@@ -21,6 +21,7 @@ from .folder_albums import (
     collapse_album_list,
     invalidate_caches,
     resolve_folder_key,
+    search_folder_sleeves,
     warm_folder_caches,
 )
 from .locate import locate_album, locate_song
@@ -531,7 +532,17 @@ async def album_detail(album_id:str):
 
 @app.get("/api/search")
 async def search(q:str=Query(...,min_length=1)):
-    sub=await _nd_get("search3.view",{"query":q,"artistCount":10,"albumCount":24,"songCount":24}); result=sub.get("searchResult3") or {}; return {"artists":result.get("artist") or [],"albums":await asyncio.to_thread(_collapse_apply,result.get("album") or []),"songs":meta.apply_song_list(result.get("song") or [])}
+    sub=await _nd_get("search3.view",{"query":q,"artistCount":10,"albumCount":24,"songCount":24})
+    result=sub.get("searchResult3") or {}
+    tagged,packs=await asyncio.gather(
+        asyncio.to_thread(_collapse_apply,result.get("album") or []),
+        asyncio.to_thread(search_folder_sleeves,q),
+    )
+    albums=[]; seen=set()
+    for album in meta.apply_album_list(packs)+tagged:
+        if album.get("id") in seen: continue
+        seen.add(album.get("id")); albums.append(album)
+    return {"artists":result.get("artist") or [],"albums":albums[:24],"songs":meta.apply_song_list(result.get("song") or [])}
 
 @app.get("/api/locate/{song_id}")
 async def locate(song_id:str):

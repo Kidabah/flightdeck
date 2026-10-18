@@ -195,6 +195,18 @@ def build_folder_sleeve(folder_key: str) -> dict[str, Any] | None:
     return dict(stub) if stub else None
 
 
+def search_folder_sleeves(query: str, limit: int = 24) -> list[dict[str, Any]]:
+    """Find compilation packs by their displayed folder name, alongside tag search."""
+    terms = query.casefold().split()
+    if not terms or limit <= 0:
+        return []
+    sleeves = _merge_maps()[2]
+    matches = [dict(sleeve) for sleeve in sleeves.values()
+               if all(term in str(sleeve.get("name", "")).casefold() for term in terms)]
+    matches.sort(key=lambda sleeve: (str(sleeve.get("name", "")).casefold(), sleeve["id"]))
+    return matches[:limit]
+
+
 def build_folder_album(folder_key: str) -> dict[str, Any] | None:
     con = _connect()
     if not con:

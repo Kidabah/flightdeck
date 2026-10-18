@@ -1,3 +1,10 @@
+## 2026-10-18 — Cindy Vinyl recovery isolated and verified locally
+
+- Recovered compilation-folder search, Explorer folder playback, single-instance folder forwarding, cover-art fallback parity, search focus, and turntable arm media/polish.
+- Added six focused standard-library tests covering folder search, discovery, byte ranges, loopback streaming, forwarding, and cross-origin rejection; all six pass.
+- Python, JavaScript, and installer syntax pass. The configured Python 3.12 runtime exists, and both final JPG and MP4 arm assets passed container/signature checks.
+- Removed 14 local diagnostic/probe artifacts and added Jukebox-scoped ignore rules. No registry change, Mora deployment, container restart, or media-library write has been performed yet.
+
 ## 2026-10-18 — Flightdeck mixed-frontend recovery deployed and runtime-verified
 
 - Recovery commit `754da5ac` is on local `main`, `origin/main`, and the Pi. The Pi repository is clean.

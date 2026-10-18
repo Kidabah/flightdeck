@@ -333,6 +333,7 @@ function playVideoSrc(v, src, token, onReady) {
     } catch {
       /* ignore */
     }
+    v.hidden = false;
     const p = v.play();
     if (p && typeof p.then === "function") {
       p.catch(() => {
@@ -351,7 +352,14 @@ function playVideoSrc(v, src, token, onReady) {
   };
   const abs = new URL(src, window.location.href).href;
   clearCueHandlers(v);
-  v.hidden = false;
+  // Keep the turntable photo visible until the animation has a decoded frame.
+  v.hidden = true;
+  v.onerror = () => {
+    if (!stillCurrent()) return;
+    v.hidden = true;
+    v.pause();
+    if (state.arm === "cueing-in") state.arm = "hold";
+  };
   v.muted = true;
   v.playsInline = true;
   v.loop = false;
@@ -2761,6 +2769,7 @@ async function runSearch(q) {
   }
   box.hidden = false;
   grid.innerHTML = "<p class='hint'>Searching…</p>";
+  box.scrollIntoView({ block: "start", behavior: "smooth" });
   try {
     const data = await api(`/api/search?q=${encodeURIComponent(q)}`);
     const frag = document.createDocumentFragment();
@@ -2812,6 +2821,7 @@ async function runSearch(q) {
     grid.innerHTML = "";
     grid.appendChild(frag);
     if (!grid.children.length) grid.innerHTML = "<p class='hint'>Nothing matched.</p>";
+    box.scrollIntoView({ block: "start", behavior: "smooth" });
   } catch (err) {
     grid.innerHTML = `<p class='hint'>${escapeHtml(err.message || err)}</p>`;
   }
@@ -2990,6 +3000,12 @@ function wire() {
   $("searchForm").addEventListener("submit", (e) => {
     e.preventDefault();
     runSearch($("searchInput").value);
+  });
+  // Keep Enter submission explicit in browsers and the desktop WebView.
+  $("searchInput").addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" || e.isComposing) return;
+    e.preventDefault();
+    if (!e.repeat) $("searchForm").requestSubmit();
   });
 
   $("ribbonSpinBtn")?.addEventListener("click", () => spin());

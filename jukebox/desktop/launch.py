@@ -2,10 +2,13 @@
 """Cindy Vinyl desktop window. The player stays on Mora."""
 from __future__ import annotations
 
+import argparse
 import ctypes
 import os
 import sys
 from pathlib import Path
+
+from folder_playback import FolderPlayback, FOLDER_BRIDGE, forward_folder
 
 URL = "http://flightdeck-nas:4541"
 MUTEX_NAME = "Local\\CindyVinylDesktop"
@@ -138,6 +141,10 @@ class VinylApi:
         # set_bounds. A public attribute recurses into the WebView and the
         # JS bridge never gets installed.
         self._window = None
+        self._folders = None
+
+    def take_folder_request(self):
+        return self._folders.take() if self._folders else None
 
     def set_bounds(self, width: int, height: int, x: int, y: int) -> bool:
         window = self._window
@@ -227,7 +234,9 @@ def _already_running() -> bool:
     if sys.platform != "win32":
         return False
     kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
-    kernel32.CreateMutexW(None, False, MUTEX_NAME)
+    global _mutex_handle
+    kernel32.CreateMutexW.restype = ctypes.c_void_p
+    _mutex_handle = kernel32.CreateMutexW(None, False, MUTEX_NAME)
     already = int(kernel32.GetLastError()) == 183
     if not already:
         return False
@@ -236,11 +245,27 @@ def _already_running() -> bool:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Cindy Vinyl desktop player")
+    parser.add_argument("--folder", help="Play audio from a Windows or NAS folder")
+    args = parser.parse_args()
+    info_path = Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "CindyVinyl" / "folder-player.json"
     if _already_running():
+        if args.folder and not forward_folder(info_path, args.folder):
+            ctypes.windll.user32.MessageBoxW(None,
+                "Close Cindy Vinyl once, then use Play with Cindy Vinyl again to load the updated player.",
+                "Cindy Vinyl", 0x40)
         return 0
     import webview
 
+    # Explorer is the user's playback gesture; allow the desktop window to start audio.
+    browser_args = os.environ.get("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "")
+    if "--autoplay-policy=" not in browser_args:
+        os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = (browser_args + " --autoplay-policy=no-user-gesture-required").strip()
+    folders = FolderPlayback(info_path, URL)
+    if args.folder:
+        folders.submit(args.folder)
     api = VinylApi()
+    api._folders = folders
     window = webview.create_window(
         "Cindy Vinyl",
         URL,
@@ -251,7 +276,8 @@ def main() -> int:
         js_api=api,
     )
     api._window = window
-    window.events.loaded += lambda: window.evaluate_js(_BRIDGE)
+    window.events.loaded += lambda: window.evaluate_js(_BRIDGE + "\n" + FOLDER_BRIDGE)
+    window.events.closed += folders.close
     storage = _storage()
     try:
         webview.start(gui="edgechromium", private_mode=False, storage_path=storage)
