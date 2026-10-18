@@ -1,3 +1,11 @@
+## 2026-10-18 — Flightdeck mixed-frontend recovery deployed and runtime-verified
+
+- Recovery commit `754da5ac` is on local `main`, `origin/main`, and the Pi. The Pi repository is clean.
+- The bounded recovery passed 13 focused tests, and the live `flightdeck.service` is active.
+- Served `app.js`, `style.css`, and `index.html` match the deployed files byte-for-byte.
+- Little Boy, BigBoy, and Big Girl all reconnected over MQTT and reported `idle` after restart.
+- Amy's real user-level `amy.service` remained active. No printer command or physical action was issued.
+
 ## 2026-10-18 — Flightdeck mixed-frontend recovery isolated and verified
 - Audited reverted commit `8160d82` against the pre-filament baseline. Its `app.js` and `style.css` changes are the legitimate old-card-era printer LAN address, AMS quick-search, object-map alignment, Box Stock and detail-focus work; the rejected compact filament-card redesign was not present in that commit.
 - Combined those recovered frontend files with their surviving backend changes, safe queue-file loader and focused tests in an isolated Pi tree. JavaScript syntax, Python compile/import and 13 camera/lifecycle/Box Stock/queue-load tests passed. The live Pi was not changed during this validation.
