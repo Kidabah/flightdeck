@@ -34,6 +34,54 @@
       font-family: "IBM Plex Sans", system-ui, sans-serif;
     }
     #graph { position: absolute; inset: 0; }
+    /* Notes stay in a slim shelf so the centre remains a clean workbench for Amy's output. */
+    #left-notes-rail {
+      position: absolute; top: 88px; left: 16px; bottom: 188px; z-index: 3;
+      width: min(246px, calc(100vw - var(--hud-w) - 48px));
+      display: flex; flex-direction: column; gap: 10px;
+      overflow: auto; scrollbar-width: thin;
+    }
+    #memory-folders {
+      position: relative; inset: auto; z-index: auto; width: 100%;
+      min-height: 0; flex: 1 1 auto;
+      overflow: visible; padding: 0 4px 0 0; display: flex; flex-direction: column;
+      align-content: stretch; gap: 8px; scrollbar-width: thin;
+    }
+    #notebook-slot, #ticker-slot { flex: 0 0 auto; width: 100%; }
+    #folders-toggle {
+      flex: 0 0 auto; width: 100%; padding: 8px 10px; border: 1px solid rgba(103, 232, 249, 0.28);
+      border-radius: 9px; color: #a5f3fc; background: rgba(2, 12, 28, 0.9); cursor: pointer;
+      font: 600 0.7rem/1.2 "IBM Plex Sans", system-ui, sans-serif; letter-spacing: 0.14em;
+      text-align: left; text-transform: uppercase;
+    }
+    #folders-toggle:hover, #folders-toggle:focus-visible { border-color: #67e8f9; outline: 1px solid rgba(103, 232, 249, 0.35); }
+    #folders-toggle span { float: right; color: #67e8f9; font-size: 0.9rem; }
+    #left-notes-rail.folders-collapsed #memory-folders { display: none; }
+    #memory-folders[hidden] { display: none; }
+    .memory-folder {
+      position: relative; min-height: 0; padding: 10px 10px 8px;
+      border: 1px solid rgba(103, 232, 249, 0.2); border-left: 3px solid #22d3ee; border-radius: 10px;
+      background: rgba(2, 12, 28, 0.84);
+      box-shadow: 0 8px 20px rgba(2, 6, 23, 0.34), inset 0 1px 0 rgba(125, 211, 252, 0.06);
+      backdrop-filter: blur(12px);
+    }
+    .memory-folder.tone-coral { border-left-color: #fb7185; }
+    .memory-folder.tone-gold { border-left-color: #fbbf24; }
+    .memory-folder.tone-violet { border-left-color: #22d3ee; }
+    .memory-folder.tone-cyan { border-left-color: #67e8f9; }
+    .memory-folder::before { display: none; }
+    .memory-folder h3 { margin: 0; color: #a5f3fc; font-size: 0.72rem; letter-spacing: 0.15em; text-transform: uppercase; }
+    .memory-folder small { float: right; color: #64748b; font-size: 0.68rem; }
+    .memory-folder ul { list-style: none; padding: 7px 0 0; margin: 0; display: grid; gap: 2px; }
+    .memory-folder button {
+      width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      padding: 5px 7px; border: 0; border-radius: 6px; text-align: left;
+      color: #cbd5e1; background: rgba(8, 47, 73, 0.34); cursor: pointer; font: inherit; font-size: 0.75rem;
+    }
+    .memory-folder button:hover, .memory-folder button:focus-visible {
+      color: #e0f2fe; background: rgba(8, 145, 178, 0.24); outline: 1px solid rgba(103, 232, 249, 0.55);
+    }
+    .memory-empty { color: var(--muted); padding: 14px 8px; text-align: center; font-size: 0.8rem; }
     #stars { position: absolute; inset: 0; pointer-events: none; opacity: 0.7; }
     #vignette {
       position: absolute; inset: 0; pointer-events: none; z-index: 2;
@@ -125,24 +173,39 @@
 
     /* Right HUD column — never overlaps note card */
     #hud {
-      position: absolute; top: 16px; right: 16px; width: var(--hud-w); z-index: 9;
+      position: absolute; top: 50%; left: 50%; right: auto;
+      transform: translate(-50%, -58%);
+      width: min(350px, calc(100vw - 310px)); min-width: 290px; z-index: 9;
       display: flex; flex-direction: column; gap: 10px; align-items: stretch;
+      max-height: calc(100vh - 132px); overflow-y: auto; scrollbar-width: thin;
+    }
+    #hud > * { flex-shrink: 0; }
+    /* Workshop utilities live in their own rail so Amy's centre stays visually calm. */
+    #companion-open {
+      position: fixed; right: 16px; width: min(270px, calc(100vw - 32px)); z-index: 10;
+      margin: 0; text-align: left;
+    }
+    #usage-ticker {
+      position: fixed; right: 16px; bottom: 18px; width: min(270px, calc(100vw - 32px));
+      max-height: 230px; overflow: auto; z-index: 10;
     }
     .face-card {
-      background: var(--panel); border: 1px solid var(--line); border-radius: 18px;
-      padding: 28px 18px 12px; backdrop-filter: blur(12px); box-shadow: var(--glow);
+      background: linear-gradient(180deg, rgba(5, 24, 42, 0.94), rgba(2, 12, 28, 0.9));
+      border: 1px solid var(--line); border-radius: 24px;
+      padding: 24px 20px 14px; backdrop-filter: blur(12px);
+      box-shadow: 0 0 0 1px rgba(103, 232, 249, 0.04), 0 0 38px rgba(34, 211, 238, 0.2);
       display: grid; justify-items: center; gap: 8px;
       overflow: visible;
     }
     .face-wrap {
       position: relative;
-      width: 168px; height: 168px;
+      width: 220px; height: 220px;
       display: grid; place-items: center;
       margin-bottom: 14px; /* keep voice rings off the AMY label */
       overflow: visible;
     }
     .face {
-      width: 168px; height: 168px; position: relative; z-index: 2;
+      width: 220px; height: 220px; position: relative; z-index: 2;
       border-radius: 18px;
       overflow: hidden;
       border: 2px solid rgba(103, 232, 248, 0.75);
@@ -154,9 +217,12 @@
       width: 100%; height: 100%; object-fit: cover; display: block;
       /* Centre her face in the square; QR sits top-right of source so scale+mask kills it */
       object-position: 46% 48%;
-      transform: scale(1.38);
+      transform: scale(1.3);
       transform-origin: center center;
     }
+    #amy-face-still { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
+    body.desktop-face #amy-face-still { clip-path:circle(45% at 50% 50%); transform:scale(1.1); }
+    body.desktop-face .face video { display:none; }
     /* Paint out Tripo QR corner if any remains */
     .face::after {
       content: "";
@@ -371,7 +437,7 @@
     .modes, .organs {
       display: grid; gap: 6px; width: 100%;
     }
-    .modes { grid-template-columns: repeat(3, 1fr); }
+    .modes { grid-template-columns: repeat(4, 1fr); }
     .organs { grid-template-columns: repeat(2, 1fr); }
     .modes button, .organs button {
       border: 1px solid var(--line); background: rgba(2, 12, 28, 0.8); color: #94a3b8;
@@ -418,7 +484,16 @@
       box-sizing: border-box;
       overflow: visible;
     }
+    body.compact #companion-open,
+    body.compact #usage-ticker {
+      position: relative; top: auto; right: auto; bottom: auto; width: 100%; max-height: none;
+    }
+    body.compact #left-notes-rail {
+      position: relative; top: auto; left: auto; right: auto; bottom: auto;
+      width: 100%; max-width: 340px; margin: 0 auto 10px; overflow: visible;
+    }
     body.compact #hud {
+      max-height: none;
       align-items: center;
       gap: 6px;
     }
@@ -508,6 +583,8 @@
         min-height: 100dvh;
       }
       #graph, #stars, #vignette, #brand, #topbar, #side { display: none !important; }
+      #left-notes-rail { position: relative; inset: auto; width: min(420px, calc(100vw - 20px)); margin: 12px auto; overflow: visible; }
+      #memory-folders { position: relative; inset: auto; padding: 12px 10px; grid-template-columns: 1fr; width: 100%; margin: 0; }
       #share-dot {
         top: auto; bottom: 12px; left: 12px; right: auto;
         font-size: 0.62rem;
@@ -520,7 +597,10 @@
         margin: 12px auto;
         max-height: none;
       }
-      #hud { z-index: 9; padding-top: env(safe-area-inset-top, 0); }
+      #hud { z-index: 9; padding-top: env(safe-area-inset-top, 0); transform: none !important; }
+      #companion-open, #usage-ticker {
+        position: relative; top: auto; right: auto; bottom: auto; width: 100%; max-height: none;
+      }
       #dock {
         z-index: 10;
         padding-bottom: calc(10px + env(safe-area-inset-bottom, 0));
@@ -528,7 +608,7 @@
       .face-card { width: 100%; }
       .modes, .organs {
         display: grid !important;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(4, 1fr);
         gap: 6px;
         width: 100%;
       }
@@ -550,7 +630,7 @@
 
     /* Note panel — LEFT side, clear of HUD */
     #side {
-      position: absolute; top: 88px; left: 16px; width: min(320px, calc(100vw - var(--hud-w) - 48px));
+      position: absolute; top: 88px; left: 278px; width: min(340px, calc(100vw - var(--hud-w) - 320px));
       z-index: 8; max-height: calc(100vh - 220px); overflow: auto;
       background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
       padding: 12px 14px; backdrop-filter: blur(12px); display: none; box-shadow: var(--glow);
@@ -578,6 +658,11 @@
     #status-line[data-mode="listening"] { color: var(--ok); }
     #status-line[data-mode="thinking"] { color: var(--warn); }
     #status-line[data-mode="speaking"] { color: var(--accent); }
+    #heard-line {
+      min-height: 1em; margin: 0 8px 4px; color: #67e8f8; opacity: 0.78;
+      font-size: 0.72rem; letter-spacing: 0.04em; text-align: center;
+      white-space: pre-wrap; overflow-wrap: anywhere;
+    }
     #answer {
       background: rgba(2, 12, 28, 0.9); border: 1px solid var(--line); border-radius: 16px;
       padding: 12px 16px; min-height: 2.8em; font-size: 0.95rem; line-height: 1.45;
@@ -642,13 +727,47 @@
       pointer-events: none;
     }
     #dock.dragover #drop-overlay { display: flex; }
+    #usage-ticker { width:100%; padding:10px; border:1px solid var(--line); border-radius:12px; background:rgba(2,12,28,.94); font-size:.72rem; color:#cbd5e1; }
+    #usage-ticker strong { color:var(--accent); }
+    #usage-spend { font-size:1.1rem; }
+    #usage-ticker progress { width:100%; height:6px; accent-color:var(--accent); }
+    #usage-ticker[data-warning="50"] progress { accent-color:#facc15; }
+    #usage-ticker[data-warning="80"] progress { accent-color:#fb923c; }
+    #usage-ticker[data-warning="100"] progress { accent-color:#f87171; }
+    #usage-warning { color:#fbbf24; margin-top:4px; }
+    #usage-ticker small { display:block; margin-top:5px; line-height:1.35; }
+    #usage-ticker form { display:flex; gap:4px; margin-top:6px; }
+    #usage-budget { min-width:0; width:90px; color:#e0f2fe; background:#061321; border:1px solid var(--line); border-radius:5px; padding:4px; }
+    #usage-ticker button { color:var(--accent); background:#061321; border:1px solid var(--line); border-radius:5px; cursor:pointer; }
+    #usage-ticker summary { cursor:pointer; margin-top:5px; }
+    #usage-open { width:100%; margin-top:6px; padding:6px; }
+    #usage-settings { color:#cbd5e1; background:#061321; border:1px solid var(--accent); border-radius:14px; width:min(430px,calc(100vw - 28px)); max-height:80vh; padding:18px; overflow:auto; box-shadow:var(--glow); }
+    #usage-settings::backdrop { background:rgba(0,0,0,.7); }
+    #usage-settings h2 { color:var(--accent); margin:0 0 12px; font-size:1rem; }
+    #usage-settings h3 { margin:18px 0 8px; font-size:.85rem; }
+    #usage-settings p { font-size:.8rem; line-height:1.5; }
+    #usage-settings form { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    #usage-settings button { background:#0a2134; border:1px solid var(--line); border-radius:6px; color:var(--accent); padding:7px 10px; cursor:pointer; }
+    #usage-settings button:disabled { opacity:.45; cursor:default; }
+    #usage-close { float:right; }
+    .usage-month { display:grid; grid-template-columns:85px 1fr 65px; align-items:center; gap:8px; margin:8px 0; font-size:.8rem; }
+    .usage-month progress { width:100%; height:7px; accent-color:var(--accent); }
+    #usage-settings-note { color:#94a3b8; }
+    body.compact #usage-ticker { max-width:320px; }
   </style>
   <script src="/vendor/3d-force-graph.min.js"></script>
   <script src="/graph-data.js"></script>
+<link rel="stylesheet" href="/companion.css?v=3">
 </head>
 <body>
   <canvas id="stars"></canvas>
   <div id="graph"></div>
+  <aside id="left-notes-rail" aria-label="Amy notes and notebook">
+    <button id="folders-toggle" type="button" aria-expanded="true" aria-controls="memory-folders">FOLDERS <span aria-hidden="true">▾</span></button>
+    <div id="memory-folders" hidden aria-label="Amy memory folders"></div>
+    <div id="notebook-slot" aria-label="Notebook control"></div>
+    <div id="ticker-slot" aria-label="Usage ticker placement"></div>
+  </aside>
   <div id="vignette"></div>
 
   <div id="brand"><strong>AMY</strong><span id="brand-sub">booting…</span></div>
@@ -667,7 +786,8 @@
           <span class="hud-ticks"></span>
         </div>
         <div class="face" id="amy-face" data-mode="idle" aria-label="Amy">
-          <video id="amy-face-video" muted playsinline preload="auto" poster="">
+          <img id="amy-face-still" src="/amy-icon.png" alt="" aria-hidden="true" />
+          <video id="amy-face-video" muted playsinline preload="auto" poster="/amy-icon.png">
             <source src="/amy-face.webm" type="video/webm" />
             <source src="/amy-face.mp4" type="video/mp4" />
           </video>
@@ -692,9 +812,10 @@
       </div>
     </div>
     <div class="modes" role="tablist" aria-label="Galaxy view">
-      <button type="button" class="active" data-view="ring">RING</button>
+      <button type="button" data-view="ring">RING</button>
       <button type="button" data-view="cube">CUBE</button>
       <button type="button" data-view="face">ORBIT</button>
+      <button type="button" class="active" data-view="folders">FOLDERS</button>
     </div>
     <div class="organs" aria-label="Organs">
       <button type="button" id="eyes-btn" title="Share your screen so Amy can see it">EYES</button>
@@ -702,7 +823,37 @@
       <button type="button" id="holo-btn" disabled title="Hologram desk overlay — not built yet">HOLO</button>
       <button type="button" id="focus-btn" title="Compact face + chat (same as ‘go small’)">FOCUS</button>
     </div>
+    <section id="usage-ticker" aria-label="OpenAI API usage">
+      <strong>API USAGE · USD</strong>
+      <div><b id="usage-spend">—</b> · <span id="usage-percent">—</span> of budget</div>
+      <progress id="usage-progress" max="100" value="0" aria-label="Monthly budget used"></progress>
+      <div><span id="usage-requests">—</span> requests · <span id="usage-remaining">—</span> left</div>
+      <small id="usage-period"></small>
+      <small id="usage-note">Loading reporting status…</small>
+      <div id="usage-warning" role="status"></div>
+      <button id="usage-open" type="button">Budget &amp; history · <span id="usage-budget-label">$20.00</span></button>
+      <div id="codex-ticker" style="border-top:1px solid var(--line);margin-top:8px;padding-top:8px" aria-label="Codex allowance">
+        <strong>CODEX · ALLOWANCE</strong>
+        <div id="codex-windows"></div>
+        <small id="codex-note">Connecting to local Codex…</small>
+      </div>
+    </section>
   </aside>
+
+  <dialog id="usage-settings" aria-labelledby="usage-settings-title">
+    <button id="usage-close" type="button" aria-label="Close usage settings">×</button>
+    <h2 id="usage-settings-title">API budget &amp; spending</h2>
+    <form id="usage-budget-form"><label for="usage-budget">Monthly budget (USD)</label><input id="usage-budget" type="number" min="0.01" max="1000000" step="0.01" value="20" required><button type="submit">Save budget</button></form>
+    <p>Warnings at 50%, 80% and 100%. This tracking budget does not stop API spending or change OpenAI’s billing limit.</p>
+    <p id="usage-forecast"></p>
+    <h3>Completed months · USD</h3>
+    <div id="usage-history">Loading history…</div>
+    <p id="usage-average"></p>
+    <p id="usage-suggestion"></p>
+    <button id="usage-apply-suggestion" type="button" disabled>Apply suggested budget</button>
+    <p id="usage-settings-note"></p>
+    <p id="usage-settings-status" role="status"></p>
+  </dialog>
 
   <aside id="side">
     <button type="button" id="side-close" aria-label="Close note">×</button>
@@ -716,6 +867,7 @@
     <div id="secure-hint">Mic needs HTTPS. Open <a id="https-link" href="#">the secure Amy URL</a> — Chrome treats plain HTTP like speakers-only.</div>
     <button type="button" id="mode-chip" data-mode="casual" title="Click to switch casual ↔ print mode">CASUAL</button>
     <div id="status-line" data-mode="idle">Ready</div>
+    <div id="heard-line" aria-live="polite"></div>
     <div id="answer"></div>
     <div id="drops" aria-live="polite"></div>
     <div class="row">
@@ -757,6 +909,7 @@ const IS_SECURE = window.isSecureContext;
 
 
 const statusEl = document.getElementById('status-line');
+const heardEl = document.getElementById('heard-line');
 const answerEl = document.getElementById('answer');
 const inputEl = document.getElementById('chat-input');
 const modeChip = document.getElementById('mode-chip');
@@ -799,7 +952,9 @@ let shareVideo = null;
 let visionMode = null; // 'eyes' | 'watch'
 let compactMode = false;
 let unlockedAudio = false;
-let viewMode = 'ring';
+// Open on the calm folder view so memory starts as organized notes rather than a field of dots.
+let viewMode = 'folders';
+let foldersCollapsed = (() => { try { return localStorage.getItem('amy-folders-collapsed') === '1'; } catch (_) { return false; } })();
 let listening = false;
 let wantListen = false;
 /** Soft quiet: Whisper stays armed but only "talk" / unmute phrases get through. */
@@ -1037,7 +1192,7 @@ function isRestorePhrase(t) {
   const s = normalizeAmyCmd(t);
   if (!s) return false;
   return /^(amy[, ]+)?(please[, ]+)?(come back|restore|unminimise|unminimize|show yourself|bring yourself back|wake up window)(,?\s*please)?$/i.test(s)
-    || /^(can you|could you) (please )?(come back|restore|show)\b/i.test(s);
+    || /^(can you|could you) (please )?(come back|restore|show yourself|bring yourself back|wake up window)\b/i.test(s);
 }
 
 function isMuteMicPhrase(t) {
@@ -1090,11 +1245,16 @@ function looksLikeWhisperGarbage(t) {
 }
 
 async function callAmyDesktop(fn, ...args) {
+  let timeout;
   try {
     if (window.pywebview?.api && typeof window.pywebview.api[fn] === 'function') {
-      return await window.pywebview.api[fn](...args);
+      return await Promise.race([
+        window.pywebview.api[fn](...args),
+        new Promise(resolve => { timeout = setTimeout(() => resolve(false), 5000); }),
+      ]);
     }
   } catch (_) {}
+  finally { clearTimeout(timeout); }
   return false;
 }
 
@@ -1263,6 +1423,14 @@ window.amyClipboard = {
     return false;
   },
   async paste() {
+    if (document.activeElement !== searchEl) {
+      try {
+        if (await pasteClipboardImage()) return true;
+      } catch (err) {
+        answerEl.textContent = String(err.message || err);
+        return false;
+      }
+    }
     const text = await readSystemClipboard();
     if (!text) return false;
     const el = document.activeElement;
@@ -1811,7 +1979,7 @@ function setStatus(mode, text) {
 let cachedVoice = null;
 let cachedVoiceName = '';
 let amyAudio = null;
-let ttsMode = 'browser'; // 'laura' | 'openai' | 'browser'
+let ttsMode = 'browser'; // 'voicestudio' | 'laura' | 'openai' | 'browser'
 let ttsVoiceLabel = 'Laura';
 
 function scoreVoice(v) {
@@ -1952,7 +2120,7 @@ async function speak(text) {
   }
   duckMic();
   const gen = speakGen;
-  if (ttsMode === 'laura' || ttsMode === 'openai') {
+  if (ttsMode === 'laura' || ttsMode === 'openai' || ttsMode === 'voicestudio') {
     try {
       await speakLaura(text);
       return;
@@ -2001,6 +2169,38 @@ function renderDrops() {
     chip.appendChild(rm);
     dropsEl.appendChild(chip);
   });
+}
+
+async function pasteClipboardImage() {
+  let blob;
+  if (window.pywebview?.api?.clipboard_get_image) {
+    const image = await callAmyDesktop('clipboard_get_image');
+    if (image?.error) throw new Error(image.error);
+    if (image?.data) {
+      const preview = new Image();
+      preview.src = `data:${image.media_type};base64,${image.data}`;
+      await preview.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = preview.naturalWidth;
+      canvas.height = preview.naturalHeight;
+      canvas.getContext('2d').drawImage(preview, 0, 0);
+      blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+      if (!blob) throw new Error("Couldn't convert the clipboard screenshot.");
+    }
+  } else if (navigator.clipboard?.read) {
+    try {
+      for (const item of await navigator.clipboard.read()) {
+        const type = item.types.find(type => type.startsWith('image/'));
+        if (type) { blob = await item.getType(type); break; }
+      }
+    } catch (_) { /* Text paste remains available when image access is denied. */ }
+  }
+  if (!blob) return false;
+  if (pendingFiles.length >= 4) throw new Error('Remove an attachment first — Amy can take four at a time.');
+  const name = `Screenshot-${Date.now()}.${blob.type === 'image/png' ? 'png' : 'jpg'}`;
+  await addDroppedFiles([new File([blob], name, { type: blob.type })]);
+  inputEl.focus();
+  return true;
 }
 
 function fileToAttachment(file) {
@@ -2053,15 +2253,92 @@ document.getElementById('side-close').addEventListener('click', () => { side.sty
 function highlightNodes(ids) {
   if (!graph) return;
   const set = new Set(ids || []);
-  graph.nodeColor(n => set.has(n.id) ? '#fbbf24' : colorForGroup(n.group));
-  graph.nodeVal(n => set.has(n.id) ? 10 : (viewMode === 'face' ? 5 : 3.6));
+  graph.nodeColor(n => set.has(n.id) ? '#fff1b8' : colorForNode(n));
+  graph.nodeVal(n => set.has(n.id) ? 10 : nodeSize(n));
 }
+
+const AMY_MEMORY_COLORS = ['#c4b5fd', '#f9a8d4', '#fda4af', '#fcd34d', '#67e8f9'];
 
 function colorForGroup(group) {
   const key = String(group || 'notes');
   let h = 0;
   for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) % 360;
   return `hsl(${h} 80% 62%)`;
+}
+
+function colorForNode(node) {
+  if (String(node?.group || '') === 'workshop') {
+    const id = Number(node?.id);
+    return AMY_MEMORY_COLORS[(Number.isFinite(id) ? Math.abs(id) : 0) % AMY_MEMORY_COLORS.length];
+  }
+  return colorForGroup(node?.group);
+}
+
+function nodeSize(node) {
+  const id = Number(node?.id);
+  const variation = Number.isFinite(id) ? (Math.abs(id) % 3) * 0.45 : 0;
+  return (viewMode === 'face' ? 5 : 3.2) + variation;
+}
+
+function memoryFolderFor(node) {
+  const label = String(node?.label || '').toLowerCase();
+  const text = `${node?.label || ''} ${node?.excerpt || ''}`.toLowerCase();
+  if (/ams filament|big girl|bigboy|greyhound|printers and nicknames|spool drawers|^x1c$/.test(label)) return { name: 'Printers', tone: 'coral' };
+  if (/flightdeck overview|makerdeck|printshelf|tailscale|ql700/.test(label)) return { name: 'Flightdeck', tone: 'gold' };
+  if (/amy|voice|sleep|prompt|internet|file/.test(text)) return { name: 'Amy', tone: 'violet' };
+  return { name: 'Workshop', tone: 'cyan' };
+}
+
+function prettySidebarLabel(value) {
+  const acronyms = { ams: 'AMS', api: 'API', ai: 'AI', h2c: 'H2C', h2d: 'H2D', ql700: 'QL700', x1c: 'X1C', stl: 'STL', gcode: 'G-code' };
+  return String(value || 'Untitled note').split(/(\s+)/).map(part => {
+    if (!part.trim()) return part;
+    const key = part.toLowerCase();
+    if (acronyms[key]) return acronyms[key];
+    if (key === 'bigboy') return 'BigBoy';
+    if (key === 'biggirl') return 'Big Girl';
+    return part.charAt(0).toUpperCase() + part.slice(1);
+  }).join('');
+}
+
+function renderMemoryFolders(query = '') {
+  const root = document.getElementById('memory-folders');
+  if (!root) return;
+  root.replaceChildren();
+  const needle = String(query || '').trim().toLowerCase();
+  const folders = new Map();
+  for (const node of (GRAPH.nodes || [])) {
+    const haystack = `${node.label || ''} ${node.excerpt || ''}`.toLowerCase();
+    if (needle && !haystack.includes(needle)) continue;
+    const folder = memoryFolderFor(node);
+    if (!folders.has(folder.name)) folders.set(folder.name, { ...folder, nodes: [] });
+    folders.get(folder.name).nodes.push(node);
+  }
+  if (!folders.size) {
+    const empty = document.createElement('p');
+    empty.className = 'memory-empty';
+    empty.textContent = needle ? 'No memory notes match that search.' : 'No memory notes yet.';
+    root.append(empty);
+    return;
+  }
+  for (const folder of [...folders.values()].sort((a, b) => a.name.localeCompare(b.name))) {
+    folder.nodes.sort((a, b) => String(a.label || 'Untitled note').localeCompare(String(b.label || 'Untitled note'), undefined, { sensitivity: 'base' }));
+    const card = document.createElement('section');
+    card.className = `memory-folder tone-${folder.tone}`;
+    const title = document.createElement('h3'); title.textContent = folder.name;
+    const count = document.createElement('small'); count.textContent = `${folder.nodes.length} note${folder.nodes.length === 1 ? '' : 's'}`;
+    const list = document.createElement('ul');
+    for (const node of folder.nodes) {
+      const item = document.createElement('li');
+      const button = document.createElement('button'); button.type = 'button'; button.textContent = prettySidebarLabel(node.label);
+      button.addEventListener('click', () => {
+        openNode(node);
+        if (graph) { applyViewMode('ring'); highlightNodes([node.id]); flyToNode(node.id); }
+      });
+      item.append(button); list.append(item);
+    }
+    card.append(title, count, list); root.append(card);
+  }
 }
 
 function flyToNode(id) {
@@ -2095,47 +2372,53 @@ async function ask(question) {
     return;
   }
   const q = q0;
+  if (heardEl) heardEl.textContent = q ? `HEARD · ${q}` : '';
   if (!q) return;
-  if (looksLikeInterrupt(q) || isInterrupt(q)) {
+  const notebookCommand = !pendingFiles.length && (
+    !!window.AmyCompanion?.handles(q)
+    || !!window.AmyInspection?.handles(q)
+    || !!window.AmyPrinterStatus?.handles(q)
+  );
+  if (!notebookCommand && (looksLikeInterrupt(q) || isInterrupt(q))) {
     handleInterrupt();
     return;
   }
-  if (isWhistlePhrase(q) && !pendingFiles.length) {
+  if (!notebookCommand && isWhistlePhrase(q) && !pendingFiles.length) {
     doWhistle();
     answerEl.textContent = '♪';
     setStatus(wantListen ? 'listening' : 'idle', wantListen ? 'Listening' : 'Ready');
     return;
   }
-  if (!pendingFiles.length) {
+  if (!pendingFiles.length && !notebookCommand) {
     const awakeFor = parseAwakeCommand(q);
     if (awakeFor !== null) {
       await applyAwakeCommand(awakeFor);
       return;
     }
   }
-  if (isBedtimePhrase(q) && !pendingFiles.length) {
+  if (!notebookCommand && isBedtimePhrase(q) && !pendingFiles.length) {
     await doBedtime();
     return;
   }
-  if (isGoSmallPhrase(q) && !pendingFiles.length) {
+  if (!notebookCommand && isGoSmallPhrase(q) && !pendingFiles.length) {
     await setCompactMode(true);
     answerEl.textContent = 'Going small — still listening.';
     setStatus(wantListen ? 'listening' : 'idle', wantListen ? (useWhisperMic ? 'Listening · Whisper' : 'Listening') : 'Ready');
     return;
   }
-  if (isGoBigPhrase(q) && !pendingFiles.length) {
+  if (!notebookCommand && isGoBigPhrase(q) && !pendingFiles.length) {
     await setCompactMode(false);
     answerEl.textContent = 'Back to full size.';
     setStatus(wantListen ? 'listening' : 'idle', wantListen ? (useWhisperMic ? 'Listening · Whisper' : 'Listening') : 'Ready');
     return;
   }
-  if (isMinimizePhrase(q) && !pendingFiles.length) {
+  if (!notebookCommand && isMinimizePhrase(q) && !pendingFiles.length) {
     await callAmyDesktop('minimize_window');
     answerEl.textContent = 'Minimising — say come back when you want me.';
     setStatus(wantListen ? 'listening' : 'idle', wantListen ? (useWhisperMic ? 'Listening · Whisper' : 'Listening') : 'Ready');
     return;
   }
-  if (isRestorePhrase(q) && !pendingFiles.length) {
+  if (!notebookCommand && isRestorePhrase(q) && !pendingFiles.length) {
     await callAmyDesktop('restore_window');
     answerEl.textContent = 'Back — staying on top.';
     setStatus(wantListen ? 'listening' : 'idle', wantListen ? (useWhisperMic ? 'Listening · Whisper' : 'Listening') : 'Ready');
@@ -2146,13 +2429,13 @@ async function ask(question) {
     setStatus(wantListen ? 'listening' : 'idle', wantListen ? (useWhisperMic ? 'Listening · Whisper' : 'Listening') : 'Ready');
     return;
   }
-  if (isMuteMicPhrase(q) && !pendingFiles.length) {
+  if (!notebookCommand && isMuteMicPhrase(q) && !pendingFiles.length) {
     stopSpeaking();
     muteMic();
     answerEl.textContent = 'Quiet — say talk or hit TALK when you want me.';
     return;
   }
-  if (isUnmuteMicPhrase(q) && !pendingFiles.length) {
+  if (!notebookCommand && isUnmuteMicPhrase(q) && !pendingFiles.length) {
     await startMic();
     answerEl.textContent = 'Listening — go ahead.';
     return;
@@ -2167,9 +2450,17 @@ async function ask(question) {
   try { chatAbort?.abort(); } catch (_) {}
   chatAbort = new AbortController();
   const signal = chatAbort.signal;
+  if (!window.AmyPrinterStatus?.handles(q)) window.AmyInspection?.begin(q);
   try {
     let payload;
-    if (/^(remember that|note to self|don't let me forget|dont let me forget|log this)\b/i.test(q)) {
+    if (notebookCommand) {
+      const r = await fetch('/chat', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: q, inspection_id: window.AmyInspection?.currentId() }), signal,
+      });
+      payload = await r.json();
+      if (!r.ok) throw new Error(payload.detail || 'Notebook request failed');
+    } else if (/^(remember that|note to self|don't let me forget|dont let me forget|log this)\b/i.test(q)) {
       const r = await fetch('/remember', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2178,17 +2469,6 @@ async function ask(question) {
       });
       payload = await r.json();
       if (!r.ok) throw new Error(payload.detail || 'remember failed');
-      if (payload.id != null) {
-        const script = document.createElement('script');
-        script.src = '/graph-data.js?t=' + Date.now();
-        script.onload = () => {
-          graph.graphData(GRAPH);
-          applyViewMode(viewMode);
-          highlightNodes([payload.id]);
-          flyToNode(payload.id);
-        };
-        document.body.appendChild(script);
-      }
     } else if (wantsVisionFrame(q)) {
       const frame = await captureShareFrame();
       if (!frame) {
@@ -2233,8 +2513,23 @@ async function ask(question) {
       renderDrops();
     }
     if (signal.aborted) return;
+      if (payload.id != null) {
+        const script = document.createElement('script');
+        script.src = '/graph-data.js?t=' + Date.now();
+        script.onload = () => {
+          graph.graphData(GRAPH);
+          applyViewMode(viewMode);
+          highlightNodes([payload.id]);
+          flyToNode(payload.id);
+        };
+        document.body.appendChild(script);
+      }
     inputEl.value = '';
     setAnswer(payload.answer || '');
+    applyLayoutPayload(payload);
+    window.AmyInspection?.receive(payload);
+    window.AmyCameraView?.receive(payload);
+    window.dispatchEvent(new Event('amy-companion-changed'));
     if (payload.talk_mode) setTalkModeUI(payload.talk_mode);
     applySources(payload);
     await maybeDropOnTopForReveal(payload.answer || '');
@@ -2250,6 +2545,7 @@ async function ask(question) {
     await speak(String(err.message || err));
   } finally {
     chatAbort = null;
+    window.AmyInspection?.end();
   }
 }
 
@@ -3005,7 +3301,17 @@ function applyViewMode(mode) {
   document.querySelectorAll('.modes button').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.view === mode);
   });
-  if (!graph) return;
+  const folderView = mode === 'folders';
+  const folderToggle = document.getElementById('folders-toggle');
+  if (folderToggle) folderToggle.hidden = !folderView;
+  const folders = document.getElementById('memory-folders');
+  if (folders) {
+    folders.hidden = !folderView || foldersCollapsed;
+    if (folderView) renderMemoryFolders(searchEl?.value || '');
+  }
+  const graphEl = document.getElementById('graph');
+  if (graphEl) graphEl.style.visibility = folderView ? 'hidden' : 'visible';
+  if (!graph || folderView) return;
   const controls = graph.controls();
   controls.autoRotate = false;
   if (mode === 'ring') {
@@ -3015,8 +3321,34 @@ function applyViewMode(mode) {
   } else {
     graph.cameraPosition({ x: 40, y: 20, z: 120 }, { x: 0, y: 0, z: 0 }, 900);
   }
-  graph.nodeVal(viewMode === 'face' ? 5 : 3.6);
+  graph.nodeVal(n => nodeSize(n));
   graph.nodeRelSize(viewMode === 'face' ? 7 : 5);
+}
+
+function setFoldersCollapsed(collapsed) {
+  foldersCollapsed = Boolean(collapsed);
+  try { localStorage.setItem('amy-folders-collapsed', foldersCollapsed ? '1' : '0'); } catch (_) {}
+  const rail = document.getElementById('left-notes-rail');
+  const toggle = document.getElementById('folders-toggle');
+  const folders = document.getElementById('memory-folders');
+  if (rail) rail.classList.toggle('folders-collapsed', foldersCollapsed);
+  if (toggle) {
+    toggle.setAttribute('aria-expanded', String(!foldersCollapsed));
+    const marker = toggle.querySelector('span');
+    if (marker) marker.textContent = foldersCollapsed ? '▸' : '▾';
+  }
+  if (folders) folders.hidden = viewMode !== 'folders' || foldersCollapsed;
+}
+
+function applyLayoutPayload(payload) {
+  if (payload?.tool !== 'layout') return;
+  if (payload.layout === 'folders_collapsed') setFoldersCollapsed(true);
+  if (payload.layout === 'folders_expanded') setFoldersCollapsed(false);
+  if (['folders_alphabetized', 'sidebar_entries_alphabetized', 'sidebar_entries_capitalized'].includes(payload.layout) && viewMode === 'folders') {
+    renderMemoryFolders(searchEl?.value || '');
+  }
+  if (payload.layout === 'ticker_under_notes') window.AmyLayout?.moveTickerUnderNotes?.();
+  if (payload.layout === 'ui_control') window.AmyLayout?.apply?.(payload);
 }
 
 micBtn.addEventListener('click', toggleMic);
@@ -3058,6 +3390,15 @@ fileInput.addEventListener('change', () => {
 });
 window.addEventListener('dragover', (e) => e.preventDefault());
 window.addEventListener('drop', (e) => e.preventDefault());
+window.addEventListener('paste', (e) => {
+  if (document.activeElement === searchEl) return;
+  const files = [...(e.clipboardData?.items || [])]
+    .filter(item => item.kind === 'file' && item.type.startsWith('image/'))
+    .map(item => item.getAsFile()).filter(Boolean);
+  if (!files.length) return;
+  e.preventDefault();
+  addDroppedFiles(files);
+});
 inputEl.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.altKey) {
     e.preventDefault();
@@ -3075,8 +3416,11 @@ window.addEventListener('keydown', (e) => {
   if (!mod || e.altKey) return;
   const key = String(e.key || '').toLowerCase();
   if (key === 'v') {
-    e.preventDefault();
-    window.amyClipboard.paste();
+    // Native browser paste supplies clipboard images without reading text first.
+    if (window.pywebview?.api?.clipboard_get_image) {
+      e.preventDefault();
+      window.amyClipboard.paste();
+    }
   } else if (key === 'c') {
     e.preventDefault();
     window.amyClipboard.copy();
@@ -3121,6 +3465,7 @@ document.getElementById('tray-refresh').addEventListener('click', () => {
   script.src = '/graph-data.js?t=' + Date.now();
   script.onload = () => {
     graph.graphData(GRAPH);
+    renderMemoryFolders(searchEl?.value || '');
     applyViewMode(viewMode);
     brandSub.textContent = `${(GRAPH.nodes || []).length} notes · live`;
   };
@@ -3129,6 +3474,10 @@ document.getElementById('tray-refresh').addEventListener('click', () => {
 document.querySelectorAll('.modes button').forEach(btn => {
   btn.addEventListener('click', () => applyViewMode(btn.dataset.view));
 });
+document.getElementById('folders-toggle')?.addEventListener('click', () => {
+  setFoldersCollapsed(!foldersCollapsed);
+});
+setFoldersCollapsed(foldersCollapsed);
 searchEl.addEventListener('keydown', (e) => {
   if (e.key !== 'Enter') return;
   const q = searchEl.value.trim().toLowerCase();
@@ -3138,8 +3487,14 @@ searchEl.addEventListener('keydown', (e) => {
     String(n.group || '').toLowerCase().includes(q) ||
     String(n.excerpt || '').toLowerCase().includes(q)
   );
-  if (hit) { highlightNodes([hit.id]); flyToNode(hit.id); }
+  if (hit) {
+    if (viewMode === 'folders') openNode(hit);
+    else { highlightNodes([hit.id]); flyToNode(hit.id); }
+  }
   else ask(searchEl.value.trim());
+});
+searchEl.addEventListener('input', () => {
+  if (viewMode === 'folders') renderMemoryFolders(searchEl.value);
 });
 
 function paintStars() {
@@ -3170,16 +3525,17 @@ function bootGraph() {
     return;
   }
   const data = (typeof GRAPH !== 'undefined') ? GRAPH : { nodes: [], links: [] };
+  renderMemoryFolders();
   graph = ForceGraph3D()(document.getElementById('graph'))
     .graphData(data)
     .backgroundColor('#00000000')
     .showNavInfo(false)
     .nodeLabel('label')
-    .nodeColor(n => colorForGroup(n.group))
-    .nodeVal(3.6)
+    .nodeColor(n => colorForNode(n))
+    .nodeVal(n => nodeSize(n))
     .nodeRelSize(5)
     .nodeOpacity(0.95)
-    .linkColor(() => 'rgba(125,211,252,0.28)')
+    .linkColor(() => 'rgba(196,181,253,0.28)')
     .linkWidth(0.55)
     .linkOpacity(0.55)
     .onNodeClick(node => {
@@ -3188,7 +3544,7 @@ function bootGraph() {
       highlightNodes([node.id]);
       flyToNode(node.id);
     });
-  applyViewMode('ring');
+  applyViewMode('folders');
 }
 
 async function bootGreeting() {
@@ -3197,9 +3553,11 @@ async function bootGreeting() {
     const data = await r.json();
     setTalkModeUI(data.talk_mode || 'casual', data.note_count || 0);
     modelChip.textContent = prettyModel(data.model || 'MODEL');
-    ttsMode = (data.tts === 'laura' || data.tts === 'openai') ? data.tts : 'browser';
+    ttsMode = (data.tts === 'laura' || data.tts === 'openai' || data.tts === 'voicestudio') ? data.tts : 'browser';
     ttsVoiceLabel = data.tts_voice || (ttsMode === 'openai' ? 'Nova' : 'Laura');
-    if (ttsMode === 'laura') {
+    if (ttsMode === 'voicestudio') {
+      modelChip.title = `Brain + local VoiceStudio · ${ttsVoiceLabel}`;
+    } else if (ttsMode === 'laura') {
       modelChip.title = `Brain + ElevenLabs ${ttsVoiceLabel}`;
     } else if (ttsMode === 'openai') {
       modelChip.title = `Brain + OpenAI ${ttsVoiceLabel}`;
@@ -3259,6 +3617,13 @@ document.getElementById('amy-face-wrap')?.addEventListener('click', () => {
 (function freezeAmyFace() {
   const vid = document.getElementById('amy-face-video');
   if (!vid) return;
+  // Desktop WebView2 can decode the clip without painting its paused frame.
+  // Amy already uses a still pose; show her existing portrait directly there.
+  if (DESKTOP_APP) {
+    document.body.classList.add('desktop-face');
+    vid.pause();
+    return;
+  }
   const freeze = () => {
     try {
       if (!Number.isFinite(vid.duration) || vid.duration === 0) return;
@@ -3275,5 +3640,68 @@ window.speechSynthesis?.addEventListener?.('voiceschanged', () => {
   pickVoice();
 });
 </script>
+<script>
+// The HUD is transformed for centering; move the usage card outside it before fixed rail styling applies.
+const amyUsageTicker = document.getElementById('usage-ticker');
+if (amyUsageTicker) document.body.append(amyUsageTicker);
+window.AmyLayout = {
+  moveTickerUnderNotes() {
+    const slot = document.getElementById('ticker-slot');
+    const ticker = document.getElementById('usage-ticker');
+    if (slot && ticker) slot.append(ticker);
+  },
+  apply(payload) {
+    const panel = String(payload?.panel || '').toLowerCase();
+    const target = String(payload?.target || '').toLowerCase();
+    const elements = {
+      folders: document.getElementById('memory-folders'),
+      notes: document.getElementById('left-notes-rail'),
+      notebook: document.getElementById('companion-open'),
+      ticker: document.getElementById('usage-ticker'),
+      hud: document.getElementById('hud'),
+      chat: document.getElementById('dock'),
+      camera: document.getElementById('amy-camera-panel'),
+    };
+    const slots = {
+      notes: document.getElementById('left-notes-rail'),
+      folders: document.getElementById('memory-folders'),
+      notebook: document.getElementById('notebook-slot'),
+      ticker: document.getElementById('ticker-slot'),
+      hud: document.getElementById('hud'),
+      chat: document.getElementById('dock'),
+    };
+    const element = elements[panel];
+    if (payload.ui_action === 'move' && element) {
+      const destination = (panel === 'ticker' && target === 'notes') ? slots.ticker
+        : (panel === 'notebook' && target === 'folders') ? slots.notebook
+        : slots[target] || elements[target];
+      if (destination && destination !== element && !element.contains(destination)) {
+        if (['above', 'over', 'before'].includes(payload.relation)) destination.before(element);
+        else if (payload.relation === 'after') destination.after(element);
+        else destination.append(element);
+      }
+    } else if (element && payload.ui_action === 'hide') {
+      element.hidden = true;
+    } else if (element && payload.ui_action === 'show') {
+      element.hidden = false;
+    } else if (element && payload.ui_action === 'resize') {
+      element.dataset.uiSize = String(payload.size || '');
+    } else if (payload.ui_action === 'reset') {
+      const ticker = elements.ticker;
+      if (ticker) document.body.append(ticker);
+      const notebook = elements.notebook;
+      const notebookSlot = document.getElementById('notebook-slot');
+      if (notebook && notebookSlot) notebookSlot.append(notebook);
+      Object.values(elements).forEach(item => { if (item) { item.hidden = false; delete item.dataset.uiSize; } });
+      setFoldersCollapsed(false);
+      applyViewMode('folders');
+    }
+  },
+};
+</script>
+<script src="/usage.js"></script>
+<script src="/companion.js?v=3"></script>
+<script src="/camera-view.js?v=3"></script>
+<script src="/printer-status.js?v=1"></script>
 </body>
 </html>

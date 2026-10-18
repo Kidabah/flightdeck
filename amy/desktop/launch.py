@@ -211,6 +211,65 @@ def _clipboard_get() -> str:
         return ""
 
 
+def _clipboard_get_image() -> dict | None:
+    """Read a Windows clipboard bitmap; the viewer converts it to a PNG attachment."""
+    if sys.platform != "win32":
+        return None
+    import base64
+    import ctypes
+    import struct
+    from ctypes import wintypes
+
+    user32 = ctypes.windll.user32
+    kernel32 = ctypes.windll.kernel32
+    user32.GetClipboardData.argtypes = [wintypes.UINT]
+    user32.GetClipboardData.restype = wintypes.HANDLE
+    kernel32.GlobalLock.argtypes = [wintypes.HGLOBAL]
+    kernel32.GlobalLock.restype = ctypes.c_void_p
+    kernel32.GlobalSize.argtypes = [wintypes.HGLOBAL]
+    kernel32.GlobalSize.restype = ctypes.c_size_t
+    kernel32.GlobalUnlock.argtypes = [wintypes.HGLOBAL]
+    if not user32.IsClipboardFormatAvailable(8):  # CF_DIB
+        return None
+    opened = False
+    for _ in range(5):
+        if user32.OpenClipboard(None):
+            opened = True
+            break
+        time.sleep(0.02)
+    if not opened:
+        raise RuntimeError("Clipboard is busy — try pasting again.")
+    try:
+        handle = user32.GetClipboardData(8)
+        if not handle:
+            return None
+        size = kernel32.GlobalSize(handle)
+        if size < 40 or size > 32 * 1024 * 1024:
+            raise ValueError("Clipboard image is too large or invalid.")
+        pointer = kernel32.GlobalLock(handle)
+        if not pointer:
+            raise RuntimeError("Couldn't read the clipboard image.")
+        try:
+            dib = ctypes.string_at(pointer, size)
+        finally:
+            kernel32.GlobalUnlock(handle)
+        header_size = struct.unpack_from('<I', dib)[0]
+        bits = struct.unpack_from('<H', dib, 14)[0]
+        compression = struct.unpack_from('<I', dib, 16)[0]
+        colors = struct.unpack_from('<I', dib, 32)[0]
+        if header_size < 40 or header_size > size:
+            raise ValueError("Unsupported clipboard image.")
+        palette = colors or ((1 << bits) if bits <= 8 else 0)
+        masks = (12 if compression == 3 else 16 if compression == 6 else 0) if header_size == 40 else 0
+        offset = 14 + header_size + masks + palette * 4
+        if offset >= size + 14:
+            raise ValueError("Invalid clipboard image pixels.")
+        bmp = struct.pack('<2sIHHI', b'BM', size + 14, 0, 0, offset) + dib
+        return {"media_type": "image/bmp", "data": base64.b64encode(bmp).decode('ascii')}
+    finally:
+        user32.CloseClipboard()
+
+
 def _clipboard_set(text: str) -> bool:
     """Write Unicode text to the Windows clipboard."""
     if sys.platform != "win32":
@@ -629,7 +688,21 @@ def main() -> int:
             if not webview.windows:
                 return False
             try:
-                webview.windows[0].on_top = bool(enabled)
+                w = webview.windows[0]
+                form = getattr(w, "native", None)
+                if sys.platform == "win32" and form is not None:
+                    from System import Action  # type: ignore
+
+                    def apply_on_top() -> None:
+                        try:
+                            w.on_top = bool(enabled)
+                        except Exception as exc:
+                            print(f"[amy-desktop] queued on_top failed: {exc}", file=sys.stderr)
+
+                    # Do not synchronously wait for the UI thread from the JS bridge.
+                    form.BeginInvoke(Action(apply_on_top))
+                else:
+                    w.on_top = bool(enabled)
                 return True
             except Exception as exc:
                 print(f"[amy-desktop] on_top failed: {exc}", file=sys.stderr)
@@ -641,6 +714,12 @@ def main() -> int:
             except Exception as exc:
                 print(f"[amy-desktop] clipboard_get failed: {exc}", file=sys.stderr)
                 return ""
+
+        def clipboard_get_image(self) -> dict | None:
+            try:
+                return _clipboard_get_image()
+            except Exception as exc:
+                return {"error": str(exc)}
 
         def clipboard_set(self, text: str = "") -> bool:
             try:

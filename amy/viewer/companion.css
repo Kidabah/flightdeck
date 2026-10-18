@@ -1,0 +1,83 @@
+#companion-open { width:100%; margin:10px 0; padding:10px; border:1px solid var(--line,#285365); border-radius:9px; background:#112633; color:#c7f4ff; cursor:pointer; font:inherit; font-size:12px; text-align:left; }
+#companion-open.has-alert { border-color:#ffc76a; color:#ffe1a9; }
+#companion-dialog { width:min(760px,calc(100vw - 32px)); max-height:85vh; box-sizing:border-box; padding:22px; background:#091824; color:#d8edf5; border:1px solid #387388; border-radius:16px; box-shadow:0 20px 80px #000a; font:14px/1.5 system-ui,sans-serif; }
+#companion-dialog::backdrop { background:#02060bd9; }
+#companion-dialog h2 { margin:0; font-size:23px; color:#b2efff; }
+#companion-dialog h3 { margin:0 0 10px; font-size:16px; color:#9bdfee; }
+#companion-dialog section { border-top:1px solid #244150; margin-top:20px; padding-top:18px; }
+#companion-dialog p { margin:8px 0; }
+#companion-dialog small, #companion-dialog .companion-muted { color:#92adbc; }
+#companion-dialog button, #companion-dialog input, #companion-dialog textarea, #companion-dialog select { font:inherit; color:inherit; border:1px solid #386072; border-radius:7px; background:#122b39; padding:8px 10px; box-sizing:border-box; }
+#companion-dialog button { cursor:pointer; }
+#companion-dialog button:hover { background:#214456; }
+#companion-dialog button:disabled { opacity:.5; cursor:wait; }
+#companion-dialog input[type=checkbox] { width:auto; }
+#companion-dialog input:not([type=checkbox]):not([type=time]), #companion-dialog textarea { flex:1; min-width:120px; }
+#companion-dialog textarea { width:100%; min-height:85px; resize:vertical; margin:8px 0; }
+#companion-dialog .companion-row { display:flex; align-items:center; gap:9px; flex-wrap:wrap; margin:8px 0; }
+#companion-dialog .companion-head { justify-content:space-between; }
+#companion-dialog .companion-card { border:1px solid #294653; border-radius:9px; padding:10px 12px; margin-top:8px; overflow-wrap:anywhere; }
+#companion-dialog .companion-card p { white-space:pre-wrap; }
+#companion-dialog .companion-card button { margin-left:auto; padding:4px 9px; }
+#companion-feedback { min-height:1.5em; color:#ffe1a9; }
+#companion-notes, #companion-events { max-height:280px; overflow:auto; }
+#companion-history { max-height:360px; overflow:auto; }
+#companion-dialog .history-card strong { color:#b2efff; }
+#companion-dialog .history-card small { margin-left:auto; }
+#companion-dialog label { display:inline-flex; align-items:center; gap:7px; }
+body.compact #companion-open { display:block; }
+#companion-dialog .companion-head { position:sticky; top:0; z-index:2; background:#091824; padding:8px 0; }
+@media(max-width:520px) { #companion-dialog { padding:14px; } #companion-dialog .companion-row > input:not([type=checkbox]) { width:100%; } }
+
+#amy-camera-panel {
+  position: fixed; z-index: 30; box-sizing: border-box; padding: 14px;
+  background: linear-gradient(180deg, rgba(5, 24, 42, 0.98), rgba(2, 12, 28, 0.97));
+  color: #d8edf5; border: 1px solid #2e7184; border-radius: 16px;
+  box-shadow: 0 0 0 1px rgba(103, 232, 249, 0.05), 0 0 34px rgba(34, 211, 238, 0.2);
+  font: 14px/1.5 system-ui, sans-serif;
+}
+#amy-camera-panel[hidden] { display: none; }
+#amy-camera-panel .amy-camera-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+#amy-camera-panel h2 { margin:0; color:#b2efff; font-size:18px; }
+#amy-camera-panel button { width:30px; height:30px; padding:0; color:#d8edf5; border:1px solid #386072; border-radius:50%; background:#122b39; cursor:pointer; font:22px/1 system-ui,sans-serif; }
+#amy-camera-panel button:hover { border-color:#67e8f9; color:#67e8f9; }
+#amy-camera-status { min-height:1.5em; color:#a5f3fc; font-size:12px; }
+#amy-camera-feeds { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px; }
+.amy-camera-tile { min-width:0; margin:0; padding:6px; border:1px solid #294653; border-radius:10px; background:#02060b; }
+.amy-camera-tile:only-child { grid-column:1 / -1; }
+.amy-camera-tile figcaption { display:flex; justify-content:space-between; gap:6px; margin-bottom:5px; color:#b2efff; font-size:11px; }
+.amy-camera-tile-state { color:#92adbc; font-size:9px; letter-spacing:.08em; }
+.amy-camera-tile img { display:block; width:100%; aspect-ratio:16 / 9; object-fit:cover; border-radius:6px; background:#02060b; }
+#amy-camera-panel small { display:block; margin-top:8px; color:#92adbc; font-size:11px; }
+@media(max-width:720px) {
+  #amy-camera-panel { position:relative; left:auto !important; top:auto !important; width:min(420px, calc(100vw - 20px)) !important; margin:12px auto; }
+  #amy-camera-feeds { grid-template-columns:1fr; }
+}
+
+/* These controls are body-level rail items; keep the companion defaults from stretching them. */
+#companion-open {
+  position: fixed !important; top: auto; right: 16px; width: min(270px, calc(100vw - 32px)) !important;
+  max-width: calc(100vw - 32px); margin: 0 !important; box-sizing: border-box; z-index: 10;
+}
+#left-notes-rail #companion-open {
+  position: relative !important; top: auto !important; right: auto !important;
+  width: 100% !important; max-width: none; margin: 0 !important; box-sizing: border-box;
+}
+#left-notes-rail #usage-ticker {
+  position: relative !important; top: auto !important; right: auto !important; bottom: auto !important;
+  width: 100% !important; max-width: none; margin: 0 !important; box-sizing: border-box;
+}
+#usage-ticker {
+  position: fixed !important; right: 16px; bottom: 18px; width: min(270px, calc(100vw - 32px)) !important;
+  max-width: calc(100vw - 32px); box-sizing: border-box; z-index: 10;
+}
+body.compact #companion-open, body.compact #usage-ticker {
+  position: relative !important; top: auto !important; right: auto !important; bottom: auto !important;
+  width: 100% !important; max-width: none; margin: 0 0 10px !important;
+}
+@media(max-width:720px) {
+  #companion-open, #usage-ticker {
+    position: relative !important; top: auto !important; right: auto !important; bottom: auto !important;
+    width: 100% !important; max-width: none; margin: 0 0 10px !important;
+  }
+}

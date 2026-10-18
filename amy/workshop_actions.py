@@ -54,7 +54,6 @@ FLIGHTDECK_PAGES: tuple[tuple[str, str, str], ...] = (
     ("settings", "#/settings", "Settings"),
     ("filament", "#/filament", "Fleet Filament"),
     ("painter", "#/painter", "STL Painter"),
-    ("cameras", "#/fleet", "Fleet Wall"),
     ("chop", "#/chop", "Chop"),
     ("about", "#/about", "About"),
     ("manual", "#/manual", "Flight Manual"),

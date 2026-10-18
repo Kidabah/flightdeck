@@ -15,6 +15,9 @@ datas = [
     (str(AMY / "config.example.json"), "amy"),
     (str(AMY / "build.py"), "amy"),
     (str(AMY / "server.py"), "amy"),
+    (str(AMY / "companion.py"), "amy"),
+    (str(AMY / "inspections.py"), "amy"),
+    (str(AMY / "printer_status.py"), "amy"),
     (str(AMY / "preflight.py"), "amy"),
     (str(DESKTOP / "paths.py"), "amy/desktop"),
 ]
@@ -30,6 +33,9 @@ datas += collect_data_files("webview")
 binaries = collect_dynamic_libs("webview")
 
 hiddenimports = [
+    "companion",
+    "inspections",
+    "printer_status",
     "webview",
     "webview.platforms.edgechromium",
     "clr",
