@@ -18,6 +18,7 @@ Note names below are the file names in `amy/notes/workshop/`, without `.md`.
 | 3D files and models | stl, 3mf, gcode, slice, makerdeck, printshelf | makerdeck-printshelf, amy-files |
 | voron build | voron, greyhound, klipper | greyhound-voron |
 | Amy itself | amy, voice, talk, sleep, prompt, internet, desktop | amy-voice, amy-prompts, amy-sleep, amy-internet, amy-desktop |
+| Code and repo | github, repo, repository, code, source, reverse engineer, jarvis, my-amy | my-amy-repo, amy-desktop |
 
 ## How it would apply
 
