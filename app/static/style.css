@@ -24421,5 +24421,9 @@ select optgroup {
 /* Tile size slider */
 .spool-tile-tools { display: flex; justify-content: flex-end; margin: 0 0 6px; font-size: 11px; color: #94a3b8; }
 .spool-tile-tools input { vertical-align: middle; width: 120px; }
-.spool-summary-strip .spool-stat { padding: calc(8px * var(--spool-tile-scale, 1)) calc(12px * var(--spool-tile-scale, 1)); }
-.spool-summary-strip .spool-stat-value { font-size: calc(16px * var(--spool-tile-scale, 1)); }
+/* Tile size slider scales the spool cards. */
+.spool-reel-grid { grid-template-columns: repeat(auto-fill, minmax(calc(230px * var(--spool-tile-scale, 1)), 1fr)); }
+.spool-reel-img { width: calc(118px * var(--spool-tile-scale, 1)); }
+.spool-reel-card .spool-reel-body { padding: calc(6px * var(--spool-tile-scale, 1)) calc(12px * var(--spool-tile-scale, 1)) calc(12px * var(--spool-tile-scale, 1)); }
+.spool-reel-card .spool-reel-weight b { font-size: calc(16px * var(--spool-tile-scale, 1)); }
+.spool-reel-card .spool-reel-material { font-size: calc(10px * var(--spool-tile-scale, 1)); }
