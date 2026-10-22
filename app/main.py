@@ -51,7 +51,12 @@ from .models import PrintPreview, PrinterStatus
 from .paths import APP_DIR, DATA_DIR, DB_PATH, FLIGHT_RECORDER_DIR, PRINTERS_CONFIG_PATH, PRINT_LIBRARY_DIR, UPLOADS_DIR
 from .printer_config import BambuConnection, BambuRtspCamera, MjpegDirectCamera, MoonrakerConnection, NtfyConfig, PrinterEntry, SimulatedConnection, SnapmakerU1Connection, load, save
 from .printers import moonraker, simulated
-from .printers.bambu import BambuPrinter
+from .printers.bambu import (
+    BambuPrinter,
+    _bambu_slot_label,
+    _preview_filament_requirements,
+    bambu_tray_candidates,
+)
 from .scale import Scale
 from .version import APP_RELEASE_NOTES, APP_VERSION, APP_VERSION_NAME
 
@@ -11749,7 +11754,7 @@ async def _advance_queue(printer_id: str) -> None:
                 return
         for p in _bambu:
             if p.id == printer_id:
-                await asyncio.to_thread(p.send_file, file_path, filename, plate_number)
+                await asyncio.to_thread(p.send_file, file_path, filename, plate_number, _queue_tray_overrides(job))
                 db.queue_set_started(job_id)
                 await _wait_for_bambu_physical_start(p, job_id, filename)
                 log.info("queue: started job %d on %s (%s plate %s)",
@@ -11932,6 +11937,86 @@ async def set_queue_allow_colour_mismatch(job_id: int, body: QueueAllowColourMis
     return {"ok": True, "allow_colour_mismatch": body.allow_colour_mismatch}
 
 
+class QueueTrayOverrideRequest(BaseModel):
+    index: int
+    tray: Optional[int] = None
+
+
+def _queue_tray_overrides(job: dict) -> Optional[list]:
+    raw = job.get("tray_overrides")
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw) if isinstance(raw, str) else raw
+    except (TypeError, ValueError):
+        return None
+    return parsed if isinstance(parsed, list) else None
+
+
+async def _queue_tray_rows(job: dict) -> list[dict]:
+    """One row per sliced filament: the loaded trays that may feed it, and the saved choice."""
+    printer = _bambu_printer(job["printer_id"])
+    if printer is None:
+        return []
+    statuses = await _printer_status_map()
+    slots = await asyncio.to_thread(printer.ams_slots)
+    requirements = _preview_filament_requirements(
+        _queue_filament_colors_for_preflight(job, statuses.get(job["printer_id"])),
+        job.get("filament_type"),
+    )
+    overrides = _queue_tray_overrides(job) or []
+    rows = []
+    for idx, req in enumerate(requirements):
+        rows.append({
+            "index": idx,
+            "material": req.get("material") or "",
+            "colour": req.get("color") or "",
+            "nozzle": req.get("nozzle"),
+            "selected": overrides[idx] if idx < len(overrides) else None,
+            "trays": [
+                {
+                    "tray": int(s["bambu_tray_id"]),
+                    "label": _bambu_slot_label(s),
+                    "material": s.get("material_norm") or "",
+                    "colour": s.get("color_norm") or "",
+                }
+                for s in bambu_tray_candidates(req, slots)
+            ],
+        })
+    return rows
+
+
+@app.get("/api/queue/{job_id}/tray-options")
+async def get_queue_tray_options(job_id: int):
+    job = db.queue_get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return {"rows": await _queue_tray_rows(job)}
+
+
+@app.post("/api/queue/{job_id}/tray-override")
+async def set_queue_tray_override(job_id: int, body: QueueTrayOverrideRequest):
+    job = db.queue_get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job["status"] not in ("pending", "held"):
+        raise HTTPException(status_code=409, detail="Only pending jobs can change the tray choice")
+    rows = await _queue_tray_rows(job)
+    if body.index < 0 or body.index >= len(rows):
+        raise HTTPException(status_code=422, detail="No filament row with that index")
+    if body.tray is not None and not any(t["tray"] == body.tray for t in rows[body.index]["trays"]):
+        raise HTTPException(status_code=422, detail="That tray cannot feed this filament on this nozzle path")
+    overrides = list(_queue_tray_overrides(job) or [])
+    while len(overrides) <= body.index:
+        overrides.append(None)
+    overrides[body.index] = body.tray
+    while overrides and overrides[-1] is None:
+        overrides.pop()
+    if not db.queue_set_tray_overrides(job_id, json.dumps(overrides) if overrides else None):
+        raise HTTPException(status_code=409, detail="Could not update queue job")
+    return {"ok": True, "tray_overrides": overrides}
+
+
 @app.post("/api/queue/{job_id}/reorder")
 async def reorder_queue_job(job_id: int, body: QueueReorderRequest):
     if body.direction not in ("up", "down"):
@@ -12023,7 +12108,7 @@ async def _advance_queue_specific(job_id: int, printer_id: str,
                 return
         for p in _bambu:
             if p.id == printer_id:
-                await asyncio.to_thread(p.send_file, file_path, filename, plate_number)
+                await asyncio.to_thread(p.send_file, file_path, filename, plate_number, _queue_tray_overrides(job or {}))
                 db.queue_set_started(job_id)
                 await _wait_for_bambu_physical_start(p, job_id, filename)
                 return

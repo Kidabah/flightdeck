@@ -1326,7 +1326,8 @@ class BambuPrinter:
                 })
         return slots
 
-    def send_file(self, file_path: str, filename: str, plate_number: Optional[int] = None) -> None:
+    def send_file(self, file_path: str, filename: str, plate_number: Optional[int] = None,
+                  tray_overrides: Optional[list] = None) -> None:
         """Upload a .gcode.3mf to the printer via FTPS then send the MQTT print command."""
         from .bambu_ftp import upload_bambu_file
         with open(file_path, "rb") as f:
@@ -1351,6 +1352,7 @@ class BambuPrinter:
             preview.filament_colors if preview else None,
             preview.filament_type if preview else None,
             slots,
+            tray_overrides=tray_overrides,
         )
         # Count regular AMS units from MQTT so we can compute ams_id=128 for AMS HT.
         ams_raw = (self._printer.mqtt_dump().get("print") or {}).get("ams") or {}
@@ -1363,6 +1365,7 @@ class BambuPrinter:
             "flat_ams_mapping": flat_mapping,
             "ams_mapping2": detailed_mapping,
             "mapping_note": mapping_note,
+            "tray_overrides": tray_overrides,
             "regular_ams_slots": regular_ams_slots,
             "print_plate_number": print_plate_number,
         }))
@@ -1737,10 +1740,46 @@ def _preview_filament_requirements(filament_colors, fallback_type: Optional[str]
     return out
 
 
+def _materials_compatible(wanted: str, have: str) -> bool:
+    return bool(wanted and have) and (wanted == have or wanted in have or have in wanted)
+
+
+def bambu_tray_candidates(req: dict, slots: list[dict]) -> list[dict]:
+    """Loaded trays that may feed one sliced filament: same material, same nozzle path."""
+    wanted = req.get("material") or ""
+    nozzle = req.get("nozzle")
+    out = []
+    for slot in slots:
+        material = _norm_bambu_material(slot.get("type"))
+        if not material:
+            continue
+        if wanted and not _materials_compatible(wanted, material):
+            continue
+        if nozzle in (0, 1) and "nozzle" in slot and slot.get("nozzle") != nozzle:
+            continue
+        out.append({**slot, "material_norm": material, "color_norm": _norm_bambu_hex(slot.get("color"))})
+    return out
+
+
+def _validated_forced_tray(req: dict, tray_id: int, available: list[dict]) -> int:
+    matches = [s for s in available if int(s["bambu_tray_id"]) == tray_id]
+    if not matches:
+        raise BambuAmsMappingError(
+            f"Chosen AMS tray {tray_id} is no longer loaded. Pick another tray or set it back to Auto."
+        )
+    if not bambu_tray_candidates(req, [matches[0]]):
+        wanted = " ".join(p for p in [req.get("material"), req.get("color")] if p) or "filament"
+        raise BambuAmsMappingError(
+            f"Chosen tray {_bambu_slot_label(matches[0])} cannot feed {wanted} on this nozzle path."
+        )
+    return tray_id
+
+
 def _derive_bambu_ams_mapping(
     filament_colors,
     fallback_type: Optional[str],
     slots: list[dict],
+    tray_overrides: Optional[list] = None,
 ) -> tuple[list[int], str]:
     requirements = _preview_filament_requirements(filament_colors, fallback_type)
     if not requirements:
@@ -1758,7 +1797,14 @@ def _derive_bambu_ams_mapping(
     mapping: list[int] = []
     used: set[int] = set()
     notes: list[str] = []
-    for req in requirements:
+    for idx, req in enumerate(requirements):
+        forced = tray_overrides[idx] if tray_overrides and idx < len(tray_overrides) else None
+        if forced is not None:
+            tray_id = _validated_forced_tray(req, int(forced), available)
+            mapping.append(tray_id)
+            used.add(tray_id)
+            notes.append(f"{req.get('material') or 'unknown'} {req.get('color') or ''} chosen->{tray_id}")
+            continue
         material_matches = [
             slot for slot in available
             if req["material"] and (

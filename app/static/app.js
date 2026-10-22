@@ -12568,6 +12568,24 @@ function _queueReleaseConfirmMessage(job, printer) {
   return 'Remove this from Flightdeck only? It will not cancel anything on the printer. If the bay is idle, the next queued job may start.';
 }
 
+function _queueTrayPicksHtml(jobId, rows) {
+  if (!rows.length) return '';
+  return rows.map(row => {
+    const nozzle = row.nozzle === 0 ? ' · left nozzle' : row.nozzle === 1 ? ' · right nozzle' : '';
+    const label = `${esc(row.material || 'Filament')}${row.colour ? ` ${esc(row.colour)}` : ''}${esc(nozzle)}`;
+    const options = row.trays.map(t =>
+      `<option value="${t.tray}" ${row.selected === t.tray ? 'selected' : ''}>${esc(t.label)} · ${esc(t.material)}${t.colour ? ` ${esc(t.colour)}` : ''}</option>`
+    ).join('');
+    const none = row.trays.length ? '' : '<option value="" disabled selected>No loaded tray on this path</option>';
+    return `<label class="queue-tray-pick">
+        <span>${label}</span>
+        <select data-tray-pick data-job-id="${jobId}" data-index="${row.index}">
+          <option value="" ${row.selected == null ? 'selected' : ''}>Auto</option>${options}${none}
+        </select>
+      </label>`;
+  }).join('');
+}
+
 function _queueJobCard(job, isFirst, isLast, printerKind = '') {
   const isPending   = job.status === 'pending';
   const isHeld      = job.status === 'held';
@@ -12611,6 +12629,9 @@ function _queueJobCard(job, isFirst, isLast, printerKind = '') {
         <span>Allow different colour</span>
       </label>`
     : '';
+  const trayPicksBox = isQueued
+    ? `<div class="queue-tray-picks" data-tray-picks data-job-id="${job.id}"></div>`
+    : '';
 
   return `<div class="queue-job ${isActive ? 'queue-job-active' : ''} queue-job-${readiness.cls}" data-job-id="${job.id}">
     <div class="queue-job-thumb">
@@ -12628,6 +12649,7 @@ function _queueJobCard(job, isFirst, isLast, printerKind = '') {
       </div>
       ${_queuePreflightIssues(preflight)}
       <div class="queue-job-toggles">${calibrateToggle}${shortFilamentToggle}${colourMismatchToggle}</div>
+      ${trayPicksBox}
     </div>
     <div class="queue-job-actions">
     ${isQueued ? `
@@ -12767,6 +12789,28 @@ async function renderQueueView() {
           showToast('Could not update calibration setting', err.message || '', 'error');
         }
       });
+    });
+    el.querySelectorAll('[data-tray-pick]').forEach(sel => {
+      sel.addEventListener('change', async () => {
+        const index = Number(sel.dataset.index);
+        const tray = sel.value === '' ? null : Number(sel.value);
+        try {
+          await _queueFetchJson(`/api/queue/${sel.dataset.jobId}/tray-override`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ index, tray }),
+          });
+          showToast(tray == null ? 'Tray set to Auto' : 'Tray choice saved', '', 'success');
+        } catch (err) {
+          showToast('Could not set tray', err.message || '', 'error');
+        }
+        await renderQueueView();
+      });
+    });
+    el.querySelectorAll('[data-tray-picks]').forEach(box => {
+      _queueFetchJson(`/api/queue/${box.dataset.jobId}/tray-options`)
+        .then(data => { box.innerHTML = _queueTrayPicksHtml(box.dataset.jobId, data.rows || []); })
+        .catch(() => { box.textContent = 'Tray choice unavailable'; });
     });
     el.querySelectorAll('[data-action="allow-colour"]').forEach(inp => {
       inp.addEventListener('change', async () => {

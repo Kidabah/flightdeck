@@ -746,6 +746,7 @@ def init() -> None:
             "ALTER TABLE print_queue ADD COLUMN calibrate_before_start INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE print_queue ADD COLUMN allow_short_filament INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE print_queue ADD COLUMN allow_colour_mismatch INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE print_queue ADD COLUMN tray_overrides TEXT",
             "ALTER TABLE print_queue ADD COLUMN plate_number INTEGER",
             "ALTER TABLE print_queue ADD COLUMN plate_count INTEGER",
             "ALTER TABLE filament_catalog ADD COLUMN updated_at TEXT NOT NULL DEFAULT (datetime('now'))",
@@ -5608,7 +5609,7 @@ def queue_list(printer_id: Optional[str] = None) -> list[dict]:
                 f"""SELECT id, printer_id, position, filename, file_path, file_size, status,
                            estimated_seconds, filament_weight_g, filament_type, filament_colors,
                            calibrate_before_start, allow_short_filament, allow_colour_mismatch,
-                           plate_number, plate_count,
+                           tray_overrides, plate_number, plate_count,
                            created_at, started_at, finished_at, error_msg,
                            (preview_png IS NOT NULL) AS has_preview
                     FROM print_queue WHERE printer_id = ?
@@ -5620,7 +5621,7 @@ def queue_list(printer_id: Optional[str] = None) -> list[dict]:
                 f"""SELECT id, printer_id, position, filename, file_path, file_size, status,
                            estimated_seconds, filament_weight_g, filament_type, filament_colors,
                            calibrate_before_start, allow_short_filament, allow_colour_mismatch,
-                           plate_number, plate_count,
+                           tray_overrides, plate_number, plate_count,
                            created_at, started_at, finished_at, error_msg,
                            (preview_png IS NOT NULL) AS has_preview
                     FROM print_queue
@@ -5643,7 +5644,7 @@ def queue_get(job_id: int) -> Optional[dict]:
             """SELECT id, printer_id, position, filename, file_path, file_size,
                       status, estimated_seconds, filament_weight_g, filament_type, filament_colors,
                       calibrate_before_start, allow_short_filament, allow_colour_mismatch,
-                      plate_number, plate_count,
+                      tray_overrides, plate_number, plate_count,
                       created_at, started_at, finished_at, error_msg
                FROM print_queue WHERE id = ?""",
             (job_id,),
@@ -5721,6 +5722,17 @@ def queue_set_allow_short_filament(job_id: int, enabled: bool) -> bool:
                SET allow_short_filament = ?
                WHERE id = ? AND status IN ('pending', 'held')""",
             (1 if enabled else 0, job_id),
+        ).rowcount
+    return n > 0
+
+
+def queue_set_tray_overrides(job_id: int, overrides_json: Optional[str]) -> bool:
+    with _conn() as conn:
+        n = conn.execute(
+            """UPDATE print_queue
+               SET tray_overrides = ?
+               WHERE id = ? AND status IN ('pending', 'held')""",
+            (overrides_json, job_id),
         ).rowcount
     return n > 0
 

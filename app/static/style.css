@@ -24504,3 +24504,15 @@ select optgroup {
 .spool-strip-controls .spool-tile-slider input { width: 110px; }
 .spool-reel-card .spool-reel-icons { order: -1; border-top: 0; border-bottom: 1px solid #2d3546; margin: 0; padding: 8px 10px; }
 .spool-reel-number { font-size: 16px; font-weight: 800; color: #f8fafc; padding: 4px 12px 12px; letter-spacing: .02em; }
+
+/* Per-job tray picker: one dropdown per sliced filament, listing trays on the right nozzle path. */
+.queue-tray-picks { display: grid; gap: 0.3rem; margin-top: 0.4rem; }
+.queue-tray-pick {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 0.4rem;
+  align-items: center; font-size: 0.72rem; color: var(--muted);
+}
+.queue-tray-pick span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.queue-tray-pick select {
+  min-width: 0; font: inherit; color: var(--text); background: var(--surface);
+  border: 1px solid var(--border); border-radius: 0.35rem; padding: 0.2rem 0.3rem;
+}
