@@ -23057,7 +23057,7 @@ function _paintSpoolList(el, listEl, spools) {
     listEl.innerHTML = _spoolSwatchHtml(spools);
   } else if (_spoolsViewMode === 'detail') {
     listEl.className = 'spool-card-grid spool-reel-grid';
-    listEl.innerHTML = spools.map(_spoolReelCardHtml).join('');
+    listEl.innerHTML = [...spools].sort((a, b) => _spoolDisplayId(a) - _spoolDisplayId(b)).map(_spoolReelCardHtml).join('');
   } else {
     listEl.className = 'spool-card-grid';
     listEl.innerHTML = _spoolGroupedCards(spools).map(_spoolGroupCardHtml).join('');
