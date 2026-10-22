@@ -1,3 +1,15 @@
+## 2026-10-22 — Spools reel cards, Drawers tab, compact header (Pi live)
+
+- Spools Detail view is now one reel card per spool (roll tabs removed). The reel is a photo PNG (`app/static/reel-spool.png`) recoloured per spool with a CSS hue filter; it is not yet a true per-spool colour match.
+- Card layout: six icon buttons across the top (Info, Assign, Label, Weigh, Edit, Delete) and the spool number at the bottom in larger type. Table view uses the same icon row.
+- Spools toolbar: Swatch, Cabinet and Rack views and the Shelved filter are removed. Saved Swatch/Cabinet/Rack views fall back to Detail. Cabinet and rack code is still in `app.js` but unreachable.
+- Header: Spool Intelligence is one summary row with a Details toggle. Search, Add Spool and a Spool tile size slider sit in the stat row. The slider scales the spool cards only.
+- Detail cards sort by spool number.
+- Drawers: the six-drawer spool home moved to its own `#/drawers` tab (`storage-drawers.js` mounts into `#drawers-body`). Settings > Locations now has only the Storage locations form and the current list; Location Overview and the rack builder were removed.
+- Gotcha: `#view-spools #spools-body` needs its sizing rule or the cards squash in the desktop window. The rule is restored in `style.css`.
+- Gotcha: the Flightdeck desktop window keeps its own web cache. After a Pi update, close the window fully (check for leftover `pythonw.exe`) before reopening.
+- Gotcha: the local dev server caches `index.html`. Restart it after editing that file.
+
 ## 2026-10-18 — Cindy Vinyl recovery isolated and verified locally
 
 - Recovered compilation-folder search, Explorer folder playback, single-instance folder forwarding, cover-art fallback parity, search focus, and turntable arm media/polish.
