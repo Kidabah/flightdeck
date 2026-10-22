@@ -8,6 +8,8 @@
 - Local, not pushed: the Amy viewer talk bar (`amy/viewer/index.html`) is now one pill with an Amy tag, "Ask Amy anything…", a "new chat" link that clears the screen only, a speaker-icon stop button, the existing mic button, and a round send button. FILE is hidden; the tray still has file drop. Not tested in a browser; the JS was not syntax-checked (no node here).
 - Note names are matched on the file stem (`workshop/ams-filament.md` → `ams-filament`), the same way `build.py` links notes. Note labels come from headings, so they are not used.
 - Tested the parser (9 rows) and the matcher on sample questions with stand-in notes. Not tested against the live index or a running Amy.
+- Local `3730c8ec`: `amy/notes/workshop/my-amy-repo.md` points Amy to the private `Kidabah/My-Amy` repo and the old Jarvis folder, and a "Code and repo" task type loads it. Amy still cannot open the private repo or read local code files; that needs a read-only file tool, which is not built yet.
+- Jarvis: startup shortcut moved to a backup in the scratchpad; old server stopped; `D:\My-Jarvis` kept, with `My-Amy` on GitHub holding the code only.
 - Idea only, not built: the repo `ai-memory-vault` (CC BY-SA 4.0) was reviewed. Taking the idea is fine; copying its text would need the same licence.
 - Open: whether Jarvis is a separate install (in this repo, Jarvis appears only in old notes).
 
