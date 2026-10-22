@@ -24366,3 +24366,38 @@ select optgroup {
   overflow-wrap: anywhere;
 }
 .fleet-wall-status-row > .printer-lan-address { margin-left: auto; }
+
+/* Reel spool cards (Detail view): one card per spool, reel graphic shows remaining filament. */
+.spool-reel-grid { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+.spool-reel-card { display: flex; flex-direction: column; padding: 0; background: #1f2430; border: 1px solid #2d3546; border-radius: 12px; overflow: hidden; }
+.spool-reel-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px 0; }
+.spool-reel-badges { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
+.spool-reel-badge { font-size: 10px; font-weight: 700; letter-spacing: .04em; padding: 2px 7px; border-radius: 999px; background: #ea580c; color: #fff; text-transform: uppercase; }
+.spool-reel-art { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 0 4px; }
+.spool-reel-svg { width: 96px; height: 96px; }
+.spool-reel-material { font-size: 10px; font-weight: 700; color: #e5e7eb; letter-spacing: .05em; text-transform: uppercase; }
+.spool-reel-body { display: flex; flex-direction: column; gap: 5px; padding: 6px 12px 12px; }
+.spool-reel-title b { color: #f8fafc; font-size: 14px; }
+.spool-reel-title span { color: #94a3b8; font-size: 12px; }
+.spool-reel-colour { display: flex; align-items: center; gap: 6px; color: #e5e7eb; font-size: 13px; }
+.spool-reel-dot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(255,255,255,.35); }
+.spool-reel-brand { color: #94a3b8; font-size: 11px; }
+.spool-reel-weight { display: flex; align-items: baseline; gap: 6px; color: #94a3b8; font-size: 12px; margin-top: 2px; }
+.spool-reel-weight b { color: #f8fafc; font-size: 16px; }
+.spool-reel-weight .spool-remaining-pct { margin-left: auto; font-weight: 700; }
+.spool-reel-body .spool-progress-bar { height: 6px; border-radius: 999px; background: #334155; overflow: hidden; }
+.spool-reel-body .spool-progress-fill { height: 100%; border-radius: 999px; }
+
+/* Icon row under each reel card (replaces the Actions menu). */
+.spool-reel-icons { display: flex; justify-content: space-around; gap: 6px; padding-top: 8px; margin-top: 4px; border-top: 1px solid #2d3546; }
+.spool-reel-icon { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 30px; padding: 0; border: 1px solid #334155; border-radius: 8px; background: transparent; color: #60a5fa; cursor: pointer; text-decoration: none; }
+.spool-reel-icon:hover { background: #1e293b; }
+.spool-reel-icon svg { width: 16px; height: 16px; }
+.spool-reel-icon.spool-action-detail { color: #a78bfa; }
+.spool-reel-icon.spool-action-danger { color: #f87171; }
+
+/* Three-quarter reel graphic is wider than tall. */
+.spool-reel-svg { width: 118px; height: auto; }
+
+/* Photo reel image on each card. */
+.spool-reel-img { width: 118px; height: auto; display: block; margin: 0 auto; }

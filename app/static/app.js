@@ -21614,6 +21614,89 @@ function _spoolSwatchHtml(spools) {
     : '<p class="filament-empty">No spools match the current filters.</p>';
 }
 
+// Icon row under each reel card. Info links to the spool page; the rest reuse the existing actions.
+function _spoolReelIconsHtml(s) {
+  const id = s.id;
+  const archived = !!s.archived_at;
+  const icon = {
+    info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.5v.5"/></svg>',
+    weigh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 18a8 8 0 1 1 16 0"/><path d="M12 14l4-4"/></svg>',
+    edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>',
+    del: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>',
+  };
+  const info = `<a class="spool-reel-icon spool-action-detail" href="#/spool/${id}" title="Details" aria-label="Details">${icon.info}</a>`;
+  if (archived) return `<div class="spool-reel-icons">${info}</div>`;
+  return `<div class="spool-reel-icons">
+    ${info}
+    <button class="spool-reel-icon spool-action-btn spool-action-weigh" data-action="weigh" data-id="${id}" title="Weigh from scale" aria-label="Weigh">${icon.weigh}</button>
+    <button class="spool-reel-icon spool-action-btn spool-action-edit" data-action="edit" data-id="${id}" title="Edit" aria-label="Edit">${icon.edit}</button>
+    <button class="spool-reel-icon spool-action-btn spool-action-danger" data-action="delete" data-id="${id}" title="Delete" aria-label="Delete">${icon.del}</button>
+  </div>`;
+}
+
+// Reel card: one per spool. The coloured winding shrinks as filament is used.
+// CSS filter that turns the red reel photo into the spool colour (hue shift; greys/whites/blacks use brightness).
+function _spoolReelFilter(hex) {
+  const h = String(hex || '#404040').replace('#', '');
+  if (h.length < 6) return 'none';
+  const r = parseInt(h.slice(0, 2), 16) / 255;
+  const g = parseInt(h.slice(2, 4), 16) / 255;
+  const b = parseInt(h.slice(4, 6), 16) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+  const light = (mx + mn) / 2;
+  const d = mx - mn;
+  if (d < 0.12) return `grayscale(1) brightness(${(0.4 + light * 1.1).toFixed(2)})`;
+  let hue;
+  if (mx === r) hue = ((g - b) / d) % 6;
+  else if (mx === g) hue = (b - r) / d + 2;
+  else hue = (r - g) / d + 4;
+  return `hue-rotate(${Math.round(((hue * 60) + 360) % 360)}deg)`;
+}
+
+function _spoolReelSvg(s, pct) {
+  const hex = s.color_hex || '#404040';
+  const winding = 12 + 21 * Math.max(0, Math.min(100, pct)) / 100;
+  // Photo reel (red base) recoloured to the spool's colour with a CSS filter.
+  return `<img class="spool-reel-img" src="/static/reel-spool.png" alt="" style="filter:${_spoolReelFilter(hex)}">`;
+}
+
+function _spoolReelCardHtml(s) {
+  const pct = s.label_weight_g > 0 ? Math.round(s.remaining_g * 100 / s.label_weight_g) : 0;
+  const archived = !!s.archived_at;
+  const inUse = !!s.location_printer_id;
+  const p = _latestPrinters.find(x => x.id === s.location_printer_id);
+  const loc = inUse
+    ? `${p?.custom_name ?? s.location_printer_id} ${_amsSlotLabel(p, s.location_slot)}`
+    : _spoolStorageLocationName(s.storage_location_id);
+  const cls = pct < 20 ? ' spool-low' : pct < 50 ? ' spool-amber' : '';
+  return `<div class="spool-card spool-reel-card${archived ? ' spool-card-archived' : ''}" data-spool-id="${s.id}">
+    <div class="spool-reel-top">
+      <span class="spool-id-badge">${esc(_spoolDisplayLabel(s))}</span>
+      <span class="spool-reel-badges">
+        ${inUse ? '<span class="spool-reel-badge in-use">In use</span>' : ''}
+        ${archived ? '<span class="spool-archived-stamp">Reserved</span>' : ''}
+      </span>
+    </div>
+    <div class="spool-reel-art">
+      ${_spoolReelSvg(s, pct)}
+      <span class="spool-reel-material">${esc(s.material || '')}</span>
+    </div>
+    <div class="spool-reel-body">
+      <div class="spool-reel-title"><b>${esc(s.material || '')}</b>${s.subtype ? ` <span>${esc(s.subtype)}</span>` : ''}</div>
+      <div class="spool-reel-colour"><span class="spool-reel-dot" style="background:${esc(s.color_hex || '#404040')}"></span>${esc(s.color_name || '—')}</div>
+      <div class="spool-reel-brand">${esc(s.brand || 'Unknown brand')}${inUse ? ` · <span title="${esc(loc)}">${esc(p?.custom_name ?? s.location_printer_id)}</span>` : ` · ${esc(loc)}`}</div>
+      <div class="spool-reel-weight">
+        <b>${Math.round(s.remaining_g || 0)}g</b> / ${Math.round(s.label_weight_g || 0)}g
+        <span class="spool-remaining-pct${cls}">${pct}%</span>
+      </div>
+      <div class="spool-progress-bar">
+        <div class="spool-progress-fill" style="width:${pct}%;background:${_spoolProgressColor(pct)}"></div>
+      </div>
+      ${_spoolReelIconsHtml(s)}
+    </div>
+  </div>`;
+}
+
 function _spoolGroupCardHtml(group) {
   if (group.length === 1) return _spoolCardHtml(group[0]);
   const first = group[0];
@@ -22978,6 +23061,9 @@ function _paintSpoolList(el, listEl, spools) {
   } else if (_spoolsViewMode === 'swatch') {
     listEl.className = 'spool-swatch-grid';
     listEl.innerHTML = _spoolSwatchHtml(spools);
+  } else if (_spoolsViewMode === 'detail') {
+    listEl.className = 'spool-card-grid spool-reel-grid';
+    listEl.innerHTML = spools.map(_spoolReelCardHtml).join('');
   } else {
     listEl.className = 'spool-card-grid';
     listEl.innerHTML = _spoolGroupedCards(spools).map(_spoolGroupCardHtml).join('');
