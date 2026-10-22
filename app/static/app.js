@@ -12568,6 +12568,8 @@ function _queueReleaseConfirmMessage(job, printer) {
   return 'Remove this from Flightdeck only? It will not cancel anything on the printer. If the bay is idle, the next queued job may start.';
 }
 
+const _queueTrayRowsCache = new Map();
+
 function _queueTrayPicksHtml(jobId, rows) {
   if (!rows.length) return '';
   return rows.map(row => {
@@ -12630,7 +12632,7 @@ function _queueJobCard(job, isFirst, isLast, printerKind = '') {
       </label>`
     : '';
   const trayPicksBox = isQueued
-    ? `<div class="queue-tray-picks" data-tray-picks data-job-id="${job.id}"></div>`
+    ? `<div class="queue-tray-picks" data-tray-picks data-job-id="${job.id}">${_queueTrayPicksHtml(job.id, _queueTrayRowsCache.get(job.id) || [])}</div>`
     : '';
 
   return `<div class="queue-job ${isActive ? 'queue-job-active' : ''} queue-job-${readiness.cls}" data-job-id="${job.id}">
@@ -12804,13 +12806,19 @@ async function renderQueueView() {
         } catch (err) {
           showToast('Could not set tray', err.message || '', 'error');
         }
+        _queueTrayRowsCache.delete(Number(sel.dataset.jobId));
         await renderQueueView();
       });
     });
     el.querySelectorAll('[data-tray-picks]').forEach(box => {
-      _queueFetchJson(`/api/queue/${box.dataset.jobId}/tray-options`)
-        .then(data => { box.innerHTML = _queueTrayPicksHtml(box.dataset.jobId, data.rows || []); })
-        .catch(() => { box.textContent = 'Tray choice unavailable'; });
+      const jobId = Number(box.dataset.jobId);
+      if (_queueTrayRowsCache.has(jobId)) return;
+      _queueFetchJson(`/api/queue/${jobId}/tray-options`)
+        .then(data => {
+          _queueTrayRowsCache.set(jobId, data.rows || []);
+          box.innerHTML = _queueTrayPicksHtml(jobId, data.rows || []);
+        })
+        .catch(() => { box.textContent = 'Tray choice unavailable — restart Flightdeck on the Pi'; });
     });
     el.querySelectorAll('[data-action="allow-colour"]').forEach(inp => {
       inp.addEventListener('change', async () => {
