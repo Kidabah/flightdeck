@@ -24318,25 +24318,25 @@ select optgroup {
 .detail-body.live-workspace-body { flex: none; min-height: 24rem; overflow: visible; }
 .live-workspace-body .detail-right { overflow: visible; contain: none; }
 .live-workspace-controls {
-  display: grid; grid-template-columns: minmax(260px,300px) minmax(0,1fr); align-items: start;
-  gap: .8rem; margin: .8rem 1.25rem 1.25rem;
+  display: grid; grid-template-columns: minmax(215px,240px) minmax(230px,280px) minmax(0,1fr); align-items: stretch;
+  gap: .5rem; margin: .5rem 1.25rem .9rem;
 }
 .live-workspace-panel {
-  min-width: 0; padding: .8rem; border: 1px solid var(--border);
+  min-width: 0; padding: .55rem .65rem; border: 1px solid var(--border);
   border-radius: .7rem; background: var(--surface);
 }
-.live-workspace-panel h2 { margin: 0 0 .6rem; font-size: .9rem; }
+.live-workspace-panel h2 { margin: 0 0 .4rem; font-size: .9rem; }
 .live-workspace-panel-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .5rem; }
 .live-workspace-panel .live-strip { margin: 0; }
 .live-workspace-panel .live-op-row { height: auto; }
 .live-workspace-panel .live-op-temp-panel { width: auto; }
 .live-workspace-panel .live-environment-panel { min-width: 0; }
-.live-workspace-queue { margin-top: .8rem; }
+.live-workspace-queue { margin-top: 0; }
 .live-workspace-job-list { padding-left: 1.2rem; margin: .5rem 0; }
 .live-workspace-job-list li { display: flex; gap: .5rem; justify-content: space-between; padding: .45rem 0; }
 .live-workspace-job-list li > span:first-child { min-width: 0; overflow-wrap: anywhere; }
 /* Keep compact machine controls together and give multi-AMS loadouts room. */
-.live-workspace-machine { display: grid; gap: .8rem; min-width: 0; }
+.live-workspace-machine { display: contents; }
 .live-workspace-thermal { padding: .65rem; }
 .live-workspace-thermal .live-op-temp-panel { padding: .35rem; }
 .live-workspace-thermal .detail-panel-title { display: none; }
@@ -24351,6 +24351,17 @@ select optgroup {
 .live-workspace-thermal .live-op-fan-row .live-op-slider { grid-column: auto; min-height: 1.8rem; }
 .live-workspace-thermal .live-op-preheat-btn { min-height: 2rem; }
 .live-workspace-filament .ams-loadout-units { align-items: flex-start; }
+/* Desktop: camera, print status and controls fit roughly one screen. */
+@media (min-width: 901px) {
+  .live-workspace-body .live-main-deck { flex: none; min-height: 0; }
+  .live-workspace-body .live-deck-stage { flex: none; height: clamp(16rem, 44vh, 30rem); }
+  .live-workspace-body .detail-right { width: 290px; gap: .5rem; }
+  .live-workspace-body #detail-print { min-height: 0; }
+}
+@media (max-width: 1100px) {
+  .live-workspace-controls { grid-template-columns: minmax(215px,1fr) minmax(230px,1fr); }
+  .live-workspace-filament { grid-column: 1 / -1; }
+}
 @media (max-width: 700px) {
   .live-workspace-controls { grid-template-columns: minmax(0,1fr); }
 }
