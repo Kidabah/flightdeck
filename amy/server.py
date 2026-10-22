@@ -3929,13 +3929,14 @@ def see(question: str, image_b64: str, media_type: str = "image/jpeg", *, vision
     else:
         view = (
             "You are looking at a live screen capture from Chris's desk (EYES mode). "
-            "Answer specifically about what is visible on screen."
+            "Answer specifically about what is visible on screen. Start with the headline: what the screen shows."
         )
     system = (
         active_persona()
         + "\n"
         + view
-        + " If the frame is too small or blurry to judge, say so plainly rather than guessing."
+        + " Use only what is in this frame. If the frame is too small or blurry to read, say so plainly"
+        + " and name what you cannot read, rather than guessing."
     )
     answer = openai_reply(
         [

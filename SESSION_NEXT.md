@@ -1,3 +1,12 @@
+## 2026-10-23 — Screen sight (EYES) tightened (local, not pushed)
+
+- `amy/viewer/index.html` `captureShareFrame`: frame at the screen's full resolution (was capped at 1280 wide), JPEG at quality 0.85, falling back to 0.7 only if the body would pass the server's 12MB limit. Sent as `image/jpeg`, which matches the encoding.
+- A screen question with no live share (`what am I looking at`, `my screen`, `this screen`) answers "There's no screen share running…" and never calls `/see` or `/chat`. A live share still captures one fresh frame at the moment of asking.
+- Share indicator: red pill with a pulsing white dot, "SCREEN SHARE LIVE · AMY CAN SEE IT". Camera mode keeps its own label.
+- `amy/server.py` `see()`: headline first; use only what is in the frame; say plainly when it is too small or blurry to read.
+- Not verified end to end. The OpenAI key in `%APPDATA%\Amy\config.json` is still the placeholder, so `/see` cannot return a real answer on this PC. Port 4700 is held by the old Jarvis server, so Amy's own `/see` was not reached over HTTP. The browser screen picker was not exercised.
+- Mismatch to decide: the config's provider is `openai` with model `gpt-5.6-luna`. The brief said "the Claude brain"; `/see` uses whatever `openai_chat` is configured to use.
+
 ## 2026-10-23 — Knowledge galaxy shows its sources (local, not pushed)
 
 - `amy/server.py` `chat_from_notes`: decides first whether the question was about my notes (`is_notes_question`: says "my notes", matches a task type, or names a note). Only then are `nodes` returned and `move_camera` set. Small talk and jokes return no nodes and no camera move.

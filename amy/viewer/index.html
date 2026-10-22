@@ -139,27 +139,31 @@
       z-index: 10;
       align-items: center;
       gap: 7px;
-      background: rgba(2, 8, 18, 0.92);
-      color: #cbd5e1;
-      border: 1px solid rgba(148, 163, 184, 0.35);
+      background: #dc2626;
+      color: #fff;
+      border: 2px solid #fecaca;
       border-radius: 999px;
-      padding: 4px 10px 4px 8px;
-      font-size: 0.62rem;
-      font-weight: 700;
-      letter-spacing: 0.08em;
+      padding: 6px 14px 6px 10px;
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
       text-transform: uppercase;
       white-space: nowrap;
-      box-shadow: 0 0 12px rgba(0, 0, 0, 0.35);
+      box-shadow: 0 0 18px rgba(220, 38, 38, 0.8);
       pointer-events: none;
     }
     #share-dot::before {
       content: "";
-      width: 7px;
-      height: 7px;
+      width: 10px;
+      height: 10px;
       border-radius: 50%;
-      background: #22c55e;
-      box-shadow: 0 0 8px rgba(34, 197, 94, 0.85);
+      background: #fff;
+      box-shadow: 0 0 10px #fff;
       flex-shrink: 0;
+      animation: share-pulse 1s ease-in-out infinite;
+    }
+    @keyframes share-pulse {
+      50% { opacity: 0.25; }
     }
     #share-dot.is-on,
     #share-dot[style*="inline-flex"] { display: inline-flex !important; }
@@ -2498,6 +2502,14 @@ async function ask(question) {
     await speak(lastSourceNode.excerpt);
     return;
   }
+  // A screen question with no live share: say so. Never answer it from an earlier frame or memory.
+  if (!shareStream && !pendingFiles.length && /\b(what am i looking at|my screen|this screen|look at (my )?screen)\b/i.test(q)) {
+    inputEl.value = '';
+    const ended = "There's no screen share running, so I can't see your screen. Press EYES to share it.";
+    setAnswer(ended);
+    await speak(ended);
+    return;
+  }
   bumpIdle();
   stopSpeaking();
   duckMic();
@@ -2639,14 +2651,13 @@ async function captureShareFrame() {
   const w = shareVideo.videoWidth;
   const h = shareVideo.videoHeight;
   if (!w || !h) return null;
+  // Full screen resolution: small print is unreadable from a shrunken frame.
   const canvas = document.createElement('canvas');
-  const maxW = 1280;
-  const scale = Math.min(1, maxW / w);
-  canvas.width = Math.max(1, Math.round(w * scale));
-  canvas.height = Math.max(1, Math.round(h * scale));
+  canvas.width = w;
+  canvas.height = h;
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
-  ctx.drawImage(shareVideo, 0, 0, canvas.width, canvas.height);
+  ctx.drawImage(shareVideo, 0, 0, w, h);
   // Reject totally black frames (common before first real webcam paint)
   try {
     const sample = ctx.getImageData(0, 0, Math.min(32, canvas.width), Math.min(32, canvas.height)).data;
@@ -2656,7 +2667,10 @@ async function captureShareFrame() {
     }
     if (lit < 2) return null;
   } catch (_) {}
-  return canvas.toDataURL('image/jpeg', 0.72).split(',')[1];
+  // JPEG at full size; drop quality only if the body would pass the server's 12MB limit.
+  let jpeg = canvas.toDataURL('image/jpeg', 0.85);
+  if (jpeg.length > 9000000) jpeg = canvas.toDataURL('image/jpeg', 0.7);
+  return jpeg.split(',')[1];
 }
 
 function bypassWord(t) {
@@ -3300,7 +3314,7 @@ async function toggleEyes() {
   try {
     shareStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
     visionMode = 'eyes';
-    shareDot.textContent = 'SCREEN SHARE LIVE';
+    shareDot.textContent = 'SCREEN SHARE LIVE · AMY CAN SEE IT';
     shareDot.classList.add('is-on');
     shareDot.style.display = 'inline-flex';
     eyesBtn.classList.add('active');
