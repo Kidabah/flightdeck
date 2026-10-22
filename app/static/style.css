@@ -24525,3 +24525,16 @@ select optgroup {
 .queue-tray-auto { justify-content: center; align-content: center; min-height: 3.4rem; }
 .queue-tray-auto-label { font-size: 0.7rem; font-weight: 700; }
 .queue-tray-none { font-size: 0.7rem; color: #fca5a5; align-self: center; }
+
+/* Tray tiles sit beside the action buttons on one line, so the card height does not change. */
+.queue-job-trays { display: flex; min-width: 0; flex: 0 1 auto; max-width: 48%; }
+.queue-job-trays:empty { display: none; }
+.queue-job-trays .queue-tray-picks { margin-top: 0; gap: 0.25rem; }
+.queue-job-trays .queue-tray-title { white-space: nowrap; font-size: 0.64rem; }
+.queue-job-trays .queue-tray-tiles { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
+.queue-job-trays .queue-tray-tile { width: 2.7rem; padding: 0.2rem 0.1rem; flex: 0 0 auto; }
+.queue-job-trays .queue-tray-reel { width: 1.6rem; height: 1.6rem; }
+.queue-job-trays .queue-tray-tile b { font-size: 0.56rem; }
+.queue-job-trays .queue-tray-tile small { font-size: 0.5rem; }
+.queue-job-trays .queue-tray-auto { min-height: 2.6rem; }
+.queue-job-trays .queue-tray-none { white-space: nowrap; font-size: 0.64rem; }

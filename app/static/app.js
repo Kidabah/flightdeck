@@ -12662,8 +12662,8 @@ function _queueJobCard(job, isFirst, isLast, printerKind = '') {
       </div>
       ${_queuePreflightIssues(preflight)}
       <div class="queue-job-toggles">${calibrateToggle}${shortFilamentToggle}${colourMismatchToggle}</div>
-      ${trayPicksBox}
     </div>
+    <div class="queue-job-trays">${trayPicksBox}</div>
     <div class="queue-job-actions">
     ${isQueued ? `
         ${isPending ? `<button class="queue-act-btn" data-action="up"   data-id="${job.id}" title="Move up"   ${isFirst ? 'disabled' : ''}>▲</button>
