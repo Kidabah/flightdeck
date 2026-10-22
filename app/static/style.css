@@ -8145,6 +8145,7 @@ button.live-route-node:hover {
   border: 0;
   box-shadow: none;
   inset: 10% 4% auto;
+  width: 92%;
   height: auto;
   aspect-ratio: 1;
 }
