@@ -1,3 +1,25 @@
+## 2026-10-22 (later) — Live view compaction, AMS reels, queue colour override and tray picker
+
+Commits (all on `origin/main` unless marked local):
+- `dcfd3389` Printer Live view: tighter camera and controls layout.
+- `7f96a27a`, `aba7d4d3`, `a0b549e1`, `b1435eb6`, `e77e3769`, `78577825`, `778bbf15`, `b3f4e6f9`: AMS loaded slots show the photo reel (`reel-spool-tight.png`, cropped to its visible area) tinted to the spool colour. Spool number sits in the centre hole without `#`, material shows under the reel, empty slots show a faded reel. Camera fills spare height on tall windows, so the controls sit at the bottom.
+- `15e33abe`: queue override "Allow different colour" per job (`allow_colour_mismatch`). Downgrades "No loaded spool matches required colour", "Loaded colour coverage short" and "Active AMS slot mismatch" to warnings. Material mismatches stay blocked.
+- `163b5fdb`, `416c8280`: per-job AMS tray choice (`tray_overrides` JSON list, one entry per sliced filament row). `GET /api/queue/{id}/tray-options`, `POST /api/queue/{id}/tray-override`. Dispatch honours a choice only when the tray is still loaded, has the same material and is on the right nozzle path; otherwise the send is refused.
+- `5b6fb126`: colour override also clears "Loaded colour coverage short".
+- `217d8c90`: tray choice shown as AMS-style tiles (reel tinted to colour, greyed when unusable), not a dropdown.
+- Cache tags at the end of this session: `style.css?v=537`, `app.js?v=766`.
+
+Gotchas:
+- The Pi's backend must be restarted after a backend change (`sudo systemctl restart flightdeck`). The Update button alone left the old backend running, so tray routes returned 404 and the card showed "Tray choice unavailable".
+- The AMS reel rule was losing to an older `.ams-loadout-slot.has-spool .ams-loadout-spool` rule. Keep `.ams-loadout-slot .ams-loadout-spool.has-reel` specificity above it.
+- `Pillow` is in `.venv`, not the system Python. Use `.venv\Scripts\python.exe` for image work.
+- PuTTY: saving a session can overwrite the key path with the default `.ssh` folder. Check the key path in Connection → SSH → Auth before connecting.
+
+Open:
+- Verify on the Pi after Update plus service restart: reel size, empty-slot ghost, number in hole, tray tiles, and the colour override turning red blocks yellow.
+- Not verified in a browser: the tile layout on a narrow window.
+- Possible next: push alerts when a printer goes offline or a print fails; a maintenance schedule based on print hours.
+
 ## 2026-10-22 — Spools reel cards, Drawers tab, compact header (Pi live)
 
 - Spools Detail view is now one reel card per spool (roll tabs removed). The reel is a photo PNG (`app/static/reel-spool.png`) recoloured per spool with a CSS hue filter; it is not yet a true per-spool colour match.
