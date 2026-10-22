@@ -4,7 +4,8 @@
 - A screen question with no live share (`what am I looking at`, `my screen`, `this screen`) answers "There's no screen share running…" and never calls `/see` or `/chat`. A live share still captures one fresh frame at the moment of asking.
 - Share indicator: red pill with a pulsing white dot, "SCREEN SHARE LIVE · AMY CAN SEE IT". Camera mode keeps its own label.
 - `amy/server.py` `see()`: headline first; use only what is in the frame; say plainly when it is too small or blurry to read.
-- Not verified end to end. The OpenAI key in `%APPDATA%\Amy\config.json` is still the placeholder, so `/see` cannot return a real answer on this PC. Port 4700 is held by the old Jarvis server, so Amy's own `/see` was not reached over HTTP. The browser screen picker was not exercised.
+- Verified `/see` over HTTP: the OpenAI key was copied from `D:\My-Jarvis\config.json` into `%APPDATA%\Amy\config.json` (backup `config.json.bak-2026-10-23`). A test server on port 4702 answered a 1920×1080 JPEG test screen with a grounded answer, headline first. Port 4700 is still held by the old Jarvis server, so the running Amy has not been restarted.
+- Not verified: the browser share and screen picker (`getDisplayMedia`), which need you to pick a screen.
 - Mismatch to decide: the config's provider is `openai` with model `gpt-5.6-luna`. The brief said "the Claude brain"; `/see` uses whatever `openai_chat` is configured to use.
 
 ## 2026-10-23 — Knowledge galaxy shows its sources (local, not pushed)
