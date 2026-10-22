@@ -11408,7 +11408,10 @@ def _queue_preflight(job: dict, printer_status: Optional[dict]) -> dict:
     # Per-job override: same material is loaded but in another colour. Only the colour
     # block is downgraded; a missing material stays blocked.
     if job.get("allow_colour_mismatch"):
-        colour_re = re.compile(r"No loaded spool matches required colour|Active AMS slot mismatch", re.I)
+        colour_re = re.compile(
+            r"No loaded spool matches required colour|Loaded colour coverage short|Active AMS slot mismatch",
+            re.I,
+        )
         for issue in issues:
             if issue.get("level") == "block" and colour_re.search(str(issue.get("message") or "")):
                 issue["level"] = "warn"
