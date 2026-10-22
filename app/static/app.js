@@ -23010,7 +23010,7 @@ function _spoolsCategoryHtml(spools, summary, costs, intelligence = {}) {
         <select class="spool-filter-sel" data-fkey="brand">${brandOpts}</select>
     </div>
     <div class="spool-tile-tools">
-      <label>Tile size <input type="range" min="60" max="120" value="100" aria-label="Tile size" oninput="document.documentElement.style.setProperty('--spool-tile-scale', (this.value / 100).toFixed(2))"></label>
+      <label>Spool tile size <input type="range" min="60" max="120" value="100" aria-label="Tile size" oninput="document.documentElement.style.setProperty('--spool-tile-scale', (this.value / 100).toFixed(2))"></label>
     </div>
     <div class="spool-summary-strip">
       <div class="spool-stat">
