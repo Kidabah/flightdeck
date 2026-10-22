@@ -8161,8 +8161,8 @@ button.live-route-node:hover {
 .ams-loadout-slot.has-spool .ams-loadout-spool.has-reel .ams-loadout-core {
   position: absolute;
   left: 50%;
-  bottom: -0.35rem;
-  transform: translateX(-50%);
+  top: 50%;
+  transform: translate(-50%, -50%);
 }
 
 .ams-loadout-slot.is-empty .ams-loadout-spool {
