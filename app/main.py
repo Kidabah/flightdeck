@@ -54,6 +54,7 @@ from .printers import moonraker, simulated
 from .printers.bambu import (
     BambuPrinter,
     _bambu_slot_label,
+    _norm_bambu_material,
     _preview_filament_requirements,
     bambu_tray_candidates,
 )
@@ -11970,20 +11971,26 @@ async def _queue_tray_rows(job: dict) -> list[dict]:
     overrides = _queue_tray_overrides(job) or []
     rows = []
     for idx, req in enumerate(requirements):
+        usable = {int(s["bambu_tray_id"]) for s in bambu_tray_candidates(req, slots)}
+        nozzle = req.get("nozzle")
+        # Show every loaded tray on this nozzle path so the picker reads like the AMS;
+        # trays that cannot feed this filament are shown greyed out.
+        shown = [s for s in slots if nozzle not in (0, 1) or "nozzle" not in s or s.get("nozzle") == nozzle]
         rows.append({
             "index": idx,
             "material": req.get("material") or "",
             "colour": req.get("color") or "",
-            "nozzle": req.get("nozzle"),
+            "nozzle": nozzle,
             "selected": overrides[idx] if idx < len(overrides) else None,
             "trays": [
                 {
                     "tray": int(s["bambu_tray_id"]),
                     "label": _bambu_slot_label(s),
-                    "material": s.get("material_norm") or "",
+                    "material": s.get("material_norm") or _norm_bambu_material(s.get("type")),
                     "colour": s.get("color_norm") or "",
+                    "usable": int(s["bambu_tray_id"]) in usable,
                 }
-                for s in bambu_tray_candidates(req, slots)
+                for s in shown
             ],
         })
     return rows
@@ -12007,7 +12014,7 @@ async def set_queue_tray_override(job_id: int, body: QueueTrayOverrideRequest):
     rows = await _queue_tray_rows(job)
     if body.index < 0 or body.index >= len(rows):
         raise HTTPException(status_code=422, detail="No filament row with that index")
-    if body.tray is not None and not any(t["tray"] == body.tray for t in rows[body.index]["trays"]):
+    if body.tray is not None and not any(t["tray"] == body.tray and t["usable"] for t in rows[body.index]["trays"]):
         raise HTTPException(status_code=422, detail="That tray cannot feed this filament on this nozzle path")
     overrides = list(_queue_tray_overrides(job) or [])
     while len(overrides) <= body.index:

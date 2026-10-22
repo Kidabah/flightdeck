@@ -12573,18 +12573,29 @@ const _queueTrayRowsCache = new Map();
 function _queueTrayPicksHtml(jobId, rows) {
   if (!rows.length) return '';
   return rows.map(row => {
-    const nozzle = row.nozzle === 0 ? ' · left nozzle' : row.nozzle === 1 ? ' · right nozzle' : '';
-    const label = `${esc(row.material || 'Filament')}${row.colour ? ` ${esc(row.colour)}` : ''}${esc(nozzle)}`;
-    const options = row.trays.map(t =>
-      `<option value="${t.tray}" ${row.selected === t.tray ? 'selected' : ''}>${esc(t.label)} · ${esc(t.material)}${t.colour ? ` ${esc(t.colour)}` : ''}</option>`
-    ).join('');
-    const none = row.trays.length ? '' : '<option value="" disabled selected>No loaded tray on this path</option>';
-    return `<label class="queue-tray-pick">
-        <span>${label}</span>
-        <select data-tray-pick data-job-id="${jobId}" data-index="${row.index}">
-          <option value="" ${row.selected == null ? 'selected' : ''}>Auto</option>${options}${none}
-        </select>
-      </label>`;
+    const nozzle = row.nozzle === 0 ? 'left nozzle' : row.nozzle === 1 ? 'right nozzle' : '';
+    const title = [row.material || 'Filament', row.colour, nozzle].filter(Boolean).join(' · ');
+    const pick = (value, selected, extra, body) =>
+      `<button type="button" class="queue-tray-tile ${selected ? 'is-selected' : ''} ${extra}" data-tray-pick
+        data-job-id="${jobId}" data-index="${row.index}" data-tray="${value}"`;
+    const auto = `${pick('', row.selected == null, 'queue-tray-auto', '')}>
+        <span class="queue-tray-auto-label">Auto</span>
+      </button>`;
+    const tiles = row.trays.map(t => {
+      const short = (t.label.match(/AMS (\d+) slot (\d+)/) || []);
+      const name = short.length ? `A${short[1]}·${short[2]}` : t.label;
+      const why = t.usable ? '' : ' — cannot feed this filament';
+      return `${pick(t.tray, row.selected === t.tray, t.usable ? '' : 'is-unusable', '')}
+          ${t.usable ? '' : 'disabled'} title="${esc(t.label)} · ${esc(t.material)} ${esc(t.colour)}${esc(why)}">
+          <img class="queue-tray-reel" src="/static/reel-spool-tight.png" alt="" style="filter:${_spoolReelFilter(t.colour || '#404040')}">
+          <b>${esc(name)}</b><small>${esc(t.material)}</small>
+        </button>`;
+    }).join('');
+    const none = row.trays.length ? '' : '<span class="queue-tray-none">No loaded tray on this nozzle path</span>';
+    return `<div class="queue-tray-row">
+        <div class="queue-tray-title">${esc(title)}</div>
+        <div class="queue-tray-tiles">${auto}${tiles}${none}</div>
+      </div>`;
   }).join('');
 }
 
@@ -12792,12 +12803,13 @@ async function renderQueueView() {
         }
       });
     });
-    el.querySelectorAll('[data-tray-pick]').forEach(sel => {
-      sel.addEventListener('change', async () => {
-        const index = Number(sel.dataset.index);
-        const tray = sel.value === '' ? null : Number(sel.value);
+    el.querySelectorAll('[data-tray-pick]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (btn.disabled) return;
+        const index = Number(btn.dataset.index);
+        const tray = btn.dataset.tray === '' ? null : Number(btn.dataset.tray);
         try {
-          await _queueFetchJson(`/api/queue/${sel.dataset.jobId}/tray-override`, {
+          await _queueFetchJson(`/api/queue/${btn.dataset.jobId}/tray-override`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ index, tray }),
@@ -12806,7 +12818,7 @@ async function renderQueueView() {
         } catch (err) {
           showToast('Could not set tray', err.message || '', 'error');
         }
-        _queueTrayRowsCache.delete(Number(sel.dataset.jobId));
+        _queueTrayRowsCache.delete(Number(btn.dataset.jobId));
         await renderQueueView();
       });
     });
