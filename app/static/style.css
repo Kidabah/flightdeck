@@ -24405,3 +24405,21 @@ select optgroup {
 /* Six icons fit a reel card. */
 .spool-reel-icons { gap: 4px; }
 .spool-reel-icon { width: 30px; }
+
+/* Compact Spool Intelligence: one summary row, details open on click. */
+.spool-intel-panel { margin: 0 0 10px; border: 1px solid #253044; border-radius: 10px; background: rgba(8,12,20,.6); }
+.spool-intel-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; padding: 8px 12px; cursor: pointer; list-style: none; }
+.spool-intel-summary::-webkit-details-marker { display: none; }
+.spool-intel-title { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #94a3b8; }
+.spool-intel-quick { font-size: 12px; color: #94a3b8; }
+.spool-intel-quick b { color: #f8fafc; font-size: 13px; margin-right: 3px; }
+.spool-intel-quick.spool-intel-warn b, .spool-intel-warn b { color: #f87171; }
+.spool-intel-count { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: rgba(239,68,68,.15); color: #fca5a5; }
+.spool-intel-toggle { margin-left: auto; font-size: 11px; color: #60a5fa; }
+.spool-intel-panel[open] .spool-intel-toggle { color: #94a3b8; }
+.spool-intel-panel .spool-intel-body { padding: 0 12px 12px; }
+/* Tile size slider */
+.spool-tile-tools { display: flex; justify-content: flex-end; margin: 0 0 6px; font-size: 11px; color: #94a3b8; }
+.spool-tile-tools input { vertical-align: middle; width: 120px; }
+.spool-summary-strip .spool-stat { padding: calc(8px * var(--spool-tile-scale, 1)) calc(12px * var(--spool-tile-scale, 1)); }
+.spool-summary-strip .spool-stat-value { font-size: calc(16px * var(--spool-tile-scale, 1)); }

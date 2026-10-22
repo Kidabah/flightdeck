@@ -22926,19 +22926,16 @@ function _spoolIntelligenceHtml(intel = {}) {
   const fmtKg = g => g != null ? `${(Number(g) / 1000).toFixed(2)}kg` : '—';
   const printerName = id => _latestPrinters.find(p => p.id === id)?.custom_name || id || 'Unknown printer';
   const dateLabel = ts => ts ? new Date(ts.endsWith('Z') ? ts : ts + 'Z').toLocaleDateString([], { month: 'short', day: 'numeric' }) : '—';
-  return `<section class="spool-intel-panel">
-    <div class="spool-intel-head">
-      <div>
-        <div class="settings-section-title">Spool Intelligence</div>
-        <div class="spool-intel-sub">${intel.days || 30} day tracking window</div>
-      </div>
-    </div>
-    <div class="spool-intel-stats">
-      <div class="spool-intel-stat"><strong>${fmtKg(s.deducted_g)}</strong><span>auto-deducted</span></div>
-      <div class="spool-intel-stat"><strong>${s.deducted_prints ?? 0}</strong><span>tracked prints</span></div>
-      <div class="spool-intel-stat${(s.unattributed_prints || 0) ? ' spool-intel-warn' : ''}"><strong>${s.unattributed_prints ?? 0}</strong><span>unattributed</span></div>
-      <div class="spool-intel-stat${(s.loaded_low || 0) ? ' spool-intel-warn' : ''}"><strong>${s.loaded_low ?? 0}</strong><span>loaded low</span></div>
-    </div>
+  return `<details class="spool-intel-panel">
+    <summary class="spool-intel-summary">
+      <span class="spool-intel-title">Spool Intelligence</span>
+      <span class="spool-intel-quick"><b>${fmtKg(s.deducted_g)}</b> auto-deducted</span>
+      <span class="spool-intel-quick"><b>${s.deducted_prints ?? 0}</b> tracked prints</span>
+      <span class="spool-intel-quick${(s.unattributed_prints || 0) ? ' spool-intel-warn' : ''}"><b>${s.unattributed_prints ?? 0}</b> unattributed</span>
+      <span class="spool-intel-quick${(s.loaded_low || 0) ? ' spool-intel-warn' : ''}"><b>${s.loaded_low ?? 0}</b> loaded low</span>
+      ${alerts.length ? `<span class="spool-intel-count">${alerts.length} alert${alerts.length === 1 ? '' : 's'}</span>` : ''}
+      <span class="spool-intel-toggle">Details</span>
+    </summary>
     <div class="spool-intel-body">
       <div class="spool-intel-alerts">
         ${alerts.map(a => `<div class="spool-intel-alert spool-intel-${a.level || 'watch'}">${esc(a.message || '')}</div>`).join('')}
@@ -22962,7 +22959,7 @@ function _spoolIntelligenceHtml(intel = {}) {
         </div>
       </div>
     </div>
-  </section>`;
+  </details>`;
 }
 
 function _spoolsCategoryHtml(spools, summary, costs, intelligence = {}) {
@@ -23011,6 +23008,9 @@ function _spoolsCategoryHtml(spools, summary, costs, intelligence = {}) {
         </div>
         <select class="spool-filter-sel" data-fkey="material">${matOpts}</select>
         <select class="spool-filter-sel" data-fkey="brand">${brandOpts}</select>
+    </div>
+    <div class="spool-tile-tools">
+      <label>Tile size <input type="range" min="60" max="120" value="100" aria-label="Tile size" oninput="document.documentElement.style.setProperty('--spool-tile-scale', (this.value / 100).toFixed(2))"></label>
     </div>
     <div class="spool-summary-strip">
       <div class="spool-stat">
