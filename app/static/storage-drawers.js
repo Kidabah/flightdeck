@@ -40,7 +40,7 @@ function esc(value) {
 }
 
 function activeOnSpoolsPage() {
-  return location.hash === "#/spools" || location.hash.startsWith("#/spools/");
+  return location.hash === "#/drawers";
 }
 
 function drawerMeta(location) {
@@ -295,7 +295,7 @@ function storageHtml(snapshot) {
 
 function ensureRoot() {
   if (!activeOnSpoolsPage()) return null;
-  const body = document.getElementById("spools-body");
+  const body = document.getElementById("drawers-body");
   if (!body) return null;
   let root = document.getElementById("fd-drawer-storage");
   if (!root) {
@@ -533,7 +533,7 @@ function boot() {
   window.addEventListener("hashchange", scheduleRefresh);
   observer = new MutationObserver(() => {
     if (!activeOnSpoolsPage()) return;
-    const body = document.getElementById("spools-body");
+    const body = document.getElementById("drawers-body");
     if (!body) return;
     const root = document.getElementById("fd-drawer-storage");
     if (!root || root.parentElement !== body) scheduleRefresh();

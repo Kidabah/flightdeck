@@ -919,6 +919,7 @@ function _commandStaticItems() {
     ['Global Print Bay', '#/files', 'Files, printer storage, and reprint staging'],
     ['Projects', '#/projects', 'Project folders, slice totals, and local quotes'],
     ['Spools', '#/spools', 'Spool inventory'],
+    ['Drawers', '#/drawers', 'Six-drawer spool home'],
     ['Walkthrough Mode', '#/walkthrough', 'Guided first-look tour for testers'],
     ['MakerWorld', '#/makerworld', 'Paste MakerWorld links and import plates into Print Vault'],
     ['MakerDeck', '#/makerdeck', 'Design boxes, pencil cases, lids — export STL and 3MF'],
@@ -4100,6 +4101,7 @@ function parseRoute() {
   if (hash === '#/memory' || hash.startsWith('#/memory?')) return { view: 'memory' };
   if (hash === '#/failures' || hash.startsWith('#/failures?')) return { view: 'failures' };
   if (hash === '#/spools' || hash.startsWith('#/spools?')) return { view: 'spools' };
+  if (hash === '#/drawers') return { view: 'drawers' };
   if (hash === '#/walkthrough' || hash === '#/demo') return { view: 'demo' };
   if (hash === '#/makerworld') return { view: 'makerworld' };
   if (hash === '#/makerdeck') return { view: 'makerdeck' };
@@ -4253,6 +4255,7 @@ function router() {
   document.getElementById('view-memory').hidden    = route.view !== 'memory';
   document.getElementById('view-failures').hidden  = route.view !== 'failures';
   document.getElementById('view-spools').hidden    = route.view !== 'spools';
+  document.getElementById('view-drawers').hidden   = route.view !== 'drawers';
   document.getElementById('view-settings').hidden  = route.view !== 'settings';
   document.getElementById('view-demo').hidden      = route.view !== 'demo';
   document.getElementById('view-makerworld').hidden = route.view !== 'makerworld';
@@ -4401,6 +4404,7 @@ function buildTabs(printers) {
       `<a class="tab" href="#/memory">Print Memory</a>`,
       `<a class="tab" href="#/filament">Fleet Filament</a>`,
       `<a class="tab" href="#/spools">Spools</a>`,
+      `<a class="tab" href="#/drawers">Drawers</a>`,
     ].join(''), true),
     section('system', 'System', [
       `<a class="tab" href="#/walkthrough">Walkthrough Mode</a>`,
@@ -24683,20 +24687,8 @@ function _locationsCategoryHtml(locations) {
 
   return `
     <div class="settings-section">
-      <div class="settings-section-title">Location Overview</div>
-      <div class="settings-subtitle">Stored spools grouped by where they physically live.</div>
-      <div class="location-overview-grid">${locationCards}${unassignedCard}</div>
-    </div>
-    <div class="settings-section">
-      <div class="settings-section-title">Shelf Locations</div>
-      <div class="settings-subtitle">Create the shelves, racks, dry boxes, tubs, or bays where spools live when they are not loaded in a printer. Archiving a location hides it; Flightdeck will ask before archiving any stored spools inside it.</div>
-      <div class="rack-builder-panel">
-        <div>
-          <strong>Main cupboard snake rack</strong>
-          <span>Build the visible rack range, then sync shelved spools into the row that matches their number.</span>
-        </div>
-        <button type="button" class="settings-save-btn rack-builder-btn" data-rack-action="build-main">Build rack rows</button>
-      </div>
+      <div class="settings-section-title">Storage locations</div>
+      <div class="settings-subtitle">Add or rename the locations your drawers use. Archiving a location hides it; Flightdeck will ask before archiving any stored spools inside it.</div>
       <form id="spool-location-form" class="settings-form spool-location-form" novalidate>
         <input id="loc-id" type="hidden" value="">
         <div class="settings-form-row">
