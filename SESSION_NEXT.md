@@ -1,7 +1,10 @@
-## 2026-10-22 (late) — Amy task map (local, not pushed)
+## 2026-10-22 (late) — Amy task map and casual-mode fix (`f1e2e22f` pushed, `d7a24418` local)
 
 - Added `amy/task_map.md`: nine task types, each with trigger words and up to five notes to read first. Parsed by `load_task_map` and `task_map_notes` in `amy/server.py`. Whole-word, case-insensitive matches. If nothing matches, Amy falls back to `score_notes` as before.
-- The chat path (`chat_from_notes`) uses the task map first, then `score_notes`. Only applies when `use_workshop` is true.
+- The chat path (`chat_from_notes`) uses the task map first, then `score_notes`.
+- Local `d7a24418`: workshop notes were only read in print talk mode, so a Flightdeck question in casual mode went to web search. A task-map match now turns on workshop notes in any mode. Questions with no task match are unchanged. Not pushed.
+- Pi: `flightdeck-overview.md` is present at `f1e2e22f`. Amy needed `sudo systemctl restart amy` after the pull before she loaded it.
+- Jarvis: the "Ask Jarvis or Amy anything" talk window is not in this repo, so the copy running it is elsewhere (location not yet confirmed). Plan: change only that copy to say Amy, keep the Jarvis code so it can be brought back.
 - Note names are matched on the file stem (`workshop/ams-filament.md` → `ams-filament`), the same way `build.py` links notes. Note labels come from headings, so they are not used.
 - Tested the parser (9 rows) and the matcher on sample questions with stand-in notes. Not tested against the live index or a running Amy.
 - Idea only, not built: the repo `ai-memory-vault` (CC BY-SA 4.0) was reviewed. Taking the idea is fine; copying its text would need the same licence.
