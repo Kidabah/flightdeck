@@ -745,6 +745,7 @@ def init() -> None:
             "ALTER TABLE print_queue ADD COLUMN filament_colors TEXT",
             "ALTER TABLE print_queue ADD COLUMN calibrate_before_start INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE print_queue ADD COLUMN allow_short_filament INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE print_queue ADD COLUMN allow_colour_mismatch INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE print_queue ADD COLUMN plate_number INTEGER",
             "ALTER TABLE print_queue ADD COLUMN plate_count INTEGER",
             "ALTER TABLE filament_catalog ADD COLUMN updated_at TEXT NOT NULL DEFAULT (datetime('now'))",
@@ -5606,7 +5607,7 @@ def queue_list(printer_id: Optional[str] = None) -> list[dict]:
             rows = conn.execute(
                 f"""SELECT id, printer_id, position, filename, file_path, file_size, status,
                            estimated_seconds, filament_weight_g, filament_type, filament_colors,
-                           calibrate_before_start, allow_short_filament,
+                           calibrate_before_start, allow_short_filament, allow_colour_mismatch,
                            plate_number, plate_count,
                            created_at, started_at, finished_at, error_msg,
                            (preview_png IS NOT NULL) AS has_preview
@@ -5618,7 +5619,7 @@ def queue_list(printer_id: Optional[str] = None) -> list[dict]:
             rows = conn.execute(
                 f"""SELECT id, printer_id, position, filename, file_path, file_size, status,
                            estimated_seconds, filament_weight_g, filament_type, filament_colors,
-                           calibrate_before_start, allow_short_filament,
+                           calibrate_before_start, allow_short_filament, allow_colour_mismatch,
                            plate_number, plate_count,
                            created_at, started_at, finished_at, error_msg,
                            (preview_png IS NOT NULL) AS has_preview
@@ -5641,7 +5642,7 @@ def queue_get(job_id: int) -> Optional[dict]:
         row = conn.execute(
             """SELECT id, printer_id, position, filename, file_path, file_size,
                       status, estimated_seconds, filament_weight_g, filament_type, filament_colors,
-                      calibrate_before_start, allow_short_filament,
+                      calibrate_before_start, allow_short_filament, allow_colour_mismatch,
                       plate_number, plate_count,
                       created_at, started_at, finished_at, error_msg
                FROM print_queue WHERE id = ?""",
@@ -5718,6 +5719,17 @@ def queue_set_allow_short_filament(job_id: int, enabled: bool) -> bool:
         n = conn.execute(
             """UPDATE print_queue
                SET allow_short_filament = ?
+               WHERE id = ? AND status IN ('pending', 'held')""",
+            (1 if enabled else 0, job_id),
+        ).rowcount
+    return n > 0
+
+
+def queue_set_allow_colour_mismatch(job_id: int, enabled: bool) -> bool:
+    with _conn() as conn:
+        n = conn.execute(
+            """UPDATE print_queue
+               SET allow_colour_mismatch = ?
                WHERE id = ? AND status IN ('pending', 'held')""",
             (1 if enabled else 0, job_id),
         ).rowcount

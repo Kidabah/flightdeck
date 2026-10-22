@@ -12605,6 +12605,12 @@ function _queueJobCard(job, isFirst, isLast, printerKind = '') {
         <span>Allow short</span>
       </label>`
     : '';
+  const colourMismatchToggle = isQueued
+    ? `<label class="queue-calibrate-toggle" title="Allow start when the loaded spool is the same material in a different colour">
+        <input type="checkbox" data-action="allow-colour" data-id="${job.id}" ${job.allow_colour_mismatch ? 'checked' : ''}>
+        <span>Allow different colour</span>
+      </label>`
+    : '';
 
   return `<div class="queue-job ${isActive ? 'queue-job-active' : ''} queue-job-${readiness.cls}" data-job-id="${job.id}">
     <div class="queue-job-thumb">
@@ -12621,7 +12627,7 @@ function _queueJobCard(job, isFirst, isLast, printerKind = '') {
         ${job.error_msg ? `<span class="queue-job-error" title="${job.error_msg}">⚠ ${job.error_msg}</span>` : ''}
       </div>
       ${_queuePreflightIssues(preflight)}
-      <div class="queue-job-toggles">${calibrateToggle}${shortFilamentToggle}</div>
+      <div class="queue-job-toggles">${calibrateToggle}${shortFilamentToggle}${colourMismatchToggle}</div>
     </div>
     <div class="queue-job-actions">
     ${isQueued ? `
@@ -12759,6 +12765,28 @@ async function renderQueueView() {
         } catch (err) {
           inp.checked = !enabled;
           showToast('Could not update calibration setting', err.message || '', 'error');
+        }
+      });
+    });
+    el.querySelectorAll('[data-action="allow-colour"]').forEach(inp => {
+      inp.addEventListener('change', async () => {
+        const jobId = inp.dataset.id;
+        const enabled = inp.checked;
+        try {
+          await _queueFetchJson(`/api/queue/${jobId}/allow-colour-mismatch`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ allow_colour_mismatch: enabled }),
+          });
+          showToast(
+            enabled ? 'Different colour allowed — same material will start' : 'Different colour override off',
+            '',
+            'success',
+          );
+          await renderQueueView();
+        } catch (err) {
+          inp.checked = !enabled;
+          showToast('Could not update colour override', err.message || '', 'error');
         }
       });
     });

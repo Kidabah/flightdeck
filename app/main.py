@@ -3745,6 +3745,10 @@ class QueueAllowShortFilamentRequest(BaseModel):
     allow_short_filament: bool
 
 
+class QueueAllowColourMismatchRequest(BaseModel):
+    allow_colour_mismatch: bool
+
+
 class SetTempRequest(BaseModel):
     heater: str
     target: int
@@ -11396,6 +11400,17 @@ def _queue_preflight(job: dict, printer_status: Optional[dict]) -> dict:
                 if not msg.lower().startswith("override:"):
                     issue["message"] = f"Override: {msg}"
 
+    # Per-job override: same material is loaded but in another colour. Only the colour
+    # block is downgraded; a missing material stays blocked.
+    if job.get("allow_colour_mismatch"):
+        colour_re = re.compile(r"No loaded spool matches required colour|Active AMS slot mismatch", re.I)
+        for issue in issues:
+            if issue.get("level") == "block" and colour_re.search(str(issue.get("message") or "")):
+                issue["level"] = "warn"
+                msg = str(issue.get("message") or "")
+                if not msg.lower().startswith("override:"):
+                    issue["message"] = f"Override: {msg}"
+
     has_block = any(i["level"] == "block" for i in issues)
     has_wait = any(i["level"] == "wait" for i in issues)
     has_warn = any(i["level"] == "warn" for i in issues)
@@ -11903,6 +11918,18 @@ async def set_queue_allow_short_filament(job_id: int, body: QueueAllowShortFilam
     if not db.queue_set_allow_short_filament(job_id, body.allow_short_filament):
         raise HTTPException(status_code=409, detail="Could not update queue job")
     return {"ok": True, "allow_short_filament": body.allow_short_filament}
+
+
+@app.post("/api/queue/{job_id}/allow-colour-mismatch")
+async def set_queue_allow_colour_mismatch(job_id: int, body: QueueAllowColourMismatchRequest):
+    job = db.queue_get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job["status"] not in ("pending", "held"):
+        raise HTTPException(status_code=409, detail="Only pending jobs can change the colour override")
+    if not db.queue_set_allow_colour_mismatch(job_id, body.allow_colour_mismatch):
+        raise HTTPException(status_code=409, detail="Could not update queue job")
+    return {"ok": True, "allow_colour_mismatch": body.allow_colour_mismatch}
 
 
 @app.post("/api/queue/{job_id}/reorder")
