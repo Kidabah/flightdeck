@@ -1,3 +1,12 @@
+## 2026-10-22 (late) — Amy task map (local, not pushed)
+
+- Added `amy/task_map.md`: nine task types, each with trigger words and up to five notes to read first. Parsed by `load_task_map` and `task_map_notes` in `amy/server.py`. Whole-word, case-insensitive matches. If nothing matches, Amy falls back to `score_notes` as before.
+- The chat path (`chat_from_notes`) uses the task map first, then `score_notes`. Only applies when `use_workshop` is true.
+- Note names are matched on the file stem (`workshop/ams-filament.md` → `ams-filament`), the same way `build.py` links notes. Note labels come from headings, so they are not used.
+- Tested the parser (9 rows) and the matcher on sample questions with stand-in notes. Not tested against the live index or a running Amy.
+- Idea only, not built: the repo `ai-memory-vault` (CC BY-SA 4.0) was reviewed. Taking the idea is fine; copying its text would need the same licence.
+- Open: whether Jarvis is a separate install (in this repo, Jarvis appears only in old notes).
+
 ## 2026-10-22 (later) — Live view compaction, AMS reels, queue colour override and tray picker
 
 Commits (all on `origin/main` unless marked local):

@@ -835,6 +835,55 @@ def score_notes(question: str, notes: list[dict[str, Any]], limit: int = 6) -> l
     return [n for _, n in scored[:limit]]
 
 
+TASK_MAP_PATH = ROOT / "task_map.md"
+TASK_MAP_LIMIT = 6
+
+
+def load_task_map() -> list[dict[str, Any]]:
+    """Parse the task map table: task type | trigger words | read first."""
+    try:
+        text = TASK_MAP_PATH.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    rows: list[dict[str, Any]] = []
+    for line in text.splitlines():
+        if not line.startswith("|"):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) != 3 or cells[0].lower() == "task type" or set(cells[0]) <= {"-", ":"}:
+            continue
+        triggers = [t.strip().lower() for t in cells[1].split(",") if t.strip()]
+        reads = [r.strip().lower() for r in cells[2].split(",") if r.strip()]
+        if triggers and reads:
+            rows.append({"task": cells[0], "triggers": triggers, "read": reads})
+    return rows
+
+
+def task_map_notes(question: str, notes: list[dict[str, Any]], limit: int = TASK_MAP_LIMIT) -> list[dict[str, Any]]:
+    """Notes listed for the task types the question touches, most-matched task first."""
+    q = question.lower()
+    hits: list[tuple[int, dict[str, Any]]] = []
+    for row in load_task_map():
+        score = sum(1 for t in row["triggers"] if re.search(rf"\b{re.escape(t)}\b", q))
+        if score:
+            hits.append((score, row))
+    if not hits:
+        return []
+    by_stem = {Path(str(n.get("path") or "")).stem.lower(): n for n in notes}
+    picked: list[dict[str, Any]] = []
+    seen: set[int] = set()
+    for _, row in sorted(hits, key=lambda h: -h[0]):
+        for name in row["read"]:
+            note = by_stem.get(name)
+            if note is None or int(note["id"]) in seen:
+                continue
+            seen.add(int(note["id"]))
+            picked.append(note)
+            if len(picked) >= limit:
+                return picked
+    return picked
+
+
 def http_json(url: str, *, method: str = "GET", body: dict | None = None, timeout: float = 30.0) -> tuple[int, Any]:
     data = None
     headers = {"Accept": "application/json", "User-Agent": "amy-workshop/1.0"}
@@ -3761,7 +3810,7 @@ def chat_from_notes(question: str, attachments: list[dict[str, Any]] | None = No
             "talk_mode": RUNTIME.get("talk_mode") or "casual",
         }
 
-    top = score_notes(question, notes, limit=6) if use_workshop else []
+    top = (task_map_notes(question, notes) or score_notes(question, notes, limit=6)) if use_workshop else []
     if not top:
         context = "(No matching notes.)"
         node_ids: list[int] = []
