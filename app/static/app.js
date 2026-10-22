@@ -21628,6 +21628,8 @@ function _spoolReelIconsHtml(s) {
   if (archived) return `<div class="spool-reel-icons">${info}</div>`;
   return `<div class="spool-reel-icons">
     ${info}
+    <button class="spool-reel-icon spool-action-btn spool-action-assign" data-action="assign" data-id="${id}" title="Assign to printer or shelf" aria-label="Assign"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h11"/><path d="M11 8l4 4-4 4"/><path d="M20 4v16"/></svg></button>
+    <button class="spool-reel-icon spool-action-btn spool-action-label" data-action="label" data-id="${id}" title="Print spool label" aria-label="Label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.2"/></svg></button>
     <button class="spool-reel-icon spool-action-btn spool-action-weigh" data-action="weigh" data-id="${id}" title="Weigh from scale" aria-label="Weigh">${icon.weigh}</button>
     <button class="spool-reel-icon spool-action-btn spool-action-edit" data-action="edit" data-id="${id}" title="Edit" aria-label="Edit">${icon.edit}</button>
     <button class="spool-reel-icon spool-action-btn spool-action-danger" data-action="delete" data-id="${id}" title="Delete" aria-label="Delete">${icon.del}</button>

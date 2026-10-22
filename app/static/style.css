@@ -24401,3 +24401,7 @@ select optgroup {
 
 /* Photo reel image on each card. */
 .spool-reel-img { width: 118px; height: auto; display: block; margin: 0 auto; }
+
+/* Six icons fit a reel card. */
+.spool-reel-icons { gap: 4px; }
+.spool-reel-icon { width: 30px; }
