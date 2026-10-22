@@ -4760,7 +4760,8 @@ function _detailLiveAmsLoadoutRows(p) {
           <b>${esc(label.split(' · ').pop() || label)}</b>
           <small>${esc(stateLabel)}</small>
         </span>
-        <span class="ams-loadout-spool" aria-hidden="true">
+        <span class="ams-loadout-spool${loadedSpool ? ' has-reel' : ''}" aria-hidden="true">
+          ${loadedSpool ? `<img class="ams-loadout-reel" src="/static/reel-spool.png" alt="" style="filter:${_spoolReelFilter(colour)}">` : ''}
           <span class="ams-loadout-rim"></span>
           <span class="ams-loadout-core">${loadedSpool ? esc(_spoolDisplayLabel(loadedSpool)) : ''}</span>
           <span class="ams-loadout-hub"></span>
