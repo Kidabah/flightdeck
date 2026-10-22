@@ -4761,7 +4761,7 @@ function _detailLiveAmsLoadoutRows(p) {
           <small>${esc(stateLabel)}</small>
         </span>
         <span class="ams-loadout-spool${loadedSpool ? ' has-reel' : ' has-ghost'}" aria-hidden="true">
-          <img class="ams-loadout-reel${loadedSpool ? '' : ' is-ghost'}" src="/static/reel-spool.png" alt="" style="filter:${slot.empty ? 'grayscale(1) brightness(0.5)' : _spoolReelFilter(colour)}">
+          <img class="ams-loadout-reel${loadedSpool ? '' : ' is-ghost'}" src="/static/reel-spool-tight.png" alt="" style="filter:${slot.empty ? 'grayscale(1) brightness(0.5)' : _spoolReelFilter(colour)}">
           <span class="ams-loadout-rim"></span>
           <span class="ams-loadout-core">${loadedSpool ? esc(_spoolDisplayLabel(loadedSpool)) : ''}</span>
           <span class="ams-loadout-hub"></span>
