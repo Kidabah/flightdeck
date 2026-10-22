@@ -8,7 +8,7 @@ Commits (all on `origin/main` unless marked local):
 - `5b6fb126`: colour override also clears "Loaded colour coverage short".
 - `217d8c90`: tray choice shown as AMS-style tiles (reel tinted to colour, greyed when unusable), not a dropdown.
 - Local, not yet pushed: tray tiles moved beside the action buttons on one line (`.queue-job-trays`), so the card height does not change. Cache tags `style.css?v=538`, `app.js?v=767`.
-- Tray choice is per queued job. Reprinting from History or "Reprint last" makes a new job, so it does not carry the choice; queue the file again and set the tray. Not yet changed.
+- Tray choice is per queued job and carries over on reprint. "Reprint last" (Live view and queue) requeues the same row through `queue_retry`, which keeps `tray_overrides` and the colour override. Re-uploading the file creates a new row with no choice.
 - Cache tags at the end of this session: `style.css?v=537`, `app.js?v=766`.
 
 Gotchas:
