@@ -8139,14 +8139,16 @@ button.live-route-node:hover {
 }
 
 /* Loaded slots show the same photo reel as the Spools inventory, tinted to the spool colour. */
-.ams-loadout-spool.has-reel {
+.ams-loadout-slot .ams-loadout-spool.has-reel,
+.ams-loadout-slot .ams-loadout-spool.has-ghost {
   background: none;
   border: 0;
   box-shadow: none;
-  inset: 18% 15% auto;
+  inset: 15% 8% auto;
   height: auto;
   aspect-ratio: 1;
 }
+.ams-loadout-reel.is-ghost { opacity: 0.4; }
 /* Reel slots: the number and material carry the label, so the colour name is dropped. */
 .ams-loadout-slot:has(.has-reel) .ams-loadout-info strong { display: none; }
 .ams-loadout-slot:has(.has-reel) .ams-loadout-info em {
@@ -8156,7 +8158,10 @@ button.live-route-node:hover {
 }
 .ams-loadout-spool.has-reel::before,
 .ams-loadout-spool.has-reel::after,
-.ams-loadout-spool.has-reel .ams-loadout-rim { display: none; }
+.ams-loadout-spool.has-reel .ams-loadout-rim,
+.ams-loadout-spool.has-ghost::before,
+.ams-loadout-spool.has-ghost::after,
+.ams-loadout-spool.has-ghost .ams-loadout-rim { display: none; }
 .ams-loadout-reel {
   position: absolute;
   inset: 0;
