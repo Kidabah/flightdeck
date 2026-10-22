@@ -24433,3 +24433,13 @@ select optgroup {
 
 /* Spools body must not shrink, or the cards squash in the desktop window. */
 #view-spools #spools-body{overflow:visible!important;min-height:max-content!important;flex:0 0 auto!important}
+
+/* Header controls share the summary row; icons sit on top of reel cards; number at the bottom. */
+.spool-summary-strip { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; }
+.spool-summary-strip .spool-stat-wide { flex: 1 1 340px; }
+.spool-strip-controls { flex: 1 1 320px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.spool-strip-controls .spool-search { flex: 1 1 180px; min-width: 0; }
+.spool-strip-controls .spool-tile-slider { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #94a3b8; white-space: nowrap; }
+.spool-strip-controls .spool-tile-slider input { width: 110px; }
+.spool-reel-card .spool-reel-icons { order: -1; border-top: 0; border-bottom: 1px solid #2d3546; margin: 0; padding: 8px 10px; }
+.spool-reel-number { font-size: 16px; font-weight: 800; color: #f8fafc; padding: 4px 12px 12px; letter-spacing: .02em; }

@@ -21676,8 +21676,8 @@ function _spoolReelCardHtml(s) {
     : _spoolStorageLocationName(s.storage_location_id);
   const cls = pct < 20 ? ' spool-low' : pct < 50 ? ' spool-amber' : '';
   return `<div class="spool-card spool-reel-card${archived ? ' spool-card-archived' : ''}" data-spool-id="${s.id}">
+    ${_spoolReelIconsHtml(s)}
     <div class="spool-reel-top">
-      <span class="spool-id-badge">${esc(_spoolDisplayLabel(s))}</span>
       <span class="spool-reel-badges">
         ${inUse ? '<span class="spool-reel-badge in-use">In use</span>' : ''}
         ${archived ? '<span class="spool-archived-stamp">Reserved</span>' : ''}
@@ -21698,8 +21698,8 @@ function _spoolReelCardHtml(s) {
       <div class="spool-progress-bar">
         <div class="spool-progress-fill" style="width:${pct}%;background:${_spoolProgressColor(pct)}"></div>
       </div>
-      ${_spoolReelIconsHtml(s)}
     </div>
+    <div class="spool-reel-number">${esc(_spoolDisplayLabel(s))}</div>
   </div>`;
 }
 
@@ -22978,8 +22978,6 @@ function _spoolsCategoryHtml(spools, summary, costs, intelligence = {}) {
     <div class="spool-page-header">
       <div class="settings-section-title">Spool Inventory</div>
       <div class="spool-header-actions">
-        <input class="spool-search" type="search" placeholder="Search spools… e.g. 146 black" value="${_spoolsFilter.search}">
-        <button class="spool-add-btn">+ Add Spool</button>
       </div>
     </div>
     ${_spoolIntelligenceHtml(intelligence)}
@@ -23000,9 +22998,6 @@ function _spoolsCategoryHtml(spools, summary, costs, intelligence = {}) {
         </div>
         <select class="spool-filter-sel" data-fkey="material">${matOpts}</select>
         <select class="spool-filter-sel" data-fkey="brand">${brandOpts}</select>
-    </div>
-    <div class="spool-tile-tools">
-      <label>Spool tile size <input type="range" min="60" max="120" value="100" aria-label="Tile size" oninput="document.documentElement.style.setProperty('--spool-tile-scale', (this.value / 100).toFixed(2))"></label>
     </div>
     <div class="spool-summary-strip">
       <div class="spool-stat">
@@ -23026,6 +23021,11 @@ function _spoolsCategoryHtml(spools, summary, costs, intelligence = {}) {
         <span class="spool-stat-value">${summary.low_stock_count||0}</span>
         <span class="spool-stat-label">low stock</span>
         <span class="spool-stat-sub">&lt;${summary.low_stock_pct||20}%</span>
+      </div>
+      <div class="spool-strip-controls">
+        <input class="spool-search" type="search" placeholder="Search spools… e.g. 146 black" value="${_spoolsFilter.search}">
+        <button class="spool-add-btn">+ Add Spool</button>
+        <label class="spool-tile-slider">Spool tile size <input type="range" min="60" max="120" value="100" aria-label="Tile size" oninput="document.documentElement.style.setProperty('--spool-tile-scale', (this.value / 100).toFixed(2))"></label>
       </div>
     </div>
     <div id="spool-list"></div>`;
