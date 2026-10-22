@@ -24430,3 +24430,6 @@ select optgroup {
 
 /* Table view: same icon row as the Detail cards, no extra border. */
 .spool-td-actions .spool-reel-icons { border-top: 0; margin: 0; padding: 0; justify-content: flex-start; }
+
+/* Spools body must not shrink, or the cards squash in the desktop window. */
+#view-spools #spools-body{overflow:visible!important;min-height:max-content!important;flex:0 0 auto!important}
