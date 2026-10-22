@@ -19164,7 +19164,7 @@ function _attachHardwareEvents(el) {
 
 // ── Spool state ───────────────────────────────────────────────────────────
 let _allSpools = [];
-let _spoolsViewMode = 'swatch';
+let _spoolsViewMode = 'detail';
 let _spoolsSortKey = 'material';
 let _spoolsSortDir = 1;
 let _spoolsFilter = { search: '', status: 'active', slotFilter: 'all', material: '', brand: '', printer: '', location: '' };
@@ -19188,7 +19188,7 @@ function _normaliseSpoolViewMode(view) {
   if (mode === 'cards') return 'detail';
   if (mode === 'boxes' || mode === 'boxstock' || mode === 'box_stock') return 'box-stock';
   if (mode === 'color' || mode === 'colour-match' || mode === 'colormatch') return 'colour';
-  return ['swatch', 'detail', 'table', 'cabinet', 'rack', 'incoming', 'box-stock', 'catalogue', 'colour'].includes(mode) ? mode : 'swatch';
+  return ['detail', 'table', 'incoming', 'box-stock', 'catalogue', 'colour'].includes(mode) ? mode : 'detail';
 }
 
 let _colourMatchState = {
@@ -22990,11 +22990,8 @@ function _spoolsCategoryHtml(spools, summary, costs, intelligence = {}) {
     ${_spoolIntelligenceHtml(intelligence)}
     <div class="spool-filter-bar">
         <div class="spool-view-toggle">
-          <button class="spool-view-btn${_spoolsViewMode==='swatch'?' active':''}" data-view="swatch">Swatch</button>
           <button class="spool-view-btn${_spoolsViewMode==='detail'?' active':''}" data-view="detail">Detail</button>
           <button class="spool-view-btn${_spoolsViewMode==='table'?' active':''}" data-view="table">Table</button>
-          <button class="spool-view-btn${_spoolsViewMode==='cabinet'?' active':''}" data-view="cabinet">Cabinet</button>
-          <button class="spool-view-btn${_spoolsViewMode==='rack'?' active':''}" data-view="rack">Rack</button>
           <button class="spool-view-btn${_spoolsViewMode==='incoming'?' active':''}" data-view="incoming">Stock In</button>
           <button class="spool-view-btn${_spoolsViewMode==='box-stock'?' active':''}" data-view="box-stock">Box Stock</button>
           <button class="spool-view-btn${_spoolsViewMode==='catalogue'?' active':''}" data-view="catalogue">Filament catalogue</button>
@@ -23003,7 +23000,7 @@ function _spoolsCategoryHtml(spools, summary, costs, intelligence = {}) {
         <div class="spool-chips spool-toolbar-chips">
           ${fc('status','all','Any status')}${fc('status','active','Active')}${fc('status','archived','Reserved')}
           <span class="spool-chip-sep"></span>
-          ${fc('slotFilter','all','All')}${fc('slotFilter','multiples','Multiples')}${fc('slotFilter','loaded','Loaded')}${fc('slotFilter','storage','Shelved')}${fc('slotFilter','low','Low stock')}
+          ${fc('slotFilter','all','All')}${fc('slotFilter','multiples','Multiples')}${fc('slotFilter','loaded','Loaded')}${fc('slotFilter','low','Low stock')}
           ${activeLocation ? `${fc('location', _spoolsFilter.location, `Rack: ${activeLocation.name}`)}${fc('location', '', 'Clear rack')}` : ''}
         </div>
         <select class="spool-filter-sel" data-fkey="material">${matOpts}</select>
