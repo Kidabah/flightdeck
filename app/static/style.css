@@ -8143,9 +8143,16 @@ button.live-route-node:hover {
   background: none;
   border: 0;
   box-shadow: none;
-  inset: 22% 6% auto;
+  inset: 18% 15% auto;
   height: auto;
   aspect-ratio: 1;
+}
+/* Reel slots: the number and material carry the label, so the colour name is dropped. */
+.ams-loadout-slot:has(.has-reel) .ams-loadout-info strong { display: none; }
+.ams-loadout-slot:has(.has-reel) .ams-loadout-info em {
+  color: #f8fafc;
+  font-size: 0.66rem;
+  font-weight: 800;
 }
 .ams-loadout-spool.has-reel::before,
 .ams-loadout-spool.has-reel::after,
@@ -8163,6 +8170,10 @@ button.live-route-node:hover {
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
+  min-width: 1.2rem;
+  height: 1.2rem;
+  padding: 0 0.1rem;
+  font-size: 0.5rem;
 }
 
 .ams-loadout-slot.is-empty .ams-loadout-spool {
