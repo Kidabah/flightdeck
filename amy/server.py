@@ -3763,6 +3763,17 @@ def is_small_talk(question: str) -> bool:
     return any(re.search(p, q) for p in patterns)
 
 
+NOTES_WORDS = re.compile(r"\b(my notes?|from my notes|in my notes|saved notes?|my workshop)\b", re.I)
+
+
+def is_notes_question(question: str, task_notes: list[dict[str, Any]], notes: list[dict[str, Any]]) -> bool:
+    """True when the question is about Chris's notes: names them, matches a task type, or names a note."""
+    if NOTES_WORDS.search(question) or task_notes:
+        return True
+    q = question.lower()
+    return any(len(str(n.get("label") or "")) >= 4 and str(n["label"]).lower() in q for n in notes)
+
+
 def chat_from_notes(question: str, attachments: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     notes = RUNTIME["index"] or load_index()
     files = list(attachments or [])
@@ -3791,6 +3802,20 @@ def chat_from_notes(question: str, attachments: list[dict[str, Any]] | None = No
     # A task-map match loads the workshop notes even in casual mode; normal casual chat is unchanged.
     task_notes = task_map_notes(question, notes)
     use_workshop = workshop_intent(question) or bool(task_notes)
+
+    # "Pull up my notes on X" shows the matching notes; the reply is fixed, so nothing is read aloud.
+    pull = re.match(r"\s*pull up (?:my )?notes? (?:on|about) (.+)", question, re.I)
+    if pull and not files:
+        topic = pull.group(1).strip(" .?!")
+        found = score_notes(topic, notes, limit=6)
+        if not found:
+            return {"answer": f"I couldn't find notes on {topic}, sir.", "nodes": [], "move_camera": False, "talk_mode": RUNTIME.get("talk_mode") or "casual"}
+        return {
+            "answer": "I've pulled up your notes, sir. Say read it out loud and I shall.",
+            "nodes": [int(n["id"]) for n in found],
+            "move_camera": True,
+            "talk_mode": RUNTIME.get("talk_mode") or "casual",
+        }
 
     gated = casual_mode_gate(question)
     if gated is not None and not files:
@@ -3843,11 +3868,13 @@ def chat_from_notes(question: str, attachments: list[dict[str, Any]] | None = No
         history = companion().history_messages(limit=24)
     messages = [{"role": "system", "content": system}, *history, {"role": "user", "content": user_q}]
     answer = openai_chat_with_web(messages, image_b64=image_b64, media_type=image_type)
-    move = bool(node_ids) and use_workshop and not is_small_talk(question) and not files
+    # Decide first whether this was about my notes; only then do the sources light up and the camera move.
+    about_notes = is_notes_question(question, task_notes, notes) and not is_small_talk(question) and not files
+    shown = node_ids if about_notes else []
     return {
         "answer": answer,
-        "nodes": node_ids,
-        "move_camera": move,
+        "nodes": shown,
+        "move_camera": bool(shown),
         "attachments": [{"name": f.get("name"), "kind": f.get("kind"), "bytes": f.get("bytes")} for f in files],
         "talk_mode": RUNTIME.get("talk_mode") or "casual",
     }

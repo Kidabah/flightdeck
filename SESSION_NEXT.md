@@ -1,3 +1,13 @@
+## 2026-10-23 — Knowledge galaxy shows its sources (local, not pushed)
+
+- `amy/server.py` `chat_from_notes`: decides first whether the question was about my notes (`is_notes_question`: says "my notes", matches a task type, or names a note). Only then are `nodes` returned and `move_camera` set. Small talk and jokes return no nodes and no camera move.
+- `amy/viewer/index.html` `applySources`: one source flies to the top node, lights it and its direct neighbours (`lightSourceNode`), and opens its side panel while the answer is spoken. Four or more sources light the whole cluster and never fly.
+- "Pull up my notes on X" (server): returns the fixed line "I've pulled up your notes, sir. Say read it out loud and I shall." and the matching nodes. Nothing is read aloud.
+- "Read it out loud" (viewer): speaks the top note's excerpt from the last answer. No model call.
+- Not checked: the JS was not syntax-checked (no node here), and nothing ran in a browser or on the Pi. The Python compiles and the regexes were tested.
+- Known limits: the camera follows the notes the model was given (top six by task or keyword), not a record of what the model quoted. A task-map trigger such as "talk" can count as a notes question.
+- Pi: `git pull` in `~/flightdeck`, then `systemctl --user restart amy`.
+
 ## 2026-10-22 (late) — Amy task map and casual-mode fix (`f1e2e22f` pushed, `d7a24418` local)
 
 - Added `amy/task_map.md`: nine task types, each with trigger words and up to five notes to read first. Parsed by `load_task_map` and `task_map_notes` in `amy/server.py`. Whole-word, case-insensitive matches. If nothing matches, Amy falls back to `score_notes` as before.

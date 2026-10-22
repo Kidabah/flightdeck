@@ -2378,14 +2378,34 @@ function flyToNode(id) {
   graph.cameraPosition({ x: node.x, y: node.y, z: node.z + dist }, node, 1100);
 }
 
+// Light the top source and its direct neighbours so the answer's note stands out in the cluster.
+function lightSourceNode(id) {
+  if (!graph) return;
+  const near = new Set();
+  for (const l of (GRAPH.links || [])) {
+    const a = typeof l.source === 'object' ? l.source.id : l.source;
+    const b = typeof l.target === 'object' ? l.target.id : l.target;
+    if (a === id) near.add(b);
+    else if (b === id) near.add(a);
+  }
+  graph.nodeColor(n => n.id === id ? '#fff1b8' : near.has(n.id) ? '#ffd27a' : colorForNode(n));
+  graph.nodeVal(n => n.id === id ? 14 : near.has(n.id) ? 9 : nodeSize(n));
+}
+
+// The answer's sources. One note: fly to it, light it and its neighbours, open its panel.
+// Four or more: light the whole cluster and never fly, since no single note is the source.
+let lastSourceNode = null;
+
 function applySources(payload) {
   const ids = Array.isArray(payload.nodes) ? payload.nodes : [];
-  if (!payload.move_camera || !ids.length) {
-    if (ids.length >= 4) highlightNodes(ids);
+  lastSourceNode = (GRAPH.nodes || []).find(n => n.id === ids[0]) || null;
+  if (!ids.length) return;
+  if (ids.length >= 4) {
+    highlightNodes(ids);
     return;
   }
-  highlightNodes(ids);
-  if (ids.length >= 4) return;
+  if (!payload.move_camera) return;
+  lightSourceNode(ids[0]);
   flyToNode(ids[0]);
 }
 
@@ -2470,6 +2490,14 @@ async function ask(question) {
     return;
   }
   // Play music goes through /chat try_tools (Spotify + play) — fall through.
+  // "Read it out loud" speaks the top note's excerpt from the last answer; no new model call.
+  if (/^\s*read (it )?out loud\b/i.test(q) && lastSourceNode?.excerpt) {
+    inputEl.value = '';
+    setAnswer(lastSourceNode.excerpt);
+    stopSpeaking();
+    await speak(lastSourceNode.excerpt);
+    return;
+  }
   bumpIdle();
   stopSpeaking();
   duckMic();
