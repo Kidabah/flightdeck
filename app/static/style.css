@@ -8144,8 +8144,8 @@ button.live-route-node:hover {
   background: none;
   border: 0;
   box-shadow: none;
-  inset: 10% 4% auto;
-  width: 92%;
+  inset: 26% auto auto 10%;
+  width: 80%;
   height: auto;
   aspect-ratio: 1;
 }
@@ -8176,10 +8176,10 @@ button.live-route-node:hover {
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  min-width: 1.2rem;
-  height: 1.2rem;
+  min-width: 1.4rem;
+  height: 1.4rem;
   padding: 0 0.1rem;
-  font-size: 0.5rem;
+  font-size: 0.62rem;
 }
 
 .ams-loadout-slot.is-empty .ams-loadout-spool {
