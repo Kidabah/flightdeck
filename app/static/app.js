@@ -21819,16 +21819,7 @@ function _spoolTableHtml(spools) {
       <td class="spool-td">${_spoolConfidenceHtml(s, true)}</td>
       <td class="spool-td spool-td-num">${Math.round(s.label_weight_g)}g</td>
       <td class="spool-td spool-td-num"><span class="${pctCls}">${Math.round(s.remaining_g)}g (${pct}%)</span></td>
-      <td class="spool-td spool-td-actions">
-        <a class="spool-action-btn spool-action-detail" href="#/spool/${s.id}" title="Details">Details</a>
-        <button class="spool-action-btn spool-action-label" data-action="label"    data-id="${s.id}" title="Print label">Label</button>
-        <button class="spool-action-btn spool-action-weigh" data-action="weigh"    data-id="${s.id}" title="Weigh from scale">Weigh</button>
-        <button class="spool-action-btn spool-action-edit" data-action="edit"      data-id="${s.id}" title="Edit">Edit</button>
-        <button class="spool-action-btn spool-action-utility" data-action="duplicate" data-id="${s.id}" title="Duplicate">Copy</button>
-        <button class="spool-action-btn spool-action-utility" data-action="reset"     data-id="${s.id}" title="Reset">Reset</button>
-        <button class="spool-action-btn spool-action-utility" data-action="archive"   data-id="${s.id}" title="Archive">Archive</button>
-        <button class="spool-action-btn spool-action-utility spool-action-danger" data-action="delete" data-id="${s.id}" title="Delete">Delete</button>
-      </td>
+      <td class="spool-td spool-td-actions">${_spoolReelIconsHtml(s)}</td>
     </tr>`;
   }).join('');
   return `<div class="spool-table-wrap">
