@@ -35,6 +35,27 @@ class BambuPreview:
     print_plate_number: Optional[int] = None
 
 
+TOO_MANY_CONNECTIONS_MESSAGE = (
+    "The printer has too many open file connections, so it is refusing new ones. "
+    "Turn the printer off and on again (when it is not printing) to clear them."
+)
+
+
+def _close_ftp(ftp) -> None:
+    """Say goodbye politely, but always close the socket so the printer frees the session."""
+    try:
+        if getattr(ftp, "sock", None) is not None:
+            ftp.sock.settimeout(5)
+        ftp.quit()
+    except Exception:
+        pass
+    finally:
+        try:
+            ftp.close()
+        except Exception:
+            pass
+
+
 class _ImplicitFTP_TLS(ftplib.FTP_TLS):
     """Implicit FTPS (port 990) with SSL session reuse on the data channel."""
 
@@ -46,7 +67,18 @@ class _ImplicitFTP_TLS(ftplib.FTP_TLS):
         self._ctx.check_hostname = False
         self._ctx.verify_mode = ssl.CERT_NONE
         raw = socket.create_connection((host, port), timeout=timeout)
-        self.sock = self._ctx.wrap_socket(raw, server_hostname=host)
+        try:
+            self.sock = self._ctx.wrap_socket(raw, server_hostname=host)
+        except ssl.SSLError as exc:
+            raw.close()
+            if "WRONG_VERSION_NUMBER" in str(exc).upper():
+                # The printer answered in plain text instead of TLS. Bambu does this when it
+                # refuses the session, almost always "421 too many connections".
+                raise ftplib.error_temp(TOO_MANY_CONNECTIONS_MESSAGE) from exc
+            raise
+        except Exception:
+            raw.close()
+            raise
         self.af = self.sock.family
         self.file = self.sock.makefile('r', encoding=self.encoding)
         self.welcome = self.getresp()
@@ -774,6 +806,8 @@ def _convex_hull(points: list[tuple[float, float]]) -> list[tuple[float, float]]
 def friendly_bambu_ftp_error(exc: Exception) -> str:
     text = str(exc).strip() or exc.__class__.__name__
     lowered = text.lower()
+    if "421" in lowered or "too many" in lowered or "wrong_version_number" in lowered:
+        return TOO_MANY_CONNECTIONS_MESSAGE
     if "426" in lowered or "partial" in lowered or "partial file" in lowered:
         return (
             "Bambu storage rejected the upload before it completed. "
@@ -983,10 +1017,7 @@ def fetch_bambu_preview(ip: str, access_code: str, subtask_name: str, plate_numb
                 except Exception:
                     pass
     finally:
-        try:
-            ftp.quit()
-        except Exception:
-            pass
+        _close_ftp(ftp)
 
     return None
 
@@ -1004,10 +1035,7 @@ def download_bambu_file(ip: str, access_code: str, path: str) -> bytes:
         ftp.retrbinary(f"RETR {remote}", buf.write)
         return buf.getvalue()
     finally:
-        try:
-            ftp.quit()
-        except Exception:
-            pass
+        _close_ftp(ftp)
 
 
 def upload_bambu_file(
@@ -1040,10 +1068,7 @@ def upload_bambu_file(
     except Exception as exc:
         raise BambuFtpError(friendly_bambu_ftp_error(exc)) from exc
     finally:
-        try:
-            ftp.quit()
-        except Exception:
-            pass
+        _close_ftp(ftp)
 
     try:
         buf.seek(0)
@@ -1095,10 +1120,7 @@ def list_bambu_files(ip: str, access_code: str, path: str = "/") -> list[dict]:
                     "modified": None,
                 })
     finally:
-        try:
-            ftp.quit()
-        except Exception:
-            pass
+        _close_ftp(ftp)
     return sorted(rows, key=lambda r: (r["kind"] != "dir", r["name"].lower()))
 
 
@@ -1124,10 +1146,7 @@ def clear_bambu_print_files(ip: str, access_code: str) -> dict:
             ftp.delete(f"/{path}")
             deleted.append(path)
     finally:
-        try:
-            ftp.quit()
-        except Exception:
-            pass
+        _close_ftp(ftp)
     return {"deleted": deleted, "skipped": skipped}
 
 
@@ -1147,7 +1166,4 @@ def delete_bambu_file(ip: str, access_code: str, path: str) -> None:
         ftp.set_pasv(True)
         ftp.delete(f"/{clean_path}")
     finally:
-        try:
-            ftp.quit()
-        except Exception:
-            pass
+        _close_ftp(ftp)
