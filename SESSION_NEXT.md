@@ -6,7 +6,9 @@
 - `bambu.py` `get_preview`: a missed lookup is retried every 60 s (`_BAMBU_PREVIEW_RETRY_SECONDS`) instead of once per job. `seed_preview` stored the bare subtask, which never matched the `subtask|plate:N` key; it is now adopted.
 - `get_objects`: when the job's file isn't on storage, it returns `file_missing: true` and says to send via Flightdeck or choose the SD card when sending from Studio. `app.js` hint changed for that case. `index.html` uses `app.js?v=768`.
 - Tests: `tests/test_bambu_preview_lookup.py` (6) pass. Run with pytest on the Pi; there's no pytest locally, so they ran through a small runner. `app.js` passes `node --check`.
-- Not verified live: needs a Pi deploy plus `sudo systemctl restart flightdeck`. Whether Bambu Studio's storage choice puts the file on the SD card root under a matching name is unconfirmed.
+- Deployed as `588ed097`; the live H2D panel returned `file_missing: true` with the new message. Whether Bambu Studio's storage choice puts the file on the SD card root under a matching name is unconfirmed.
+- Printer page "Up next": the link reads "Browse this printer's SD card" and opens `#/printer/<id>/bay`, which was `#/files`. `app.js?v=769`.
+- Pi: Amy is off there (`systemctl --user disable --now amy`, done by the user). `~/flightdeck` uses sparse checkout `'/*' '!/amy/'`, so the deleted amy files no longer block the Update button. Amy runs only on the PC.
 
 ## 2026-10-23 — Screen sight (EYES) tightened (local, not pushed)
 

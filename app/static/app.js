@@ -9795,7 +9795,7 @@ async function renderPrinterDetail(id, subtab = 'live') {
             <section class="live-workspace-panel live-workspace-queue" aria-label="Printer queue">
               <div class="live-workspace-panel-head"><h2>Up next</h2><a href="#/queue">Manage queue</a></div>
               <div id="detail-queue-preview" aria-live="polite">Loading queue…</div>
-              <a href="#/files">Browse print files</a>
+              <a href="#/printer/${encodeURIComponent(id)}/bay">Browse this printer's SD card</a>
             </section>
           </div>
         </div>
