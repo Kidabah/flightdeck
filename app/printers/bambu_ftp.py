@@ -905,7 +905,8 @@ def _best_storage_match(entries: list[tuple[str, dict]], stem: str) -> Optional[
             score = 0
         elif wanted in base or base in wanted:
             score = 1
-        elif lower.endswith(".gcode.3mf"):
+        elif lower.endswith(".gcode.3mf") and facts.get("modify"):
+            # "Newest sliced file" is only a guess worth making with dates.
             score = 3
         else:
             continue
@@ -915,8 +916,22 @@ def _best_storage_match(entries: list[tuple[str, dict]], stem: str) -> Optional[
     ranked.sort(key=lambda item: item[0])
     best_score = ranked[0][0]
     best = [item for item in ranked if item[0] == best_score]
+    if len(best) > 1 and not all(item[1] for item in best):
+        # No dates (NLST listing): a tie can't be broken safely, and the wrong
+        # file would show another job's objects for skipping.
+        return None
     best.sort(key=lambda item: item[1], reverse=True)
     return best[0][2]
+
+
+def _root_entries(ftp) -> list[tuple[str, dict]]:
+    """Storage root as (name, facts) pairs. The H2D rejects MLSD ("500 Unknown
+    command"), so fall back to NLST, which it supports; facts are then empty."""
+    try:
+        return list(ftp.mlsd("/"))
+    except Exception:
+        names = ftp.nlst("/")
+        return [(str(n).rsplit("/", 1)[-1], {}) for n in names if n]
 
 
 def fetch_bambu_preview(ip: str, access_code: str, subtask_name: str, plate_number: Optional[int] = None) -> Optional[BambuPreview]:
@@ -951,7 +966,7 @@ def fetch_bambu_preview(ip: str, access_code: str, subtask_name: str, plate_numb
 
         if stem:
             try:
-                match = _best_storage_match(list(ftp.mlsd("/")), stem)
+                match = _best_storage_match(_root_entries(ftp), stem)
             except Exception:
                 match = None
             if match:

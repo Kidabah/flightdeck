@@ -1,3 +1,13 @@
+## 2026-11-05 — Bambu skip objects for jobs sent straight from Bambu Studio (local, not committed or deployed)
+
+- Cause, from the live H2D: a Bambu Studio send of `Trapezoidal_blade_scraper_with_blades_storage` reports file `/data/Metadata/plate_1.gcode`, but no copy is on the SD card (checked `/` with LIST plus `/cache`, `/model`, `/data`, `/sdcard`, `/usb`). Studio kept it in the H2D's internal storage, which FTP can't reach. Flightdeck sends work because Flightdeck uploads the file itself.
+- The H2D rejects MLSD (`500 Unknown command`), so the fuzzy file-name fallback in `fetch_bambu_preview` always failed silently. New `_root_entries` falls back to NLST.
+- `_best_storage_match`: without dates (NLST), a tie returns no match, and the "any newest .gcode.3mf" guess is skipped, so the panel never shows another job's objects.
+- `bambu.py` `get_preview`: a missed lookup is retried every 60 s (`_BAMBU_PREVIEW_RETRY_SECONDS`) instead of once per job. `seed_preview` stored the bare subtask, which never matched the `subtask|plate:N` key; it is now adopted.
+- `get_objects`: when the job's file isn't on storage, it returns `file_missing: true` and says to send via Flightdeck or choose the SD card when sending from Studio. `app.js` hint changed for that case. `index.html` uses `app.js?v=768`.
+- Tests: `tests/test_bambu_preview_lookup.py` (6) pass. Run with pytest on the Pi; there's no pytest locally, so they ran through a small runner. `app.js` passes `node --check`.
+- Not verified live: needs a Pi deploy plus `sudo systemctl restart flightdeck`. Whether Bambu Studio's storage choice puts the file on the SD card root under a matching name is unconfirmed.
+
 ## 2026-10-23 — Screen sight (EYES) tightened (local, not pushed)
 
 - `amy/viewer/index.html` `captureShareFrame`: frame at the screen's full resolution (was capped at 1280 wide), JPEG at quality 0.85, falling back to 0.7 only if the body would pass the server's 12MB limit. Sent as `image/jpeg`, which matches the encoding.

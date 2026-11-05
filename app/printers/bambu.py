@@ -18,7 +18,8 @@ from ..models import PrinterStatus, JobStatus, TempReading
 log = logging.getLogger(__name__)
 
 FINISHED_TTL = timedelta(minutes=5)
-_BAMBU_PREVIEW_FAILED = object()  # sentinel: FTP failed, don't retry until job changes
+_BAMBU_PREVIEW_FAILED = object()  # sentinel: FTP failed; retried after _BAMBU_PREVIEW_RETRY_SECONDS
+_BAMBU_PREVIEW_RETRY_SECONDS = 60  # a job's file can appear on storage after the job starts
 _BAMBU_STALE_REPORT_SECONDS = 45
 
 
@@ -295,6 +296,8 @@ class BambuPrinter:
         self._connected = False
         self._last_seen: datetime | None = None
         self._preview_cache: tuple[str, object] | None = None
+        self._preview_miss_at = 0.0
+        self._preview_missing = False
         self._seen_finish_this_session = False
         self._current_job_key: Optional[str] = None
         self._error_job_key: Optional[str] = None  # job_key of active in-session error
@@ -1178,17 +1181,29 @@ class BambuPrinter:
         if not subtask:
             return None
         cache_key = f"{subtask}|plate:{plate_number or 1}"
+        if self._preview_cache and self._preview_cache[0] == subtask and _preview_metadata(self._preview_cache[1]):
+            # seed_preview() stores the bare subtask name; adopt it for this plate.
+            self._preview_cache = (cache_key, self._preview_cache[1])
         if self._preview_cache and self._preview_cache[0] == cache_key:
             val = self._preview_cache[1]
-            return _preview_metadata(val)
+            missed = _preview_metadata(val) is None
+            if not missed or time.monotonic() - self._preview_miss_at < _BAMBU_PREVIEW_RETRY_SECONDS:
+                return _preview_metadata(val)
         try:
             from .bambu_ftp import fetch_bambu_preview
             preview = fetch_bambu_preview(self._ip, self._access_code, subtask, plate_number=plate_number)
             self._preview_cache = (cache_key, preview)
+            # None: no file for this job on the printer's storage (for example a
+            # Bambu Studio send kept in the H2D's internal storage).
+            self._preview_missing = preview is None
+            if preview is None:
+                self._preview_miss_at = time.monotonic()
             return preview
         except Exception as exc:
             log.warning("FTP preview failed for %s: %s", self.model_name, exc)
             self._preview_cache = (cache_key, _BAMBU_PREVIEW_FAILED)
+            self._preview_missing = False
+            self._preview_miss_at = time.monotonic()
             return None
 
     def _hydrate_print_preview_metadata(self, print_id: Optional[int], *, allow_ftp: bool = True):
@@ -1230,12 +1245,19 @@ class BambuPrinter:
         """Return skip-object candidates parsed from the current 3MF metadata."""
         preview = self.get_preview()
         if not preview or not preview.objects:
+            if preview is None and self._preview_missing:
+                detail = ("This job's file isn't on the printer's SD card, so Flightdeck can't read its objects. "
+                          "Bambu Studio may have sent it to the printer's internal storage: send via Flightdeck, "
+                          "or choose the SD card (external storage) when sending from Bambu Studio.")
+            else:
+                detail = "No skip-object metadata found. Enable Label objects and Exclude objects in Orca/Bambu Studio, then reslice/send the job."
             return {
                 "supported": False,
                 "mode": "bambu_skip_objects",
                 "label": "Bambu skip objects",
                 "objects": [],
-                "detail": "No skip-object metadata found. Enable Label objects and Exclude objects in Orca/Bambu Studio, then reslice/send the job.",
+                "file_missing": bool(preview is None and self._preview_missing),
+                "detail": detail,
             }
 
         skipped = set()

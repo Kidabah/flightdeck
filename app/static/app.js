@@ -6424,7 +6424,9 @@ function _detailObjectsUnavailablePanel(data) {
   const modeLabel = data?.label || 'Object exclusion';
   const detail = data?.detail || 'No object map is available for this print.';
   const objects = data?.objects || [];
-  const hint = objects.length === 1
+  const hint = data?.file_missing
+    ? 'Flightdeck checks again every minute while the job runs.'
+    : objects.length === 1
     ? 'This file only reports one object, so there is nothing useful to exclude.'
     : 'The active 3MF did not expose skip-object metadata. Reslicing/exporting with object metadata may make this available.';
   return `<div class="detail-panel obj-unavailable">
