@@ -91,7 +91,33 @@ _QUEUE_ACTIVE_STALE_GRACE_SECONDS = int(os.getenv("FLIGHTDECK_QUEUE_ACTIVE_STALE
 _UPLOAD_READ_CHUNK_BYTES = 1024 * 1024
 _BAMBU_FILE_LIST_TIMEOUT_SECONDS = float(os.getenv("FLIGHTDECK_BAMBU_FILE_LIST_TIMEOUT", "2.5"))
 _FILE_DESK_TARGET_CACHE_SECONDS = float(os.getenv("FLIGHTDECK_FILE_DESK_TARGET_CACHE_SECONDS", "20"))
-_file_desk_target_cache: dict[str, dict] = {}
+_file_desk_target_cache: dict[str, dict] = {}  # "bambu:<id>" -> {"at", "files"}
+_BAMBU_FILE_LIST_FIRST_TIMEOUT_SECONDS = 12.0  # no list yet: wait longer once
+_BAMBU_FILE_LIST_STALE_SECONDS = 300.0  # longest a last-good list is shown
+_bambu_file_list_tasks: dict[str, asyncio.Task] = {}
+
+
+def _start_bambu_file_list(printer, cache_key: str) -> asyncio.Task:
+    """One FTP listing per printer at a time; the result fills the cache even
+    when the request that started it has already given up waiting."""
+    task = _bambu_file_list_tasks.get(cache_key)
+    if task is not None and not task.done():
+        return task
+
+    async def run():
+        from .printers.bambu_ftp import list_bambu_files
+        files = await asyncio.to_thread(list_bambu_files, printer._ip, printer._access_code)
+        _file_desk_target_cache[cache_key] = {"at": time.monotonic(), "files": files}
+        return files
+
+    task = asyncio.create_task(run())
+    task.add_done_callback(lambda t: t.cancelled() or t.exception())  # retrieve errors
+    _bambu_file_list_tasks[cache_key] = task
+    return task
+
+
+def _forget_bambu_file_list(printer_id: str) -> None:
+    _file_desk_target_cache.pop(f"bambu:{printer_id}", None)
 _FLIGHT_RECORDER_EXTS = {".mp4", ".webm", ".mov", ".avi"}
 _BAMBU_RECORDER_ROOTS = ("timelapse", "video", "movie", "ipcam", "record", "records")
 _MOONRAKER_RECORDER_ROOTS = ("timelapse", "gcodes")
@@ -2006,23 +2032,33 @@ async def get_file_desk(printer_id: Optional[str] = None):
         }
 
     async def _bambu_target(p: BambuPrinter) -> dict:
+        # Serve the last good list while a slow FTP listing refreshes in the
+        # background. Listing ~100 files often takes longer than the request
+        # timeout, and showing an empty bay each time made the page flicker.
         cache_key = f"bambu:{p.id}"
         cached = _file_desk_target_cache.get(cache_key)
-        if cached and (time.monotonic() - cached.get("at", 0)) < _FILE_DESK_TARGET_CACHE_SECONDS:
-            return dict(cached["target"])
-        try:
-            from .printers.bambu_ftp import list_bambu_files
-            files = await asyncio.wait_for(
-                asyncio.to_thread(list_bambu_files, p._ip, p._access_code),
-                timeout=_BAMBU_FILE_LIST_TIMEOUT_SECONDS,
-            )
-            error = None
-        except asyncio.TimeoutError:
-            files = []
-            error = "Printer file list timed out; retry in a moment."
-        except Exception as exc:
-            files = []
-            error = str(exc)
+        age = time.monotonic() - cached["at"] if cached else None
+        files = None
+        error = None
+        if cached and age < _FILE_DESK_TARGET_CACHE_SECONDS:
+            files = cached["files"]
+        else:
+            task = _start_bambu_file_list(p, cache_key)
+            try:
+                files = await asyncio.wait_for(
+                    asyncio.shield(task),
+                    timeout=_BAMBU_FILE_LIST_TIMEOUT_SECONDS if cached else _BAMBU_FILE_LIST_FIRST_TIMEOUT_SECONDS,
+                )
+            except asyncio.TimeoutError:
+                pass
+            except Exception as exc:
+                error = str(exc)
+            if files is None:
+                if cached and age < _BAMBU_FILE_LIST_STALE_SECONDS:
+                    files, error = cached["files"], None
+                else:
+                    files = []
+                    error = error or "Printer file list is still loading; it will appear in a moment."
         target = {
             "id": p.id,
             "label": p.custom_name or p.model_name,
@@ -2032,8 +2068,6 @@ async def get_file_desk(printer_id: Optional[str] = None):
             "error": error,
             "actions": {"format_sd": True, "format_sd_ready": False},
         }
-        if error is None:
-            _file_desk_target_cache[cache_key] = {"at": time.monotonic(), "target": dict(target)}
         return target
 
     async def _simulated_target(pid: str, model_name: str, custom_name: str, profile: str) -> dict:
@@ -3499,6 +3533,7 @@ async def delete_file_from_file_desk(body: FileDeskDeleteRequest):
         if bambu:
             from .printers.bambu_ftp import delete_bambu_file
             await asyncio.to_thread(delete_bambu_file, bambu._ip, bambu._access_code, source_path)
+            _forget_bambu_file_list(source_id)
         else:
             mr_url = _find_moonraker_url(source_id)
             if not mr_url:
@@ -3519,6 +3554,7 @@ async def clear_bambu_sd_print_files(printer_id: str, body: BambuSdClearRequest)
         raise HTTPException(status_code=409, detail="Cannot clear SD while printer has an active print")
     from .printers.bambu_ftp import clear_bambu_print_files
     result = await asyncio.to_thread(clear_bambu_print_files, printer._ip, printer._access_code)
+    _forget_bambu_file_list(printer_id)
     db.log_decision(printer_id, "bambu_sd_cleared", f"Deleted {len(result.get('deleted', []))} print files")
     return {"ok": True, **result}
 

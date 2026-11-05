@@ -8,6 +8,8 @@
 - Tests: `tests/test_bambu_preview_lookup.py` (6) pass. Run with pytest on the Pi; there's no pytest locally, so they ran through a small runner. `app.js` passes `node --check`.
 - Deployed as `588ed097`; the live H2D panel returned `file_missing: true` with the new message. Whether Bambu Studio's storage choice puts the file on the SD card root under a matching name is unconfirmed.
 - Printer page "Up next": the link reads "Browse this printer's SD card" and opens `#/printer/<id>/bay`, which was `#/files`. `app.js?v=769`.
+- Printer Bays flicker: listing the X1C over FTP took 2.56 s against a 2.5 s timeout, and a timeout returned an empty bay ("timed out") that the 5 s page poll then showed. `main.py` now keeps one listing per printer running in the background (`_start_bambu_file_list`). Its result fills the cache even after the request stops waiting. Until it finishes, the bay keeps the last good list (up to 5 min). A first load waits up to 12 s. Delete and Clear SD drop that printer's cached list. Tests: `tests/test_file_desk_bambu_cache.py` (2).
+- Bambu bays show a yellow "SD card" tag (Klipper printers: "Printer storage"). The "Queue → <printer>" button is no longer capped at 5.5rem, so the name fits. `style.css?v=539`, `app.js?v=770`.
 - Pi: Amy is off there (`systemctl --user disable --now amy`, done by the user). `~/flightdeck` uses sparse checkout `'/*' '!/amy/'`, so the deleted amy files no longer block the Update button. Amy runs only on the PC.
 
 ## 2026-10-23 — Screen sight (EYES) tightened (local, not pushed)

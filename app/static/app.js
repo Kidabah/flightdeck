@@ -10550,6 +10550,13 @@ function _fileDeskLibraryGroupedRowsHtml(files, target, options = {}) {
   }).join('');
 }
 
+function _printBayStorageTag(target) {
+  // Make clear which list is the printer's own storage, not the Print Vault.
+  if (target?.kind === 'bambu') return '<span class="printbay-storage-tag" title="Files on this printer\'s SD card">SD card</span>';
+  if (target?.kind === 'moonraker') return '<span class="printbay-storage-tag" title="Files on this printer">Printer storage</span>';
+  return '';
+}
+
 function _fileDeskTargetHtml(target, options = {}) {
   const targetPrinterId = options.printerId || '';
   const directQueue = !!options.directQueue && !!targetPrinterId;
@@ -10611,7 +10618,7 @@ function _fileDeskTargetHtml(target, options = {}) {
     return `<section class="filedesk-target filedesk-${target.kind}${compactBay ? ' filedesk-target-compact' : ''}">
       <div class="filedesk-target-head">
         <div>
-          <h2>${esc(target.label)}</h2>
+          <h2>${esc(target.label)}${_printBayStorageTag(target)}</h2>
           <span>${esc(target.model || target.path || target.kind)}</span>
         </div>
         <div class="filedesk-target-meta">
@@ -10627,7 +10634,7 @@ function _fileDeskTargetHtml(target, options = {}) {
   return `<details class="printbay-bay-card filedesk-${target.kind}" data-bay-id="${esc(target.id)}"${isOpen ? ' open' : ''}>
     <summary class="printbay-bay-summary">
       <div class="printbay-bay-title">
-        <strong>${esc(target.label)}</strong>
+        <strong>${esc(target.label)}${_printBayStorageTag(target)}</strong>
         <span>${esc(target.model || target.kind)}</span>
       </div>
       <div class="printbay-bay-pills">

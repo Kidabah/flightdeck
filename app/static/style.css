@@ -22097,6 +22097,30 @@ select optgroup {
   justify-self: end;
 }
 
+/* "Queue → <printer name>" must fit its label; the 5.5rem cap above clipped it. */
+.filedesk-row-actions .filedesk-queue-primary {
+  max-width: none;
+  min-width: max-content;
+}
+
+.printbay-storage-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.45rem;
+  border: 1px solid rgba(250,204,21,0.55);
+  border-radius: 0.3rem;
+  background: rgba(250,204,21,0.1);
+  color: #fde047;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
 .filedesk-file-row:hover { background: rgba(96,165,250,0.035); }
 .filedesk-file-main { min-width: 0; }
 .filedesk-file-title { display: flex; align-items: center; gap: 0.45rem; min-width: 0; }
