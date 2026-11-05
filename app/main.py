@@ -118,6 +118,38 @@ def _start_bambu_file_list(printer, cache_key: str) -> asyncio.Task:
 
 def _forget_bambu_file_list(printer_id: str) -> None:
     _file_desk_target_cache.pop(f"bambu:{printer_id}", None)
+    for key in [k for k in _source_preview_cache if k[0] == printer_id]:
+        _source_preview_cache.pop(key, None)
+
+
+# Print Bay thumbnails. Each one means downloading the whole job file from the
+# printer, so remember the result and fetch one file per printer at a time.
+# Re-fetching every thumbnail on each page poll opened ~30 FTP sessions a minute
+# and the H2D started refusing connections ("421 too many connections").
+_SOURCE_PREVIEW_CACHE_MAX = 400
+_SOURCE_PREVIEW_MISS_SECONDS = 600.0
+_SOURCE_PREVIEW_HIT_SECONDS = 1800.0  # a re-sent file with the same name refreshes within 30 min
+_source_preview_cache: "dict[tuple[str, str, str], tuple[float, Optional[bytes]]]" = {}
+_source_preview_locks: dict[str, asyncio.Lock] = {}
+
+
+def _source_preview_cached(key: tuple[str, str, str]):
+    hit = _source_preview_cache.get(key)
+    if hit is None:
+        return False, None
+    at, png = hit
+    ttl = _SOURCE_PREVIEW_HIT_SECONDS if png else _SOURCE_PREVIEW_MISS_SECONDS
+    if time.monotonic() - at > ttl:
+        _source_preview_cache.pop(key, None)
+        return False, None
+    return True, png
+
+
+def _source_preview_store(key: tuple[str, str, str], png: Optional[bytes]) -> None:
+    _source_preview_cache.pop(key, None)
+    _source_preview_cache[key] = (time.monotonic(), png)
+    while len(_source_preview_cache) > _SOURCE_PREVIEW_CACHE_MAX:
+        _source_preview_cache.pop(next(iter(_source_preview_cache)))
 _FLIGHT_RECORDER_EXTS = {".mp4", ".webm", ".mov", ".avi"}
 _BAMBU_RECORDER_ROOTS = ("timelapse", "video", "movie", "ipcam", "record", "records")
 _MOONRAKER_RECORDER_ROOTS = ("timelapse", "gcodes")
@@ -2235,25 +2267,50 @@ async def preview_file_desk_source(source_id: str, path: str, view: Optional[str
     source_path = path.strip().lstrip("/")
     if not source_id or not source_path:
         raise HTTPException(status_code=422, detail="Source and path required")
+    prefer_top = (view or "").strip().lower() == "top"
+    from_printer = _find_bambu(source_id) is not None
+    if not from_printer:
+        png = await _render_source_preview(source_id, source_path, prefer_top)
+        if not png:
+            raise HTTPException(status_code=404, detail="No preview available")
+        return Response(content=png, media_type="image/png", headers={"Cache-Control": "no-store, max-age=0"})
+
+    key = (source_id, source_path, "top" if prefer_top else "")
+    found, png = _source_preview_cached(key)
+    if not found:
+        lock = _source_preview_locks.setdefault(source_id, asyncio.Lock())
+        async with lock:  # one job-file download per printer at a time
+            found, png = _source_preview_cached(key)
+            if not found:
+                try:
+                    png = await _render_source_preview(source_id, source_path, prefer_top)
+                except HTTPException as exc:
+                    if exc.status_code >= 500:
+                        raise
+                    png = None
+                except Exception as exc:
+                    # Printer busy or refusing: don't remember it, try again later.
+                    raise HTTPException(status_code=503, detail="Printer preview unavailable") from exc
+                _source_preview_store(key, png)
+    if not png:
+        raise HTTPException(status_code=404, detail="No preview available",
+                            headers={"Cache-Control": "private, max-age=600"})
+    return Response(content=png, media_type="image/png", headers={"Cache-Control": "private, max-age=600"})
+
+
+async def _render_source_preview(source_id: str, source_path: str, prefer_top: bool) -> Optional[bytes]:
     filename, data = await _read_file_desk_source(source_id, source_path)
     if not filename.lower().endswith(".gcode.3mf") and _queue_file_extension(filename) != ".3mf":
-        raise HTTPException(status_code=404, detail="No preview available")
+        return None
     try:
         from .printers.bambu_ftp import _parse_3mf
         preview = _parse_3mf(io.BytesIO(data), include_object_geometry=False)
-    except Exception as exc:
-        raise HTTPException(status_code=404, detail="No preview available") from exc
-    prefer_top = (view or "").strip().lower() == "top"
+    except Exception:
+        return None
     png = preview.top_image_png if prefer_top and preview and preview.top_image_png else None
     if not png and preview:
         png = preview.image_png or preview.top_image_png
-    if not png:
-        raise HTTPException(status_code=404, detail="No preview available")
-    return Response(
-        content=png,
-        media_type="image/png",
-        headers={"Cache-Control": "no-store, max-age=0"},
-    )
+    return png or None
 
 
 @app.post("/api/slicer/plan")
